@@ -1,0 +1,11 @@
+---
+description: Collectors contract & lake writes
+globs:
+  - "collectors/**/*.py"
+alwaysApply: false
+---
+
+- Interface: `fetch(since: datetime) -> Iterable[IngestItem]`.
+- Idempotent: canonical URL + content hash; safe re-runs.
+- Write NDJSON to MinIO S3 paths: `raw/dt=YYYY/MM/DD/source={name}/part-*.jsonl`.
+- Respect rate limits; capture `source_url`, `license`, `retrieved_at`.

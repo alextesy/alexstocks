@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+- Normalize: lang detect (keep EN), strip boilerplate/HTML, canonicalize URLs.
+- Linker: cashtags + symbol dict + synonyms; NER fallback; return TickerLinkDTO with confidence & matched_terms.
+- Features: FinBERT (prob_pos/neg/neu + score), MiniLM embeddings; novelty = 1 - max cosine vs last 24h per-ticker; velocity = z-score vs 30d baseline.
+- Signals: `score = w_sent*sent + w_novelty*novelty + w_velocity*velocity + tag_boost`.

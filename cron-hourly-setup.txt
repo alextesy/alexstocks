@@ -1,0 +1,38 @@
+# Market Pulse Hourly Cron Job Setup
+# ==================================
+# 
+# RECOMMENDED HOURLY SETUP:
+# This combines Reddit comment scraping + sentiment analysis every hour
+#
+# NOTE: For stock price collection (every 15 min), see: cron-stock-prices-setup.txt
+#
+# Add these lines to your crontab (run: crontab -e):
+
+# Set PATH for cron environment
+PATH=/Users/alex/miniconda3/bin:/usr/local/bin:/usr/bin:/bin
+
+# Scrape Reddit comments and analyze sentiment every hour
+0 * * * * cd /Users/alex/market-pulse-v2 && /Users/alex/miniconda3/bin/uv run python app/jobs/scrape_and_analyze.py comments >> /var/log/market-pulse/hourly.log 2>&1
+
+# ==================================
+# ALTERNATIVE DECOUPLED SETUP:
+# If you prefer to separate scraping from sentiment analysis:
+
+# Scrape Reddit comments every 30 minutes
+*/30 * * * * cd /Users/alex/market-pulse-v2 && make reddit-incremental >> /var/log/market-pulse/scraping.log 2>&1
+
+# Analyze sentiment every hour
+0 * * * * cd /Users/alex/market-pulse-v2 && make analyze-sentiment-recent >> /var/log/market-pulse/sentiment.log 2>&1
+
+# ==================================
+# MONITORING:
+# Check status daily at 9 AM
+0 9 * * * cd /Users/alex/market-pulse-v2 && make reddit-status >> /var/log/market-pulse/status.log 2>&1
+
+# ==================================
+# INSTRUCTIONS:
+# 1. Choose ONE of the setups above
+# 2. Run: crontab -e
+# 3. Paste the chosen lines
+# 4. Save and exit
+# 5. Verify with: crontab -l

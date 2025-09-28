@@ -1,0 +1,11 @@
+---
+description: Observability, Docker, CI
+globs:
+  - "infra/**"
+  - ".github/workflows/**"
+alwaysApply: false
+---
+
+- Export Prom metrics: ingest throughput, lag, dedupe rate, model timings.
+- Grafana dashboards provisioned; Loki structured logs with correlation IDs.
+- CI: ruff/black/mypy/pytest matrix; build images; fail on type/lint errors.

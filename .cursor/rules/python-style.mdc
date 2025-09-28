@@ -1,0 +1,11 @@
+---
+description: Python style & safety
+globs:
+  - "**/*.py"
+alwaysApply: true
+---
+
+- Imports: stdlib, third-party, local.
+- Use `logging.getLogger(__name__)`; structured messages.
+- No global mutable state; inject deps.
+- Minimal docstrings at module/public function boundaries; avoid inline noise.

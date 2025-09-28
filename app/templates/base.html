@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Market Pulse{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/" class="text-xl font-bold text-gray-900">
+                        Market Pulse
+                    </a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/browse" class="text-sm text-gray-600 hover:text-gray-900 font-medium">
+                        <i class="fas fa-th-list mr-1"></i>Browse All
+                    </a>
+                    <span class="text-sm text-gray-500">Market News Analytics</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="bg-white border-t mt-12">
+        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+            <p class="text-center text-sm text-gray-500">
+                Market Pulse MVP - Real-time market news analytics
+            </p>
+        </div>
+    </footer>
+
+    <!-- JavaScript for search and filtering -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Home page filtering
+            const searchInput = document.getElementById('ticker-search');
+            const sentimentFilter = document.getElementById('sentiment-filter');
+            const velocityFilter = document.getElementById('velocity-filter');
+            const tickerGrid = document.getElementById('ticker-grid');
+            
+            // Ticker page filtering
+            const timeFilter = document.getElementById('time-filter');
+            const languageFilter = document.getElementById('language-filter');
+            const articleSentimentFilter = document.getElementById('article-sentiment-filter');
+            const articlesList = document.getElementById('articles-list');
+            
+            // Home page functionality
+            if (tickerGrid) {
+                setupHomePageFiltering();
+            }
+            
+            // Ticker page functionality  
+            if (articlesList) {
+                setupTickerPageFiltering();
+            }
+            
+            function setupHomePageFiltering() {
+                const allTickerCards = tickerGrid.children;
+                
+                function filterTickers() {
+                    const searchTerm = searchInput?.value.toLowerCase() || '';
+                    const sentimentValue = sentimentFilter?.value || '';
+                    const velocityValue = velocityFilter?.value || '';
+                    
+                    let visibleCount = 0;
+                    
+                    for (let card of allTickerCards) {
+                        if (card.classList.contains('col-span-full')) continue; // Skip "no data" message
+                        
+                        let visible = true;
+                        
+                        // Search filter
+                        if (searchTerm) {
+                            const tickerText = card.textContent.toLowerCase();
+                            if (!tickerText.includes(searchTerm)) {
+                                visible = false;
+                            }
+                        }
+                        
+                        // Sentiment filter
+                        if (sentimentValue) {
+                            const sentimentBadge = card.querySelector('[data-sentiment]');
+                            if (!sentimentBadge) {
+                                visible = false; // No sentiment data
+                            } else {
+                                const sentimentData = sentimentBadge.getAttribute('data-sentiment');
+                                if (sentimentData !== sentimentValue) {
+                                    visible = false;
+                                }
+                            }
+                        }
+                        
+                        // Activity/Velocity filter (using data attributes)
+                        if (velocityValue) {
+                            const velocityBadge = card.querySelector('[data-velocity]');
+                            if (!velocityBadge) {
+                                visible = false; // No velocity data
+                            } else {
+                                const velocityData = velocityBadge.getAttribute('data-velocity');
+                                if (velocityData !== velocityValue) {
+                                    visible = false;
+                                }
+                            }
+                        }
+                        
+                        card.style.display = visible ? 'block' : 'none';
+                        if (visible) visibleCount++;
+                    }
+                    
+                    // Show/hide "no results" message
+                    let noResultsMsg = document.getElementById('no-results-message');
+                    if (visibleCount === 0 && (searchTerm || sentimentValue || velocityValue)) {
+                        if (!noResultsMsg) {
+                            noResultsMsg = document.createElement('div');
+                            noResultsMsg.id = 'no-results-message';
+                            noResultsMsg.className = 'col-span-full text-center py-12';
+                            noResultsMsg.innerHTML = `
+                                <div class="text-gray-500">
+                                    <i class="fas fa-search text-4xl mb-4"></i>
+                                    <p class="text-lg">No tickers match your filters</p>
+                                    <p class="text-sm">Try adjusting your search criteria</p>
+                                </div>
+                            `;
+                            tickerGrid.appendChild(noResultsMsg);
+                        }
+                        noResultsMsg.style.display = 'block';
+                    } else if (noResultsMsg) {
+                        noResultsMsg.style.display = 'none';
+                    }
+                }
+            
+                // Add event listeners
+                searchInput?.addEventListener('input', filterTickers);
+                sentimentFilter?.addEventListener('change', filterTickers);
+                velocityFilter?.addEventListener('change', filterTickers);
+            }
+            
+            function setupTickerPageFiltering() {
+                const allArticleCards = articlesList.children;
+                
+                function filterArticles() {
+                    const timeValue = timeFilter?.value || '';
+                    const languageValue = languageFilter?.value || '';
+                    const sentimentValue = articleSentimentFilter?.value || '';
+                    
+                    let visibleCount = 0;
+                    const now = new Date();
+                    
+                    for (let card of allArticleCards) {
+                        if (!card.classList.contains('article-card')) continue;
+                        
+                        let visible = true;
+                        
+                        // Time filter
+                        if (timeValue) {
+                            const publishedAt = new Date(card.getAttribute('data-published'));
+                            const hoursDiff = (now - publishedAt) / (1000 * 60 * 60);
+                            
+                            switch(timeValue) {
+                                case '24h':
+                                    visible = hoursDiff <= 24;
+                                    break;
+                                case '3d':
+                                    visible = hoursDiff <= 72;
+                                    break;
+                                case '1w':
+                                    visible = hoursDiff <= 168;
+                                    break;
+                                case '1m':
+                                    visible = hoursDiff <= 720;
+                                    break;
+                            }
+                            if (!visible) continue;
+                        }
+                        
+                        // Language filter
+                        if (languageValue) {
+                            const articleLanguage = card.getAttribute('data-language');
+                            if (articleLanguage !== languageValue) {
+                                visible = false;
+                            }
+                        }
+                        
+                        // Sentiment filter
+                        if (sentimentValue) {
+                            const articleSentiment = card.getAttribute('data-sentiment');
+                            if (articleSentiment !== sentimentValue) {
+                                visible = false;
+                            }
+                        }
+                        
+                        card.style.display = visible ? 'block' : 'none';
+                        if (visible) visibleCount++;
+                    }
+                    
+                    // Show/hide "no results" message
+                    let noResultsMsg = document.getElementById('no-articles-message');
+                    if (visibleCount === 0 && (timeValue || languageValue || sentimentValue)) {
+                        if (!noResultsMsg) {
+                            noResultsMsg = document.createElement('div');
+                            noResultsMsg.id = 'no-articles-message';
+                            noResultsMsg.className = 'text-center py-12';
+                            noResultsMsg.innerHTML = `
+                                <div class="text-gray-500">
+                                    <i class="fas fa-filter text-4xl mb-4"></i>
+                                    <p class="text-lg">No articles match your filters</p>
+                                    <p class="text-sm">Try adjusting your filter criteria</p>
+                                </div>
+                            `;
+                            articlesList.appendChild(noResultsMsg);
+                        }
+                        noResultsMsg.style.display = 'block';
+                    } else if (noResultsMsg) {
+                        noResultsMsg.style.display = 'none';
+                    }
+                }
+                
+                // Add event listeners for ticker page
+                timeFilter?.addEventListener('change', filterArticles);
+                languageFilter?.addEventListener('change', filterArticles);
+                articleSentimentFilter?.addEventListener('change', filterArticles);
+            }
+        });
+    </script>
+</body>
+</html>

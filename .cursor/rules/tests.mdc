@@ -1,0 +1,11 @@
+---
+description: Testing strategy
+globs:
+  - "tests/**/*.py"
+alwaysApply: false
+---
+
+- Unit: pure pipeline funcs with tiny fixtures; property-based where useful.
+- Integration: spin Postgres/MinIO; assert schema, indexes, hypertables, vector queries.
+- Snapshot backtest metrics JSON within numeric tolerances.
+- Keep tests fast; mark slow tests.

@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Browse All Tickers - Market Pulse{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Browse All Tickers</h1>
+            <p class="text-gray-600">Search and filter through all available tickers</p>
+        </div>
+        <a href="/" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            <i class="fas fa-home mr-2"></i>
+            Back to Top 50
+        </a>
+    </div>
+</div>
+
+<!-- Search and Filters -->
+<div class="mb-6 bg-white rounded-lg shadow-sm border p-6">
+    <form method="get" class="space-y-4">
+        <div class="flex flex-col lg:flex-row gap-4">
+            <div class="flex-1">
+                <label for="search" class="block text-sm font-medium text-gray-700 mb-2">Search Tickers</label>
+                <input 
+                    type="text" 
+                    name="search"
+                    id="search"
+                    value="{{ search }}"
+                    placeholder="Search by ticker symbol (e.g., ARM, AAPL, TSLA)..." 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+            </div>
+            <div class="flex flex-col lg:flex-row gap-4 lg:items-end">
+                <div>
+                    <label for="sort_by" class="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
+                    <select name="sort_by" id="sort_by" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="recent_activity" {% if sort_by == "recent_activity" %}selected{% endif %}>Recent Activity (24h)</option>
+                        <option value="total_articles" {% if sort_by == "total_articles" %}selected{% endif %}>Total Articles</option>
+                        <option value="alphabetical" {% if sort_by == "alphabetical" %}selected{% endif %}>Alphabetical</option>
+                    </select>
+                </div>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    <i class="fas fa-search mr-2"></i>Apply Filters
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Results Info -->
+<div class="mb-6 flex items-center justify-between">
+    <div class="text-sm text-gray-600">
+        {% if search %}
+            Showing search results for "<strong>{{ search }}</strong>" 
+        {% else %}
+            Showing all tickers
+        {% endif %}
+        ({{ pagination.total }} total)
+    </div>
+    {% if pagination.total > 0 %}
+    <div class="text-sm text-gray-600">
+        Page {{ pagination.page }} of {{ pagination.total_pages }}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Ticker Grid -->
+{% if tickers %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+    {% for ticker in tickers %}
+    <div class="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-semibold text-gray-900">{{ ticker.symbol }}</h3>
+            <span class="px-2 py-1 text-xs font-medium rounded-full
+                {% if ticker.article_count > 0 %}bg-blue-100 text-blue-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {% if ticker.article_count > 0 %}Active{% else %}No Data{% endif %}
+            </span>
+        </div>
+        
+        <p class="text-sm text-gray-600 mb-3">{{ ticker.name }}</p>
+        
+        <div class="space-y-3 mb-4">
+            <div class="flex items-center justify-between">
+                <div class="text-sm">
+                    <span class="text-gray-500">Articles:</span>
+                    <span class="font-medium text-gray-900">
+                        {{ ticker.article_count }}
+                    </span>
+                </div>
+                {% if ticker.article_count > 0 and ticker.avg_sentiment is not none %}
+                    {% set sentiment_data = get_sentiment_display_data(ticker.avg_sentiment) %}
+                    <div class="flex items-center space-x-1">
+                        <span class="text-sm">{{ sentiment_data.icon }}</span>
+                        <span class="px-2 py-1 text-xs font-medium rounded-full {{ sentiment_data.bg_color }} {{ sentiment_data.text_color }}">
+                            {{ sentiment_data.label }}
+                        </span>
+                    </div>
+                {% else %}
+                    <div class="text-sm text-gray-500">
+                        {% if ticker.article_count > 0 %}
+                            <span class="text-green-600">●</span> Data available
+                        {% else %}
+                            <span class="text-gray-400">●</span> No articles
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Stock Price Info -->
+        <div class="mt-4 mb-3">
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-md p-3 border border-blue-100">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-chart-line text-blue-600"></i>
+                        <span class="text-sm font-medium text-gray-700">Live Price</span>
+                    </div>
+                    {% if ticker.stock_data and ticker.stock_data.market_state %}
+                        <span class="px-2 py-1 text-xs rounded-full 
+                            {{ 'bg-green-100 text-green-800' if ticker.stock_data.market_state == 'REGULAR' else 'bg-gray-100 text-gray-800' }}">
+                            {{ 'OPEN' if ticker.stock_data.market_state == 'REGULAR' else ticker.stock_data.market_state }}
+                        </span>
+                    {% endif %}
+                </div>
+                
+                {% if ticker.stock_data %}
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <div class="text-xl font-bold text-gray-900">
+                            ${{ "%.2f"|format(ticker.stock_data.price) }}
+                        </div>
+                        <div class="text-right">
+                            {% set change_color = "text-green-600" if ticker.stock_data.change >= 0 else "text-red-600" %}
+                            <div class="text-sm {{ change_color }} font-medium">
+                                {{ "+" if ticker.stock_data.change >= 0 else "" }}${{ "%.2f"|format(ticker.stock_data.change) }}
+                                ({{ "+" if ticker.stock_data.change >= 0 else "" }}{{ "%.2f"|format(ticker.stock_data.change_percent) }}%)
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-xs text-gray-500">
+                        {{ ticker.stock_data.exchange }} • {{ ticker.stock_data.currency }}
+                    </div>
+                </div>
+                {% else %}
+                <div class="flex items-center justify-center py-2">
+                    <div class="text-center text-gray-500">
+                        <i class="fas fa-spinner fa-spin mb-1"></i>
+                        <div class="text-xs">Loading price...</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="mt-4 pt-3 border-t">
+            <a href="/t/{{ ticker.symbol }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                {% if ticker.article_count > 0 %}
+                    View {{ ticker.article_count }} article{{ 's' if ticker.article_count != 1 else '' }} →
+                {% else %}
+                    View ticker →
+                {% endif %}
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if pagination.total_pages > 1 %}
+<div class="flex items-center justify-between bg-white rounded-lg shadow-sm border p-4">
+    <div class="flex items-center space-x-2">
+        {% if pagination.has_prev %}
+            <a href="?page={{ pagination.page - 1 }}{% if search %}&search={{ search }}{% endif %}{% if sort_by != 'recent_activity' %}&sort_by={{ sort_by }}{% endif %}" 
+               class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                <i class="fas fa-chevron-left mr-1"></i>Previous
+            </a>
+        {% else %}
+            <span class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-400 bg-gray-100 cursor-not-allowed">
+                <i class="fas fa-chevron-left mr-1"></i>Previous
+            </span>
+        {% endif %}
+    </div>
+    
+    <div class="flex items-center space-x-1">
+        {% for page_num in range(1, pagination.total_pages + 1) %}
+            {% if page_num == pagination.page %}
+                <span class="px-3 py-2 border border-blue-500 rounded-md text-sm font-medium text-blue-600 bg-blue-50">
+                    {{ page_num }}
+                </span>
+            {% elif page_num <= 3 or page_num > pagination.total_pages - 3 or (page_num >= pagination.page - 1 and page_num <= pagination.page + 1) %}
+                <a href="?page={{ page_num }}{% if search %}&search={{ search }}{% endif %}{% if sort_by != 'recent_activity' %}&sort_by={{ sort_by }}{% endif %}" 
+                   class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    {{ page_num }}
+                </a>
+            {% elif page_num == 4 or page_num == pagination.total_pages - 3 %}
+                <span class="px-2 py-2 text-sm text-gray-500">...</span>
+            {% endif %}
+        {% endfor %}
+    </div>
+    
+    <div class="flex items-center space-x-2">
+        {% if pagination.has_next %}
+            <a href="?page={{ pagination.page + 1 }}{% if search %}&search={{ search }}{% endif %}{% if sort_by != 'recent_activity' %}&sort_by={{ sort_by }}{% endif %}" 
+               class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                Next<i class="fas fa-chevron-right ml-1"></i>
+            </a>
+        {% else %}
+            <span class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-400 bg-gray-100 cursor-not-allowed">
+                Next<i class="fas fa-chevron-right ml-1"></i>
+            </span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+<!-- No results -->
+<div class="text-center py-12">
+    <div class="text-gray-500">
+        <i class="fas fa-search text-4xl mb-4"></i>
+        {% if search %}
+            <p class="text-lg">No tickers found for "{{ search }}"</p>
+            <p class="text-sm">Try a different search term or <a href="/browse" class="text-blue-600 hover:text-blue-800">browse all tickers</a></p>
+        {% else %}
+            <p class="text-lg">No tickers available</p>
+            <p class="text-sm">Run the ingestion process to populate data</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<script>
+// Preserve form state from URL parameters
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sortBy = urlParams.get('sort_by');
+    if (sortBy) {
+        document.getElementById('sort_by').value = sortBy;
+    }
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,64 @@
+# Market Pulse Stock Price Collection Cron Setup
+# ===============================================
+# 
+# STOCK PRICE COLLECTION SCHEDULE:
+# - Current prices every 15 minutes during market hours
+# - Historical data once daily (after market close)
+#
+# Add these lines to your crontab (run: crontab -e):
+
+# Set PATH for cron environment
+PATH=/Users/alex/miniconda3/bin:/usr/local/bin:/usr/bin:/bin
+
+# ==== STOCK PRICE COLLECTION ====
+
+# Collect current stock prices every 15 minutes (during market hours: 6:30 AM - 1:00 PM PT)
+# Market hours: 9:30 AM - 4:00 PM ET = 6:30 AM - 1:00 PM PT
+*/15 6-13 * * 1-5 cd /Users/alex/market-pulse-v2 && make collect-stock-prices >> /Users/alex/logs/market-pulse/stock-prices.log 2>&1
+
+# Collect historical data once daily at 2:00 PM PT (after market close)
+0 14 * * 1-5 cd /Users/alex/market-pulse-v2 && make collect-historical-data >> /Users/alex/logs/market-pulse/historical-data.log 2>&1
+
+# ==== WEEKEND COLLECTION (reduced frequency) ====
+
+# Collect current prices every hour on weekends (markets closed but crypto/international may be active)
+0 * * * 0,6 cd /Users/alex/market-pulse-v2 && make collect-stock-prices >> /Users/alex/logs/market-pulse/stock-prices-weekend.log 2>&1
+
+# ==== EXISTING REDDIT + SENTIMENT COLLECTION ====
+
+# Scrape Reddit comments and analyze sentiment every hour
+0 * * * * cd /Users/alex/market-pulse-v2 && make scrape-and-analyze-comments >> /Users/alex/logs/market-pulse/hourly.log 2>&1
+
+# ==== MONITORING ====
+
+# Check status daily at 9 AM PT
+0 9 * * * cd /Users/alex/market-pulse-v2 && make reddit-status >> /Users/alex/logs/market-pulse/status.log 2>&1
+
+# ==== ALTERNATIVE SCHEDULES ====
+
+# If you want more frequent updates during high volatility periods:
+# */5 6-13 * * 1-5 cd /Users/alex/market-pulse-v2 && make collect-stock-prices >> /Users/alex/logs/market-pulse/stock-prices-frequent.log 2>&1
+
+# If you want less frequent updates to conserve API calls:
+# */30 6-13 * * 1-5 cd /Users/alex/market-pulse-v2 && make collect-stock-prices >> /Users/alex/logs/market-pulse/stock-prices-conservative.log 2>&1
+
+# ==== LOG DIRECTORY SETUP ====
+# Log directory already created at: /Users/alex/logs/market-pulse/
+
+# ==== INSTRUCTIONS ====
+# 1. Log directory already exists at: /Users/alex/logs/market-pulse/
+# 2. Run: crontab -e
+# 3. Paste the desired schedule lines above
+# 4. Save and exit
+# 5. Verify with: crontab -l
+# 6. Monitor logs: tail -f /Users/alex/logs/market-pulse/stock-prices.log
+
+# ==== TIMING EXPLANATION ====
+# Stock market hours (ET):  9:30 AM - 4:00 PM Monday-Friday
+# Pacific Time equivalent:  6:30 AM - 1:00 PM Monday-Friday
+# 
+# Schedule explanation:
+# - */15 6-13 * * 1-5: Every 15 minutes from 6:00-13:59 (6:00 AM - 1:59 PM PT), Monday-Friday
+# - 0 14 * * 1-5: At 2:00 PM PT (1 hour after market close), Monday-Friday
+# - 0 * * * 0,6: Every hour on weekends (Sunday=0, Saturday=6)
+# - 0 * * * *: Every hour, every day (existing Reddit schedule)

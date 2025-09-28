@@ -1,0 +1,15 @@
+---
+description: Global rules for Market Pulse Radar
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+- Python 3.11 + uv. Run tools via `uv run ...`.
+- Type hints everywhere; mypy --strict clean. Format with ruff+black.
+- Keep functions small & pure; config-driven (no magic numbers).
+- Layers: collectors → pipelines → repos/db → api. No cross-layer imports.
+- All datetimes tz-aware in UTC.
+- Use DTOs at boundaries (models/dto.py).
+- Prefer sync SQLAlchemy 2 + psycopg; don’t mix async unless we switch.
+- No secrets in repo; use .env locally and CI secrets.

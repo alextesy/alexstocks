@@ -1,0 +1,206 @@
+"""SQLAlchemy models for Market Pulse."""
+
+from datetime import datetime
+
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    JSON,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+class Base(DeclarativeBase):
+    """Base class for all models."""
+
+    pass
+
+
+class Ticker(Base):
+    """Ticker universe with aliases for linking."""
+
+    __tablename__ = "ticker"
+
+    symbol: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    aliases: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    exchange: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    sources: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    is_sp500: Mapped[bool] = mapped_column(default=False)
+    cik: Mapped[str | None] = mapped_column(String(20), nullable=True)  # SEC CIK identifier
+
+    # Relationships
+    articles: Mapped[list["ArticleTicker"]] = relationship(
+        "ArticleTicker", back_populates="ticker_obj", cascade="all, delete-orphan"
+    )
+
+
+class Article(Base):
+    """Articles from various sources."""
+
+    __tablename__ = "article"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    source: Mapped[str] = mapped_column(String, nullable=False)  # 'gdelt'
+    url: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    lang: Mapped[str | None] = mapped_column(String, nullable=True)
+    sentiment: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Reddit-specific fields
+    reddit_id: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)
+    subreddit: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    author: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    upvotes: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    num_comments: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    reddit_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
+
+    # Relationships
+    tickers: Mapped[list["ArticleTicker"]] = relationship(
+        "ArticleTicker", back_populates="article", cascade="all, delete-orphan"
+    )
+
+
+class ArticleTicker(Base):
+    """Link articles to tickers with confidence scores."""
+
+    __tablename__ = "article_ticker"
+
+    article_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("article.id", ondelete="CASCADE"), primary_key=True
+    )
+    ticker: Mapped[str] = mapped_column(
+        String, ForeignKey("ticker.symbol"), primary_key=True
+    )
+    confidence: Mapped[float] = mapped_column(default=1.0)
+    matched_terms: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+
+    # Relationships
+    article: Mapped["Article"] = relationship("Article", back_populates="tickers")
+    ticker_obj: Mapped["Ticker"] = relationship("Ticker", back_populates="articles")
+
+
+class RedditThread(Base):
+    """Track Reddit discussion threads and scraping progress."""
+
+    __tablename__ = "reddit_thread"
+
+    reddit_id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    subreddit: Mapped[str] = mapped_column(String(50), nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    thread_type: Mapped[str] = mapped_column(String(20), nullable=False)  # 'daily', 'weekend'
+    url: Mapped[str] = mapped_column(String, nullable=False)
+    author: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    upvotes: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    total_comments: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    scraped_comments: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_scraped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
+    is_complete: Mapped[bool] = mapped_column(default=False)
+
+
+class StockPrice(Base):
+    """Current stock price data."""
+
+    __tablename__ = "stock_price"
+
+    symbol: Mapped[str] = mapped_column(
+        String, ForeignKey("ticker.symbol"), primary_key=True
+    )
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    previous_close: Mapped[float | None] = mapped_column(Float, nullable=True)
+    change: Mapped[float | None] = mapped_column(Float, nullable=True)
+    change_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    market_state: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 'OPEN', 'CLOSED'
+    currency: Mapped[str] = mapped_column(String(10), nullable=False, default="USD")
+    exchange: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
+
+    # Relationships
+    ticker_obj: Mapped["Ticker"] = relationship("Ticker")
+
+
+class StockPriceHistory(Base):
+    """Historical stock price data for charting."""
+
+    __tablename__ = "stock_price_history"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    symbol: Mapped[str] = mapped_column(
+        String, ForeignKey("ticker.symbol"), nullable=False
+    )
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    open_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    high_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    low_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    close_price: Mapped[float] = mapped_column(Float, nullable=False)
+    volume: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
+
+    # Relationships
+    ticker_obj: Mapped["Ticker"] = relationship("Ticker")
+
+
+class StockDataCollection(Base):
+    """Track stock data collection runs."""
+
+    __tablename__ = "stock_data_collection"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    collection_type: Mapped[str] = mapped_column(String(20), nullable=False)  # 'current', 'historical'
+    symbols_requested: Mapped[int] = mapped_column(Integer, nullable=False)
+    symbols_success: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    symbols_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    errors: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+# Indexes for performance
+Index("article_published_at_idx", Article.published_at.desc())
+Index("article_ticker_ticker_idx", ArticleTicker.ticker)
+# Ticker indexes
+Index("ticker_exchange_idx", Ticker.exchange)
+Index("ticker_is_sp500_idx", Ticker.is_sp500)
+Index("ticker_cik_idx", Ticker.cik)
+# Reddit-specific indexes
+Index("article_reddit_id_idx", Article.reddit_id)
+Index("article_subreddit_idx", Article.subreddit)
+Index("article_upvotes_idx", Article.upvotes.desc())
+# RedditThread indexes
+Index("reddit_thread_subreddit_idx", RedditThread.subreddit)
+Index("reddit_thread_type_idx", RedditThread.thread_type)
+Index("reddit_thread_last_scraped_idx", RedditThread.last_scraped_at.desc())
+Index("reddit_thread_created_idx", RedditThread.created_at.desc())
+# Stock price indexes
+Index("stock_price_updated_at_idx", StockPrice.updated_at.desc())
+Index("stock_price_history_symbol_date_idx", StockPriceHistory.symbol, StockPriceHistory.date.desc())
+Index("stock_price_history_date_idx", StockPriceHistory.date.desc())
+Index("stock_data_collection_started_idx", StockDataCollection.started_at.desc())
+Index("stock_data_collection_type_idx", StockDataCollection.collection_type)

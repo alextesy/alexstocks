@@ -1,0 +1,12 @@
+---
+description: DTO contracts & validation for pipelines
+globs:
+  - "market_pulse/models/dto.py"
+  - "pipelines/**/*.py"
+  - "collectors/**/*.py"
+alwaysApply: false
+---
+
+- Use: IngestItem, ArticleDTO, ArticleTickerDTO, TickerLinkDTO, SentimentDTO, EmbeddingDTO, SignalDTO, SignalContribDTO, PriceBarDTO.
+- Validate: ticker `^[A-Z.\-]{1,10}$`; UTC-normalize datetimes; embedding len == dims (384); sentiment probs sum ≈ 1.
+- Pipelines take DTOs in and return DTOs; no DB/network calls in pure transforms.

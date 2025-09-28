@@ -1,0 +1,26 @@
+"""Database session management."""
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.config import settings
+
+# Create engine
+engine = create_engine(
+    str(settings.postgres_url),
+    echo=False,  # Set to True for SQL debugging
+    pool_pre_ping=True,
+    pool_recycle=300,
+)
+
+# Create session factory
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def get_db():
+    """Dependency to get database session."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

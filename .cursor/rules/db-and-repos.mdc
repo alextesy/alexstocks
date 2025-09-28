@@ -1,0 +1,14 @@
+---
+description: SQLAlchemy models, schema, and repositories
+globs:
+  - "market_pulse/models/db.py"
+  - "market_pulse/repos/**/*.py"
+  - "sql/**/*.sql"
+alwaysApply: false
+---
+
+- Tables: ticker; article; article_embed(1:1); article_ticker(unique pair);
+  price_bar(PK: ticker,ts,timeframe); signal(PK: ticker,ts); signal_contrib(PK: ticker,ts,article_id).
+- Enable Timescale (hypertables for `signal`/`price_bar`) and pgvector (IVFFLAT on `article_embed.embedding`).
+- Repos: upsert article by URL; bulk insert links; upsert embedding; recent embeddings for ticker; insert signals + contributors.
+- Use SQLAlchemy 2.0 style; transactions via context mgr; ON CONFLICT upserts.

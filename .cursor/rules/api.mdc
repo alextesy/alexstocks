@@ -1,0 +1,12 @@
+---
+description: FastAPI endpoints & contracts
+globs:
+  - "market_pulse/api.py"
+  - "market_pulse/**/routers/**/*.py"
+alwaysApply: false
+---
+
+- Endpoints: GET /health; GET /signals?ticker&from&to (paginated);
+  GET /explain?(signal_id or ticker,ts); GET /backtest?window&universe.
+- Use Pydantic request/response models; no raw ORM objects in responses.
+- Use HTTPX with timeouts/retries for outbound calls; move heavy work out of handlers.

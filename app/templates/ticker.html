@@ -1,0 +1,531 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ticker }} - Market Pulse{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">{{ ticker }}</h1>
+            {% if ticker_obj %}
+            <p class="text-gray-600">{{ ticker_obj.name }} - Recent news and sentiment analysis</p>
+            {% else %}
+            <p class="text-gray-600">Recent news and sentiment analysis</p>
+            {% endif %}
+            <div class="mt-2 flex items-center space-x-4 text-sm text-gray-500">
+                <span class="flex items-center">
+                    <i class="fas fa-newspaper mr-1"></i>
+                    {{ total_article_count }} total articles
+                </span>
+                {% if pagination.total_pages > 1 %}
+                <span class="flex items-center">
+                    <i class="fas fa-list mr-1"></i>
+                    Page {{ pagination.page }} of {{ pagination.total_pages }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <a href="/" class="text-blue-600 hover:text-blue-800">
+            ← Back to all tickers
+        </a>
+    </div>
+</div>
+
+<!-- Stock Price & Chart -->
+<div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">{{ ticker }} Price Chart</h2>
+        <div class="flex items-center space-x-4">
+            {% if stock_data %}
+            <div class="text-right">
+                <div class="text-2xl font-bold text-gray-900">
+                    ${{ "%.2f"|format(stock_data.price) }}
+                </div>
+                {% set change_color = "text-green-600" if stock_data.change >= 0 else "text-red-600" %}
+                <div class="text-sm {{ change_color }} font-medium">
+                    {{ "+" if stock_data.change >= 0 else "" }}${{ "%.2f"|format(stock_data.change) }}
+                    ({{ "+" if stock_data.change >= 0 else "" }}{{ "%.2f"|format(stock_data.change_percent) }}%)
+                </div>
+                <div class="text-xs text-gray-500">
+                    {{ stock_data.exchange }} • {{ stock_data.market_state }}
+                </div>
+            </div>
+            {% endif %}
+            <div class="flex space-x-2">
+                <button onclick="updateChart('1d')" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded">1D</button>
+                <button onclick="updateChart('5d')" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded">5D</button>
+                <button onclick="updateChart('1mo')" class="px-3 py-1 text-sm bg-blue-100 bg-blue-200 rounded">1M</button>
+                <button onclick="updateChart('3mo')" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded">3M</button>
+                <button onclick="updateChart('1y')" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded">1Y</button>
+            </div>
+        </div>
+    </div>
+    
+    {% if chart_data and chart_data.data %}
+    <div class="h-96">
+        <canvas id="priceChart" class="w-full h-full"></canvas>
+    </div>
+    
+    <script>
+        let priceChart;
+        const chartData = {{ chart_data.data|tojson }};
+        const symbol = "{{ ticker }}";
+        
+        function initChart(data) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            
+            if (priceChart) {
+                priceChart.destroy();
+            }
+            
+            const prices = data.map(item => item.price);
+            const labels = data.map(item => new Date(item.date).toLocaleDateString());
+            
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: symbol + ' Price',
+                        data: prices,
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            display: true,
+                            position: 'right',
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+        
+        async function updateChart(period) {
+            try {
+                // Update button states
+                document.querySelectorAll('button[onclick^="updateChart"]').forEach(btn => {
+                    btn.className = 'px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded';
+                });
+                event.target.className = 'px-3 py-1 text-sm bg-blue-100 bg-blue-200 rounded';
+                
+                const response = await fetch(`/api/stock/${symbol}/chart?period=${period}`);
+                const data = await response.json();
+                
+                if (data && data.data) {
+                    initChart(data.data);
+                }
+            } catch (error) {
+                console.error('Error updating chart:', error);
+            }
+        }
+        
+        // Initialize chart on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initChart(chartData);
+        });
+    </script>
+    {% else %}
+    <div class="h-96 rounded-lg border bg-gray-50 flex items-center justify-center">
+        <div class="text-center text-gray-500">
+            <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
+            <p class="text-lg font-medium">Loading {{ ticker }} Chart...</p>
+            <p class="text-sm">Please wait while we fetch the data</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Sentiment Analysis for this Ticker -->
+{% if sentiment_histogram and sentiment_histogram["total"] > 0 %}
+<div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">
+        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
+        {{ ticker }} Sentiment Analysis
+    </h2>
+    <div class="grid grid-cols-3 gap-4 mb-4">
+        {% for item in sentiment_histogram.display_data %}
+        <div class="text-center">
+            <div class="text-2xl mb-1">{{ item.icon }}</div>
+            <div class="text-lg font-bold text-gray-900">{{ item.count }}</div>
+            <div class="text-sm text-gray-600">{{ item.label }}</div>
+            <div class="text-xs text-gray-500">{{ item.percentage }}%</div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Visual Bar Chart -->
+    <div class="flex h-4 bg-gray-200 rounded-full overflow-hidden">
+        {% for item in sentiment_histogram.display_data %}
+        {% if item.percentage > 0 %}
+        <div 
+            class="h-full" 
+            style="background-color: {{ item.color }}; width: {{ item.percentage }}%"
+            title="{{ item.label }}: {{ item.count }} articles ({{ item.percentage }}%)"
+        ></div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    
+    <div class="text-xs text-gray-500 mt-2 text-center">
+        Total articles analyzed: {{ sentiment_histogram["total"] }}
+    </div>
+</div>
+
+<!-- Sentiment Over Time Chart -->
+{% if sentiment_over_time and sentiment_over_time.data|length > 0 %}
+<div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">
+        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
+        {{ ticker }} Daily Sentiment (Last {{ sentiment_over_time.period_days }} Days)
+    </h2>
+    <div class="h-64">
+        <canvas id="sentimentTimeChart"></canvas>
+    </div>
+    <div class="text-xs text-gray-500 mt-2 text-center">
+        Green bars = Positive articles, Red bars = Negative articles ({{ sentiment_over_time.total_points }} days)
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const sentimentTimeData = {{ sentiment_over_time.data | tojson }};
+    
+    if (sentimentTimeData && sentimentTimeData.length > 0) {
+        const ctx = document.getElementById('sentimentTimeChart').getContext('2d');
+        
+        const chartData = {
+            labels: sentimentTimeData.map(d => {
+                // Format date to show only month/day for better readability
+                const date = new Date(d.date);
+                return `${date.getMonth() + 1}/${date.getDate()}`;
+            }),
+            datasets: [{
+                label: 'Positive Articles',
+                data: sentimentTimeData.map(d => d.positive),
+                backgroundColor: '#10b981', // green-500
+                borderColor: '#059669', // green-600
+                borderWidth: 1
+            }, {
+                label: 'Negative Articles',
+                data: sentimentTimeData.map(d => -d.negative), // Negative values to show below zero
+                backgroundColor: '#ef4444', // red-500
+                borderColor: '#dc2626', // red-600
+                borderWidth: 1
+            }]
+        };
+        
+        const config = {
+            type: 'bar',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return Math.abs(value); // Show absolute values
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const dataPoint = sentimentTimeData[context.dataIndex];
+                                if (context.datasetIndex === 0) {
+                                    return `Positive: ${context.parsed.y} articles`;
+                                } else {
+                                    return `Negative: ${Math.abs(context.parsed.y)} articles`;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        
+        new Chart(ctx, config);
+    }
+});
+</script>
+{% endif %}
+{% elif sentiment_histogram and sentiment_histogram["total"] == 0 %}
+<div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">
+        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
+        {{ ticker }} Sentiment Analysis
+    </h2>
+    <div class="text-center py-8 text-gray-500">
+        <i class="fas fa-inbox text-4xl mb-4"></i>
+        <p class="text-lg">No sentiment data available</p>
+        <p class="text-sm">Articles for {{ ticker }} haven't been analyzed yet</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Filters -->
+<div class="bg-white rounded-lg shadow-sm border p-4 mb-6">
+    <div class="flex flex-col sm:flex-row gap-4">
+        <div class="flex-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Time Range</label>
+            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" id="time-filter">
+                <option value="">All time</option>
+                <option value="24h">Last 24 hours</option>
+                <option value="3d">Last 3 days</option>
+                <option value="1w">Last week</option>
+                <option value="1m">Last month</option>
+            </select>
+        </div>
+        <div class="flex-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Language</label>
+            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" id="language-filter">
+                <option value="">All languages</option>
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+            </select>
+        </div>
+        <div class="flex-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Sentiment</label>
+            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" id="article-sentiment-filter">
+                <option value="">All sentiment</option>
+                <option value="positive">Positive</option>
+                <option value="neutral">Neutral</option>
+                <option value="negative">Negative</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Articles List -->
+<div class="space-y-4" id="articles-list">
+    {% for article in articles %}
+    <div class="bg-white rounded-lg shadow-sm border p-6 article-card" 
+         data-published="{{ article.published_at.isoformat() }}"
+         data-language="{{ article.lang or 'unknown' }}"
+         data-sentiment="{{ get_sentiment_display_data(article.sentiment).label.lower() }}"
+         data-source="{{ article.source }}">
+        <div class="flex items-start justify-between mb-3">
+            <h3 class="text-lg font-semibold text-gray-900 flex-1 mr-4">
+                <a href="{{ article.url }}" target="_blank" class="hover:text-blue-600">
+                    {% set title_text = article.title %}
+                    {% for term in article.matched_terms %}
+                        {% if term in title_text %}
+                            {% set highlighted_term = '<mark class="bg-yellow-200 px-1 rounded">' + term + '</mark>' %}
+                            {% set title_text = title_text.replace(term, highlighted_term) %}
+                        {% else %}
+                            {% set title_upper = title_text.upper() %}
+                            {% set term_upper = term.upper() %}
+                            {% if term_upper in title_upper %}
+                                {% set highlighted_term = '<mark class="bg-yellow-200 px-1 rounded">' + term_upper + '</mark>' %}
+                                {% set title_text = title_text.replace(term_upper, highlighted_term) %}
+                            {% else %}
+                                {% set title_lower = title_text.lower() %}
+                                {% set term_lower = term.lower() %}
+                                {% if term_lower in title_lower %}
+                                    {% set highlighted_term = '<mark class="bg-yellow-200 px-1 rounded">' + term_lower + '</mark>' %}
+                                    {% set title_text = title_text.replace(term_lower, highlighted_term) %}
+                                {% endif %}
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                    {{ title_text|safe }}
+                    <i class="fas fa-external-link-alt text-xs text-gray-400 ml-1"></i>
+                </a>
+            </h3>
+            <div class="flex items-center space-x-2">
+                {% set sentiment_data = get_sentiment_display_data(article.sentiment) %}
+                <div class="flex items-center space-x-1">
+                    <span class="text-sm">{{ sentiment_data.icon }}</span>
+                    <span class="px-2 py-1 text-xs font-medium rounded-full {{ sentiment_data.bg_color }} {{ sentiment_data.text_color }}" data-sentiment="{{ sentiment_data.label.lower() }}">
+                        {{ sentiment_data.label }}
+                    </span>
+                    <span class="text-xs text-gray-500">({{ "%.2f"|format(article.sentiment) }})</span>
+                </div>
+                <span class="text-xs text-gray-500">{{ article.source }}</span>
+            </div>
+        </div>
+        
+        <div class="flex items-center justify-between text-sm text-gray-500">
+            <div class="flex items-center space-x-4">
+                <span>{{ article.published_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                {% if article.lang %}
+                <span class="px-2 py-1 bg-gray-100 rounded text-xs">{{ article.lang.upper() }}</span>
+                {% endif %}
+                {% if article.author %}
+                <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">{{ article.author }}</span>
+                {% endif %}
+                {% if article.subreddit %}
+                <span class="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">{{ article.subreddit }}</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if article.full_text and article.source == 'reddit_comment' %}
+        <div class="mt-3 p-3 bg-gray-50 rounded-md">
+            <p class="text-sm text-gray-700">
+                {% set text = article.full_text %}
+                {% for term in article.matched_terms %}
+                    {% set found = false %}
+                    {% if term in text %}
+                        {% set highlighted_term = '<mark class="bg-yellow-200 px-1 rounded">' + term + '</mark>' %}
+                        {% set text = text.replace(term, highlighted_term) %}
+                        {% set found = true %}
+                    {% endif %}
+                    {% if not found %}
+                        {% set text_upper = text.upper() %}
+                        {% set term_upper = term.upper() %}
+                        {% if term_upper in text_upper %}
+                            {% set pos = text_upper.find(term_upper) %}
+                            {% set before = text[:pos] %}
+                            {% set after = text[pos + term_upper|length:] %}
+                            {% set actual_term = text[pos:pos + term_upper|length] %}
+                            {% set highlighted_term = '<mark class="bg-yellow-200 px-1 rounded">' + actual_term + '</mark>' %}
+                            {% set text = before + highlighted_term + after %}
+                            {% set found = true %}
+                        {% endif %}
+                    {% endif %}
+                    {% if not found %}
+                        {% set text_lower = text.lower() %}
+                        {% set term_lower = term.lower() %}
+                        {% if term_lower in text_lower %}
+                            {% set pos = text_lower.find(term_lower) %}
+                            {% set before = text[:pos] %}
+                            {% set after = text[pos + term_lower|length:] %}
+                            {% set actual_term = text[pos:pos + term_lower|length] %}
+                            {% set highlighted_term = '<mark class="bg-yellow-200 px-1 rounded">' + actual_term + '</mark>' %}
+                            {% set text = before + highlighted_term + after %}
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+                {{ text|safe }}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <div class="text-gray-500">
+            <i class="fas fa-newspaper text-4xl mb-4"></i>
+            <p class="text-lg">No articles found for {{ ticker }}</p>
+            <p class="text-sm">Try adjusting your filters or check back later</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if pagination.total_pages > 1 %}
+<div class="mt-8 flex justify-center">
+    <nav class="flex items-center space-x-2">
+        {% if pagination.has_prev %}
+        <a href="/t/{{ ticker }}?page={{ pagination.page - 1 }}" 
+           class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+            Previous
+        </a>
+        {% else %}
+        <span class="px-3 py-2 text-sm font-medium text-gray-400 bg-gray-100 border border-gray-200 rounded-md cursor-not-allowed">
+            Previous
+        </span>
+        {% endif %}
+        
+        <!-- Page numbers -->
+        {% set start_page = [1, pagination.page - 2]|max %}
+        {% set end_page = [pagination.total_pages, pagination.page + 2]|min %}
+        
+        {% if start_page > 1 %}
+        <a href="/t/{{ ticker }}?page=1" 
+           class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">1</a>
+        {% if start_page > 2 %}
+        <span class="px-2 text-sm text-gray-500">...</span>
+        {% endif %}
+        {% endif %}
+        
+        {% for page_num in range(start_page, end_page + 1) %}
+        {% if page_num == pagination.page %}
+        <span class="px-3 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-md">
+            {{ page_num }}
+        </span>
+        {% else %}
+        <a href="/t/{{ ticker }}?page={{ page_num }}" 
+           class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+            {{ page_num }}
+        </a>
+        {% endif %}
+        {% endfor %}
+        
+        {% if end_page < pagination.total_pages %}
+        {% if end_page < pagination.total_pages - 1 %}
+        <span class="px-2 text-sm text-gray-500">...</span>
+        {% endif %}
+        <a href="/t/{{ ticker }}?page={{ pagination.total_pages }}" 
+           class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+            {{ pagination.total_pages }}
+        </a>
+        {% endif %}
+        
+        {% if pagination.has_next %}
+        <a href="/t/{{ ticker }}?page={{ pagination.page + 1 }}" 
+           class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+            Next
+        </a>
+        {% else %}
+        <span class="px-3 py-2 text-sm font-medium text-gray-400 bg-gray-100 border border-gray-200 rounded-md cursor-not-allowed">
+            Next
+        </span>
+        {% endif %}
+    </nav>
+</div>
+
+<div class="mt-4 text-center text-sm text-gray-500">
+    Showing {{ ((pagination.page - 1) * 50) + 1 }} to {{ [pagination.page * 50, pagination.total_articles]|min }} of {{ pagination.total_articles }} articles
+</div>
+{% endif %}
+{% endblock %}

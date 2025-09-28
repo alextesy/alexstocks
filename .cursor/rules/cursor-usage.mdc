@@ -1,0 +1,9 @@
+---
+description: How to use Cursor in this repo (Agent-requested)
+globs:
+alwaysApply: false
+---
+
+- When generating code, @include files you’re editing (e.g., `@market_pulse/models/dto.py`, `@sql/schema.sql`) so rules apply.
+- Prefer incremental edits with clear intent & acceptance criteria.
+- After non-trivial changes, run `uv run pytest -q`.

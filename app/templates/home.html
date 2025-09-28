@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}Market Pulse - Home{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900 mb-2">Market Pulse</h1>
+    <p class="text-gray-600">Real-time market news analytics and sentiment tracking</p>
+    <div class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-medium text-blue-900">Top 50 Most Discussed (Last 24h)</h3>
+                <p class="text-xs text-blue-700 mt-1">Showing the most talked-about tickers in the past day</p>
+            </div>
+            <a href="/browse" class="inline-flex items-center px-3 py-2 border border-blue-300 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <i class="fas fa-th-list mr-2"></i>
+                Browse All Tickers
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Search -->
+<div class="mb-6">
+    <form action="/browse" method="get" class="flex gap-2">
+        <div class="flex-1">
+            <input 
+                type="text" 
+                name="search"
+                placeholder="Search by ticker symbol (e.g., AAPL, ARM, TSLA)..." 
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+        </div>
+        <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+            <i class="fas fa-search mr-2"></i>Search
+        </button>
+    </form>
+    <p class="text-xs text-gray-500 mt-2">Or <a href="/browse" class="text-blue-600 hover:text-blue-800">browse all tickers</a> with advanced filtering</p>
+</div>
+
+<!-- Sentiment Overview -->
+{% if sentiment_histogram and sentiment_histogram["total"] > 0 %}
+<div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">
+        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
+        Overall Market Sentiment
+    </h2>
+    <div class="grid grid-cols-3 gap-4 mb-4">
+        {% for item in sentiment_histogram.display_data %}
+        <div class="text-center">
+            <div class="text-2xl mb-1">{{ item.icon }}</div>
+            <div class="text-lg font-bold text-gray-900">{{ item.count }}</div>
+            <div class="text-sm text-gray-600">{{ item.label }}</div>
+            <div class="text-xs text-gray-500">{{ item.percentage }}%</div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Visual Bar Chart -->
+    <div class="flex h-4 bg-gray-200 rounded-full overflow-hidden">
+        {% for item in sentiment_histogram.display_data %}
+        {% if item.percentage > 0 %}
+        <div 
+            class="h-full" 
+            style="background-color: {{ item.color }}; width: {{ item.percentage }}%"
+            title="{{ item.label }}: {{ item.count }} articles ({{ item.percentage }}%)"
+        ></div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    
+    <div class="text-xs text-gray-500 mt-2 text-center">
+        Total articles analyzed: {{ sentiment_histogram["total"] }}
+    </div>
+</div>
+{% endif %}
+
+<!-- Ticker Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="ticker-grid">
+    {% for ticker in tickers %}
+    <div class="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-semibold text-gray-900">{{ ticker.symbol }}</h3>
+            <span class="px-2 py-1 text-xs font-medium rounded-full
+                {% if ticker.article_count > 0 %}bg-blue-100 text-blue-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {% if ticker.article_count > 0 %}Active{% else %}No Data{% endif %}
+            </span>
+        </div>
+        
+        <p class="text-sm text-gray-600 mb-3">{{ ticker.name }}</p>
+        
+        <div class="space-y-3 mb-4">
+            <div class="flex items-center justify-between">
+                <div class="text-sm">
+                    <span class="text-gray-500">Articles:</span>
+                    <span class="font-medium text-gray-900">
+                        {{ ticker.article_count }}
+                    </span>
+                </div>
+                {% if ticker.article_count > 0 and ticker.avg_sentiment is not none %}
+                    {% set sentiment_data = get_sentiment_display_data(ticker.avg_sentiment) %}
+                    <div class="flex items-center space-x-1">
+                        <span class="text-sm">{{ sentiment_data.icon }}</span>
+                        <span class="px-2 py-1 text-xs font-medium rounded-full {{ sentiment_data.bg_color }} {{ sentiment_data.text_color }}" data-sentiment="{{ sentiment_data.label.lower() }}">
+                            {{ sentiment_data.label }}
+                        </span>
+                    </div>
+                {% else %}
+                    <div class="text-sm text-gray-500">
+                        {% if ticker.article_count > 0 %}
+                            <span class="text-green-600">●</span> Data available
+                        {% else %}
+                            <span class="text-gray-400">●</span> No articles
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Velocity/Activity Level -->
+            {% if ticker.velocity %}
+                {% set velocity_display = ticker.velocity %}
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-gray-500">Activity:</span>
+                    <div class="flex items-center space-x-1">
+                        <span class="text-sm">{{ 
+                            "🔥" if velocity_display.level == "high" else 
+                            "📊" if velocity_display.level == "medium" else 
+                            "📉" 
+                        }}</span>
+                        <span class="px-2 py-1 text-xs font-medium rounded-full 
+                            {{ "bg-red-100 text-red-800" if velocity_display.level == "high" else 
+                               "bg-yellow-100 text-yellow-800" if velocity_display.level == "medium" else 
+                               "bg-gray-100 text-gray-800" }}" 
+                               data-velocity="{{ velocity_display.level }}">
+                            {{ velocity_display.level.title() }}
+                        </span>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Stock Price Info -->
+        <div class="mt-4 mb-3">
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-md p-3 border border-blue-100">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-chart-line text-blue-600"></i>
+                        <span class="text-sm font-medium text-gray-700">Live Price</span>
+                    </div>
+                    {% if ticker.stock_data and ticker.stock_data.market_state %}
+                        <span class="px-2 py-1 text-xs rounded-full 
+                            {{ 'bg-green-100 text-green-800' if ticker.stock_data.market_state == 'REGULAR' else 'bg-gray-100 text-gray-800' }}">
+                            {{ 'OPEN' if ticker.stock_data.market_state == 'REGULAR' else ticker.stock_data.market_state }}
+                        </span>
+                    {% endif %}
+                </div>
+                
+                {% if ticker.stock_data %}
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <div class="text-xl font-bold text-gray-900">
+                            ${{ "%.2f"|format(ticker.stock_data.price) }}
+                        </div>
+                        <div class="text-right">
+                            {% set change_color = "text-green-600" if ticker.stock_data.change >= 0 else "text-red-600" %}
+                            <div class="text-sm {{ change_color }} font-medium">
+                                {{ "+" if ticker.stock_data.change >= 0 else "" }}${{ "%.2f"|format(ticker.stock_data.change) }}
+                                ({{ "+" if ticker.stock_data.change >= 0 else "" }}{{ "%.2f"|format(ticker.stock_data.change_percent) }}%)
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-xs text-gray-500">
+                        {{ ticker.stock_data.exchange }} • {{ ticker.stock_data.currency }}
+                    </div>
+                </div>
+                {% else %}
+                <div class="flex items-center justify-center py-2">
+                    <div class="text-center text-gray-500">
+                        <i class="fas fa-spinner fa-spin mb-1"></i>
+                        <div class="text-xs">Loading price...</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="mt-4 pt-3 border-t">
+            <a href="/t/{{ ticker.symbol }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                {% if ticker.article_count > 0 %}
+                    View {{ ticker.article_count }} article{{ 's' if ticker.article_count != 1 else '' }} →
+                {% else %}
+                    View ticker →
+                {% endif %}
+            </a>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-span-full text-center py-12">
+        <div class="text-gray-500">
+            <i class="fas fa-chart-line text-4xl mb-4"></i>
+            <p class="text-lg">No ticker data available</p>
+            <p class="text-sm">Run the ingestion process to populate data</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
