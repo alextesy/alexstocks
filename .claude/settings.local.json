@@ -6,9 +6,12 @@
       "Bash(mv:*)",
       "Bash(git add:*)",
       "Bash(uv run ruff:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(uv sync:*)",
+      "Bash(gh:*)"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "enableAllProjectMcpServers": true
 }

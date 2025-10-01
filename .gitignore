@@ -293,6 +293,7 @@ temp/
 # Local configuration files
 config.local.py
 settings.local.py
+.mcp.json
 
 # Data files (uncomment if you want to ignore data files)
 # data/
