@@ -79,7 +79,9 @@ class ArticleRelinkingService:
 
         return count
 
-    def relink_article(self, article: Article, clear_existing: bool = True) -> dict[str, Any]:
+    def relink_article(
+        self, article: Article, clear_existing: bool = True
+    ) -> dict[str, Any]:
         """Re-link a single article to tickers."""
         result: dict[str, Any] = {
             "article_id": article.id,
@@ -261,7 +263,9 @@ class ArticleRelinkingService:
                 "total_links": total_links,
                 "coverage_percentage": (
                     float(articles_with_links / total_articles * 100)
-                    if total_articles and articles_with_links is not None and total_articles > 0
+                    if total_articles
+                    and articles_with_links is not None
+                    and total_articles > 0
                     else 0
                 ),
                 "avg_links_per_article": (

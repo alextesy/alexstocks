@@ -83,7 +83,9 @@ def create_sample_articles() -> list[Article]:
     return articles
 
 
-def create_article_ticker_links(articles: list[Article]) -> list[tuple[Article, ArticleTicker]]:
+def create_article_ticker_links(
+    articles: list[Article],
+) -> list[tuple[Article, ArticleTicker]]:
     """Create article-ticker relationships based on content."""
     links: list[tuple[Article, ArticleTicker]] = []
 
