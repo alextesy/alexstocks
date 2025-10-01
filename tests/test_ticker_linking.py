@@ -1,10 +1,12 @@
 """Tests for ticker linking functionality."""
 
+from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
 from faker import Faker
 
+from app.db.models import Article, Ticker
 from app.models.dto import TickerLinkDTO
 from ingest.linker import TickerLinker
 
@@ -44,7 +46,7 @@ class TestTickerLinker:
                 return_value=self.mock_context_analyzer,
             ),
         ):
-            self.linker = TickerLinker(self.mock_tickers, max_scraping_workers=5)
+            self.linker = TickerLinker(cast(list[Ticker], self.mock_tickers), max_scraping_workers=5)
 
     def test_initialization(self):
         """Test TickerLinker initialization."""
@@ -320,7 +322,7 @@ class TestTickerLinker:
                 [Mock(ticker="TSLA"), Mock(ticker="NVDA")],  # Second article
             ]
 
-            result = self.linker.link_articles_to_db(articles)
+            result = self.linker.link_articles_to_db(cast(list[Article], articles))
 
         assert len(result) == 2
         assert len(result[0][1]) == 1  # First article has 1 ticker link
@@ -377,7 +379,7 @@ class TestTickerLinkDTO:
             TickerLinkDTO(
                 ticker="AAPL",
                 confidence=0.8,
-                matched_terms="not a list",
+                matched_terms="not a list",  # type: ignore[arg-type]
                 reasoning=["Test"],
             )
 
@@ -388,7 +390,7 @@ class TestTickerLinkDTO:
                 ticker="AAPL",
                 confidence=0.8,
                 matched_terms=["$AAPL"],
-                reasoning="not a list",
+                reasoning="not a list",  # type: ignore[arg-type]
             )
 
 
@@ -423,7 +425,7 @@ class TestTickerLinkingRealWorldExamples:
                 return_value=self.mock_context_analyzer,
             ),
         ):
-            self.linker = TickerLinker(self.mock_tickers, max_scraping_workers=5)
+            self.linker = TickerLinker(cast(list[Ticker], self.mock_tickers), max_scraping_workers=5)
 
     def test_wallstreetbets_meme_stock_mentions(self):
         """Test linking with WallStreetBets meme stock language."""
