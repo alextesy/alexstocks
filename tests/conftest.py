@@ -254,7 +254,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 # Pytest plugins
-pytest_plugins = []
+pytest_plugins: list[str] = []
 
 
 # Custom fixtures for specific test scenarios

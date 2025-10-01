@@ -523,6 +523,7 @@ class TestRedditScrapingIntegration:
         article = scraper.parse_comment_to_article(mock_comment, mock_submission)
 
         # Verify ticker mentions are preserved
+        assert article.text is not None
         assert "$AAPL" in article.text
         assert "$TSLA" in article.text
         assert "NVDA" in article.text
@@ -591,6 +592,7 @@ class TestRedditScrapingIntegration:
         article = parser.parse_submission(mock_submission, "wallstreetbets")
 
         # Verify Unicode characters are preserved
+        assert article.title is not None and article.text is not None
         assert "📈" in article.title
         assert "🎉" in article.title
         assert "🚀" in article.text

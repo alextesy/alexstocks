@@ -98,6 +98,7 @@ class TestRedditParser:
         assert article.upvotes == 100
         assert article.num_comments == 25
         assert article.title == "Test Post Title"
+        assert article.text is not None
         assert "Test Post Title" in article.text
         assert "Test post content" in article.text
         assert (

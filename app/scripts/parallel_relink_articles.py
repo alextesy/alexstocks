@@ -169,7 +169,7 @@ def process_article_batch(batch_data: tuple[list[dict], list[dict], int]) -> dic
 class ParallelArticleRelinkingService:
     """Parallel service to re-link articles with multiprocessing."""
 
-    def __init__(self, max_workers: int = None):
+    def __init__(self, max_workers: int | None = None):
         self.max_workers = max_workers or max(1, mp.cpu_count() - 1)
         self.stats = {
             "articles_processed": 0,
@@ -186,7 +186,7 @@ class ParallelArticleRelinkingService:
         self.db = SessionLocal()
 
     def get_articles_batch_data(
-        self, limit: int = None, batch_size: int = 50
+        self, limit: int | None = None, batch_size: int = 50
     ) -> list[list[dict]]:
         """Get article data in batches for parallel processing."""
         logger.info("Loading articles for parallel processing...")
@@ -242,7 +242,7 @@ class ParallelArticleRelinkingService:
         logger.info(f"Loaded {len(ticker_data_list)} tickers for workers")
         return ticker_data_list
 
-    def parallel_relink_articles(self, limit: int = None, batch_size: int = 50) -> dict:
+    def parallel_relink_articles(self, limit: int | None = None, batch_size: int = 50) -> dict:
         """Re-link articles using parallel processing."""
         print(f"\n🚀 Starting parallel re-linking with {self.max_workers} workers...")
         start_time = time.time()

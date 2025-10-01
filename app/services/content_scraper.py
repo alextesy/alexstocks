@@ -200,7 +200,7 @@ class ContentScraper:
         Returns:
             Dictionary mapping URLs to scraped content (or None if failed)
         """
-        results = {}
+        results: dict[str, str | None] = {}
 
         # Filter scrapable URLs
         scrapable_urls = [url for url in urls if self.is_scrapable_url(url)]

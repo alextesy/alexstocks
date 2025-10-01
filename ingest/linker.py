@@ -297,7 +297,7 @@ class TickerLinker:
         Returns:
             Dictionary mapping ticker symbols to lists of matched terms
         """
-        matches = {}
+        matches: dict[str, list[str]] = {}
 
         # Pattern matching for $SYMBOL format (highest priority)
         dollar_pattern = r"\$([A-Z]{1,5}(?:\.[A-Z])?)"

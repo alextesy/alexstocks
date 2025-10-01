@@ -51,7 +51,7 @@ class ArticleRelinkingService:
             return False
 
     def get_articles_to_relink(
-        self, batch_size: int = 100, limit: int = None
+        self, batch_size: int = 100, limit: int | None = None
     ) -> list[Article]:
         """Get articles that need to be re-linked."""
         query = self.db.query(Article).order_by(
@@ -120,7 +120,7 @@ class ArticleRelinkingService:
             return result
 
     def relink_all_articles(
-        self, batch_size: int = 100, limit: int = None, clear_existing: bool = True
+        self, batch_size: int = 100, limit: int | None = None, clear_existing: bool = True
     ) -> dict:
         """Re-link all articles in the database."""
         logger.info("Starting article re-linking process...")

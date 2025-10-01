@@ -335,8 +335,8 @@ class RedditDiscussionScraper:
                         "upvotes": article.upvotes,
                         "text_preview": (
                             article.text[:100] + "..."
-                            if len(article.text) > 100
-                            else article.text
+                            if article.text and len(article.text) > 100
+                            else article.text or ""
                         ),
                     }
                     for article in articles[:3]

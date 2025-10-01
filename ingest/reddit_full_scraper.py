@@ -53,7 +53,7 @@ class RedditFullScraper:
         self.reddit = self.discussion_scraper.reddit
 
     def extract_all_comments_from_thread(
-        self, submission: Submission, max_replace_more: int = None
+        self, submission: Submission, max_replace_more: int | None = None
     ) -> list[Comment]:
         """Extract ALL comments from a thread including nested replies.
 
@@ -124,7 +124,7 @@ class RedditFullScraper:
         db: Session,
         submission: Submission,
         tickers: list[Ticker],
-        max_replace_more: int = None,
+        max_replace_more: int | None = None,
         skip_existing: bool = True,
     ) -> dict[str, Any]:
         """Scrape a thread completely, getting all comments.
@@ -352,7 +352,7 @@ class RedditFullScraper:
         self,
         subreddit_name: str = "wallstreetbets",
         max_threads: int = 1,
-        max_replace_more: int = None,
+        max_replace_more: int | None = None,
         skip_existing: bool = True,
     ) -> dict[str, Any]:
         """Scrape latest daily discussion threads completely.

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def load_tickers_from_csv(csv_path: Path) -> list[dict]:
     """Load ticker data from CSV file."""
-    tickers = []
+    tickers: list[dict] = []
 
     if not csv_path.exists():
         logger.error(f"Ticker CSV file not found: {csv_path}")
@@ -35,7 +35,7 @@ def load_tickers_from_csv(csv_path: Path) -> list[dict]:
                         )
 
                 # Parse sources
-                sources = []
+                sources: list[str] = []
                 if row.get("sources"):
                     sources = row["sources"].split(",")
 

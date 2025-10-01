@@ -40,7 +40,7 @@ class RedditRobustScraper:
 
         # Rate limiting configuration
         self.requests_per_minute = 90  # Stay under 100 QPM limit
-        self.request_times = []  # Track request times for rate limiting
+        self.request_times: list[float] = []  # Track request times for rate limiting
         self.batch_save_interval = 200  # Save every 200 comments
         self.rate_limit_sleep = 60  # Sleep 60 seconds on rate limit
 
@@ -98,7 +98,7 @@ class RedditRobustScraper:
         return False
 
     def extract_comments_with_retry(
-        self, submission: Submission, max_replace_more: int = None, max_retries: int = 3
+        self, submission: Submission, max_replace_more: int | None = None, max_retries: int = 3
     ) -> list[Comment]:
         """Extract comments with rate limit handling and retries.
 
@@ -167,7 +167,7 @@ class RedditRobustScraper:
         self,
         submission: Submission,
         skip_existing: bool = True,
-        max_replace_more: int = None,
+        max_replace_more: int | None = None,
     ) -> dict[str, int]:
         """Scrape a thread with robust error handling and incremental saving.
 
@@ -379,7 +379,7 @@ class RedditRobustScraper:
         self,
         subreddit_name: str = "wallstreetbets",
         max_threads: int = 1,
-        max_replace_more: int = None,
+        max_replace_more: int | None = None,
     ) -> dict[str, Any]:
         """Scrape latest daily discussion threads with robust error handling.
 
