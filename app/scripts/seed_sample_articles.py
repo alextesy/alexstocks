@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def create_sample_articles() -> list[Article]:
     """Create sample articles with ticker mentions."""
     now = datetime.now(UTC)
-    
+
     articles = [
         Article(
             source="sample",
@@ -79,14 +79,14 @@ def create_sample_articles() -> list[Article]:
             lang="en",
         ),
     ]
-    
+
     return articles
 
 
 def create_article_ticker_links(articles: list[Article]) -> list[ArticleTicker]:
     """Create article-ticker relationships based on content."""
     links = []
-    
+
     # Map articles to their primary tickers
     article_ticker_map = {
         "apple-earnings-beat-expectations": [("AAPL", 0.9)],
@@ -98,11 +98,11 @@ def create_article_ticker_links(articles: list[Article]) -> list[ArticleTicker]:
         "meta-platforms-metaverse": [("META", 0.9)],
         "berkshire-hathaway-investment": [("BRK.B", 0.9)],
     }
-    
+
     for article in articles:
         # Extract article key from URL
         article_key = article.url.split("/")[-1]
-        
+
         if article_key in article_ticker_map:
             for ticker_symbol, confidence in article_ticker_map[article_key]:
                 link = ArticleTicker(
@@ -111,7 +111,7 @@ def create_article_ticker_links(articles: list[Article]) -> list[ArticleTicker]:
                     confidence=confidence
                 )
                 links.append((article, link))
-    
+
     return links
 
 
@@ -124,37 +124,37 @@ def seed_sample_articles() -> bool:
         db.query(Article).filter(Article.source == "sample").delete()
         db.commit()
         logger.info("Cleared existing sample articles")
-        
+
         # Create sample articles
         articles = create_sample_articles()
-        
+
         # Save articles and get their IDs
         saved_articles = []
         for article in articles:
             db.add(article)
             db.flush()  # Get the ID
             saved_articles.append(article)
-        
+
         # Create article-ticker links
         article_links = create_article_ticker_links(saved_articles)
-        
+
         # Save the links
         for article, link in article_links:
             link.article_id = article.id
             db.add(link)
-        
+
         db.commit()
-        
+
         logger.info(f"Successfully seeded {len(saved_articles)} sample articles with {len(article_links)} ticker links")
-        
+
         # Verify insertion
         article_count = db.query(Article).filter(Article.source == "sample").count()
         link_count = db.query(ArticleTicker).join(Article).filter(Article.source == "sample").count()
         logger.info(f"Sample articles in database: {article_count}")
         logger.info(f"Sample article-ticker links: {link_count}")
-        
+
         return True
-        
+
     except Exception as e:
         logger.error(f"Failed to seed sample articles: {e}")
         db.rollback()
@@ -167,9 +167,9 @@ def main() -> None:
     """Main function for seeding sample articles."""
     logging.basicConfig(level=logging.INFO)
     logger.info("Starting sample article seeding...")
-    
+
     success = seed_sample_articles()
-    
+
     if success:
         logger.info("Sample article seeding completed successfully")
     else:

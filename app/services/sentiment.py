@@ -1,7 +1,6 @@
 """Sentiment analysis service using VADER sentiment analysis."""
 
 import logging
-import os
 
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
@@ -104,7 +103,7 @@ def get_sentiment_service() -> SentimentService:
 def get_sentiment_service_hybrid():
     """
     Get the hybrid sentiment service that can use LLM or VADER.
-    
+
     Returns:
         Hybrid sentiment service instance
     """

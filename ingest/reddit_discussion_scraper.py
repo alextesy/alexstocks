@@ -2,7 +2,6 @@
 
 import logging
 from datetime import UTC, datetime
-from typing import Any, List, Optional
 
 import praw
 from dotenv import load_dotenv
@@ -21,7 +20,7 @@ class RedditDiscussionScraper:
 
     def __init__(self):
         """Initialize RedditDiscussionScraper."""
-        self.reddit: Optional[praw.Reddit] = None
+        self.reddit: praw.Reddit | None = None
 
     def initialize_reddit(
         self, client_id: str, client_secret: str, user_agent: str
@@ -46,7 +45,7 @@ class RedditDiscussionScraper:
 
     def find_daily_discussion_threads(
         self, subreddit_name: str = "wallstreetbets", limit: int = 20
-    ) -> List[Submission]:
+    ) -> list[Submission]:
         """Find daily discussion threads in a subreddit.
 
         Args:
@@ -62,11 +61,11 @@ class RedditDiscussionScraper:
         try:
             subreddit = self.reddit.subreddit(subreddit_name)
             posts = []
-            
+
             # Get recent posts from both hot and top to find discussion threads
             for submission in subreddit.hot(limit=limit):
                 posts.append(submission)
-            
+
             # Also check top posts
             for submission in subreddit.top("day", limit=limit):
                 if submission not in posts:  # Avoid duplicates
@@ -88,7 +87,7 @@ class RedditDiscussionScraper:
 
     def extract_comments_from_thread(
         self, submission: Submission, max_comments: int = 100
-    ) -> List[Comment]:
+    ) -> list[Comment]:
         """Extract comments from a discussion thread.
 
         Args:
@@ -104,19 +103,19 @@ class RedditDiscussionScraper:
         try:
             # Expand comments with limit for testing
             submission.comments.replace_more(limit=2)  # Limit to 2 "more comments" expansions
-            
+
             comments = []
             comment_count = 0
-            
+
             # Extract comments with limit
             for comment in submission.comments.list():
                 if comment_count >= max_comments:
                     break
-                    
+
                 # Skip deleted/removed comments
                 if comment.body in ["[deleted]", "[removed]"]:
                     continue
-                    
+
                 comments.append(comment)
                 comment_count += 1
 
@@ -171,7 +170,7 @@ class RedditDiscussionScraper:
         subreddit_name: str = "wallstreetbets",
         max_comments_per_thread: int = 1000,
         max_threads: int = 1,
-    ) -> List[Article]:
+    ) -> list[Article]:
         """Scrape comments from daily discussion threads.
 
         Args:
@@ -225,7 +224,7 @@ class RedditDiscussionScraper:
             logger.error(f"Error scraping discussion comments: {e}")
             return []
 
-    def get_discussion_thread_info(self, subreddit_name: str = "wallstreetbets") -> List[dict]:
+    def get_discussion_thread_info(self, subreddit_name: str = "wallstreetbets") -> list[dict]:
         """Get information about available discussion threads.
 
         Args:
@@ -239,7 +238,7 @@ class RedditDiscussionScraper:
 
         try:
             discussion_threads = self.find_daily_discussion_threads(subreddit_name, limit=20)
-            
+
             thread_info = []
             for thread in discussion_threads:
                 info = {
@@ -275,16 +274,16 @@ class RedditDiscussionScraper:
         try:
             # Find discussion threads
             threads = self.find_daily_discussion_threads(subreddit_name, limit=10)
-            
+
             if not threads:
                 return {"status": "no_threads", "message": f"No discussion threads found in r/{subreddit_name}"}
-            
+
             # Test with the first thread
             test_thread = threads[0]
-            
+
             # Extract a small sample of comments
             comments = self.extract_comments_from_thread(test_thread, max_comments=5)
-            
+
             # Convert to articles
             articles = []
             for comment in comments:
@@ -293,7 +292,7 @@ class RedditDiscussionScraper:
                     articles.append(article)
                 except Exception as e:
                     logger.warning(f"Failed to parse comment: {e}")
-            
+
             return {
                 "status": "success",
                 "thread_title": test_thread.title,
@@ -309,6 +308,6 @@ class RedditDiscussionScraper:
                     for article in articles[:3]
                 ]
             }
-            
+
         except Exception as e:
             return {"status": "error", "message": str(e)}

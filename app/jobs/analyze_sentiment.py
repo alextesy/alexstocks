@@ -6,16 +6,15 @@ import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
-from typing import List, Optional
 
-from sqlalchemy import select, update, and_
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
 from app.db.models import Article
 from app.db.session import SessionLocal
-from app.services.sentiment import get_sentiment_service_hybrid
 from app.services.llm_sentiment import get_llm_sentiment_service
+from app.services.sentiment import get_sentiment_service_hybrid
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +34,11 @@ def setup_logging(verbose: bool = False) -> None:
 
 
 def get_articles_without_sentiment(
-    db: Session, 
-    limit: Optional[int] = None,
-    source_filter: Optional[str] = None,
-    hours_back: Optional[int] = None
-) -> List[Article]:
+    db: Session,
+    limit: int | None = None,
+    source_filter: str | None = None,
+    hours_back: int | None = None
+) -> list[Article]:
     """Get articles that don't have sentiment analysis yet.
 
     Args:
@@ -52,36 +51,36 @@ def get_articles_without_sentiment(
         List of Article objects without sentiment
     """
     query = select(Article).where(Article.sentiment.is_(None))
-    
+
     # Add source filter if specified
     if source_filter:
         if source_filter == 'reddit':
             query = query.where(Article.source.like('%reddit%'))
         else:
             query = query.where(Article.source == source_filter)
-    
+
     # Add time filter if specified
     if hours_back:
         cutoff_time = datetime.now(UTC) - timedelta(hours=hours_back)
         query = query.where(Article.created_at >= cutoff_time)
-    
+
     # Order by creation time (newest first)
     query = query.order_by(Article.created_at.desc())
-    
+
     # Apply limit if specified
     if limit:
         query = query.limit(limit)
-    
+
     return list(db.execute(query).scalars().all())
 
 
-def analyze_single_article_sentiment(article: Article, use_llm_only: bool = False) -> tuple[int, Optional[float]]:
+def analyze_single_article_sentiment(article: Article, use_llm_only: bool = False) -> tuple[int, float | None]:
     """Analyze sentiment for a single article.
-    
+
     Args:
         article: Article to analyze
         use_llm_only: If True, use LLM only (no fallback)
-        
+
     Returns:
         Tuple of (article_id, sentiment_score)
     """
@@ -91,7 +90,7 @@ def analyze_single_article_sentiment(article: Article, use_llm_only: bool = Fals
         else:
             # Use hybrid service (LLM by default with VADER fallback)
             sentiment_service = get_sentiment_service_hybrid()
-        
+
         # Prepare text for sentiment analysis
         # For Reddit comments, use only the text. For posts, use title + text
         if article.source == 'reddit_comment':
@@ -100,73 +99,73 @@ def analyze_single_article_sentiment(article: Article, use_llm_only: bool = Fals
             sentiment_text = article.title
             if article.text:
                 sentiment_text += " " + article.text
-        
+
         # Skip empty content
         if not sentiment_text.strip():
             logger.warning(f"Empty content for article {article.id}, skipping")
             return article.id, None
-        
+
         # Analyze sentiment
         sentiment_score = sentiment_service.analyze_sentiment(sentiment_text)
-        
+
         logger.debug(f"Analyzed sentiment for {article.source} {article.id}: {sentiment_score:.3f}")
         return article.id, sentiment_score
-        
+
     except Exception as e:
         logger.warning(f"Failed to analyze sentiment for article {article.id}: {e}")
         return article.id, None
 
 
 def analyze_articles_parallel(
-    articles: List[Article], 
+    articles: list[Article],
     max_workers: int = 4,
     batch_size: int = 100,
     use_llm_only: bool = False
 ) -> int:
     """Analyze sentiment for multiple articles in parallel.
-    
+
     Args:
         articles: List of articles to analyze
         max_workers: Maximum number of parallel workers
         batch_size: Batch size for database updates
-        
+
     Returns:
         Number of articles successfully processed
     """
     if not articles:
         logger.info("No articles to process")
         return 0
-    
+
     logger.info(f"Processing {len(articles)} articles with {max_workers} parallel workers")
-    
+
     # Process articles in parallel
     sentiment_results = []
-    
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
         future_to_article = {
-            executor.submit(analyze_single_article_sentiment, article, use_llm_only): article 
+            executor.submit(analyze_single_article_sentiment, article, use_llm_only): article
             for article in articles
         }
-        
+
         # Collect results with progress bar
         with tqdm(total=len(articles), desc="Analyzing sentiment", unit="articles") as pbar:
             for future in as_completed(future_to_article):
                 article_id, sentiment_score = future.result()
                 sentiment_results.append((article_id, sentiment_score))
-                
+
                 # Update progress bar
                 pbar.update(1)
-    
+
     # Update database in batches
     db = SessionLocal()
     try:
         successful_updates = 0
-        
+
         with tqdm(total=len(sentiment_results), desc="Updating database", unit="articles") as pbar:
             for i in range(0, len(sentiment_results), batch_size):
                 batch = sentiment_results[i:i + batch_size]
-                
+
                 try:
                     for article_id, sentiment_score in batch:
                         if sentiment_score is not None:
@@ -176,17 +175,17 @@ def analyze_articles_parallel(
                                 .values(sentiment=sentiment_score)
                             )
                             successful_updates += 1
-                    
+
                     db.commit()
                     pbar.update(len(batch))
-                    
+
                 except Exception as e:
                     logger.error(f"Error updating batch: {e}")
                     db.rollback()
-        
+
         logger.info(f"Successfully updated sentiment for {successful_updates} articles")
         return successful_updates
-        
+
     except Exception as e:
         logger.error(f"Database error: {e}")
         db.rollback()
@@ -196,9 +195,9 @@ def analyze_articles_parallel(
 
 
 def run_sentiment_analysis(
-    max_articles: Optional[int] = None,
-    source_filter: Optional[str] = None,
-    hours_back: Optional[int] = None,
+    max_articles: int | None = None,
+    source_filter: str | None = None,
+    hours_back: int | None = None,
     max_workers: int = 4,
     batch_size: int = 100,
     use_llm_only: bool = False,
@@ -215,44 +214,44 @@ def run_sentiment_analysis(
         verbose: Enable verbose logging
     """
     setup_logging(verbose)
-    
+
     logger.info("Starting sentiment analysis job")
-    
+
     if source_filter:
         logger.info(f"Filtering by source: {source_filter}")
     if hours_back:
         logger.info(f"Processing articles from last {hours_back} hours")
     if max_articles:
         logger.info(f"Limited to {max_articles} articles")
-    
+
     # Get database session
     db = SessionLocal()
     try:
         # Get articles without sentiment
         logger.info("Querying articles without sentiment analysis...")
         articles = get_articles_without_sentiment(
-            db, 
+            db,
             limit=max_articles,
             source_filter=source_filter,
             hours_back=hours_back
         )
-        
+
         if not articles:
             logger.info("No articles found without sentiment analysis")
             return
-        
+
         logger.info(f"Found {len(articles)} articles to process")
-        
+
         # Analyze sentiment in parallel
         successful_count = analyze_articles_parallel(
-            articles, 
+            articles,
             max_workers=max_workers,
             batch_size=batch_size,
             use_llm_only=use_llm_only
         )
-        
+
         logger.info(f"Sentiment analysis complete: {successful_count}/{len(articles)} articles processed successfully")
-        
+
     except Exception as e:
         logger.error(f"Error during sentiment analysis: {e}")
     finally:
@@ -298,9 +297,9 @@ def main() -> None:
         help="Use LLM sentiment only (no VADER fallback)",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
-    
+
     args = parser.parse_args()
-    
+
     try:
         run_sentiment_analysis(
             max_articles=args.max_articles,

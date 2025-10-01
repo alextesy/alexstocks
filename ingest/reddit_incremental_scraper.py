@@ -1,8 +1,8 @@
 """Incremental Reddit discussion scraper for cron jobs."""
 
 import logging
-from datetime import UTC, datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 import praw
 from dotenv import load_dotenv
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Article, ArticleTicker, RedditThread, Ticker
 from app.db.session import SessionLocal
+
 # Sentiment analysis is now handled separately
 from ingest.linker import TickerLinker
 from ingest.reddit_discussion_scraper import RedditDiscussionScraper
@@ -34,7 +35,7 @@ class RedditIncrementalScraper:
         """
         self.discussion_scraper = RedditDiscussionScraper()
         self.max_scraping_workers = max_scraping_workers
-        self.reddit: Optional[praw.Reddit] = None
+        self.reddit: praw.Reddit | None = None
 
     def initialize_reddit(
         self, client_id: str, client_secret: str, user_agent: str
@@ -51,7 +52,7 @@ class RedditIncrementalScraper:
 
     def get_or_create_thread_record(
         self, db: Session, submission: Submission
-    ) -> Tuple[RedditThread, bool]:
+    ) -> tuple[RedditThread, bool]:
         """Get existing thread record or create new one.
 
         Args:
@@ -118,7 +119,7 @@ class RedditIncrementalScraper:
 
     def extract_new_comments(
         self, submission: Submission, scraped_comment_ids: set[str], max_comments: int = 1000
-    ) -> List[Comment]:
+    ) -> list[Comment]:
         """Extract only new comments that haven't been scraped yet.
 
         Args:
@@ -135,23 +136,23 @@ class RedditIncrementalScraper:
         try:
             # Expand comments with limit for efficiency
             submission.comments.replace_more(limit=5)
-            
+
             new_comments = []
             comment_count = 0
-            
+
             # Extract only new comments
             for comment in submission.comments.list():
                 if comment_count >= max_comments:
                     break
-                    
+
                 # Skip if already scraped
                 if comment.id in scraped_comment_ids:
                     continue
-                    
+
                 # Skip deleted/removed comments
                 if comment.body in ["[deleted]", "[removed]"]:
                     continue
-                    
+
                 new_comments.append(comment)
                 comment_count += 1
 
@@ -166,9 +167,9 @@ class RedditIncrementalScraper:
         self,
         db: Session,
         submission: Submission,
-        tickers: List[Ticker],
+        tickers: list[Ticker],
         max_new_comments: int = 1000,
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """Scrape a thread incrementally, only processing new comments.
 
         Args:
@@ -183,7 +184,7 @@ class RedditIncrementalScraper:
         try:
             # Get or create thread record
             thread_record, is_new_thread = self.get_or_create_thread_record(db, submission)
-            
+
             # Update thread stats
             thread_record.total_comments = submission.num_comments
             thread_record.upvotes = submission.score
@@ -219,7 +220,7 @@ class RedditIncrementalScraper:
                 try:
                     # Parse comment to article
                     article = self.discussion_scraper.parse_comment_to_article(comment, submission)
-                    
+
                     # Check if article already exists (by reddit_id)
                     existing_article = db.execute(
                         select(Article).where(Article.reddit_id == article.reddit_id)
@@ -235,7 +236,7 @@ class RedditIncrementalScraper:
 
                     # Link to tickers
                     ticker_links = linker.link_article(article, use_title_only=True)
-                    
+
                     # Save ticker links
                     for link in ticker_links:
                         article_ticker = ArticleTicker(
@@ -260,7 +261,7 @@ class RedditIncrementalScraper:
             # Update thread record
             thread_record.scraped_comments += len(new_comments)
             thread_record.last_scraped_at = datetime.now(UTC)
-            
+
             # Mark as complete if we've scraped most comments
             if thread_record.scraped_comments >= thread_record.total_comments * 0.95:
                 thread_record.is_complete = True
@@ -286,7 +287,7 @@ class RedditIncrementalScraper:
         subreddit_name: str = "wallstreetbets",
         max_threads: int = 3,
         max_new_comments_per_thread: int = 500,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run incremental scraping for discussion threads.
 
         Args:
@@ -318,7 +319,7 @@ class RedditIncrementalScraper:
                 select(RedditThread)
                 .where(
                     RedditThread.subreddit == subreddit_name,
-                    RedditThread.is_complete == False
+                    not RedditThread.is_complete
                 )
                 .order_by(RedditThread.created_at.desc())
                 .limit(5)
@@ -336,7 +337,7 @@ class RedditIncrementalScraper:
 
             # Combine new and existing threads, prioritizing new ones
             all_threads = discussion_threads + existing_submissions
-            
+
             # Remove duplicates based on reddit_id
             seen_ids = set()
             unique_threads = []
@@ -394,7 +395,7 @@ class RedditIncrementalScraper:
         finally:
             db.close()
 
-    def get_scraping_status(self, subreddit_name: str = "wallstreetbets", check_live_counts: bool = True) -> Dict[str, Any]:
+    def get_scraping_status(self, subreddit_name: str = "wallstreetbets", check_live_counts: bool = True) -> dict[str, Any]:
         """Get current scraping status for a subreddit.
 
         Args:
@@ -427,22 +428,22 @@ class RedditIncrementalScraper:
                 # Get live comment count from Reddit if requested and reddit instance is available
                 current_total_comments = thread.total_comments
                 live_count_error = None
-                
+
                 if check_live_counts and self.reddit:
                     try:
                         submission = self.reddit.submission(id=thread.reddit_id)
                         current_total_comments = submission.num_comments
-                        
+
                         # Update the database record if the count has changed
                         if current_total_comments != thread.total_comments:
                             thread.total_comments = current_total_comments
                             db.commit()
                             logger.info(f"Updated thread {thread.reddit_id} comment count: {thread.total_comments} -> {current_total_comments}")
-                            
+
                     except Exception as e:
                         logger.warning(f"Failed to get live comment count for thread {thread.reddit_id}: {e}")
                         live_count_error = str(e)
-                
+
                 thread_data = {
                     "title": thread.title,
                     "type": thread.thread_type,
@@ -452,7 +453,7 @@ class RedditIncrementalScraper:
                     "last_scraped": thread.last_scraped_at.isoformat() if thread.last_scraped_at else None,
                     "is_complete": thread.is_complete,
                 }
-                
+
                 # Add debug info if live count was checked
                 if check_live_counts:
                     thread_data["live_count_checked"] = True
@@ -460,7 +461,7 @@ class RedditIncrementalScraper:
                         thread_data["live_count_error"] = live_count_error
                     elif current_total_comments != thread.total_comments:
                         thread_data["count_updated"] = True
-                        
+
                 recent_threads_data.append(thread_data)
 
             return {

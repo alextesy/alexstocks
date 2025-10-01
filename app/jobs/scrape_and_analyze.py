@@ -3,9 +3,8 @@
 
 import argparse
 import logging
-import sys
 import subprocess
-from typing import List, Optional
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -25,26 +24,26 @@ def setup_logging(verbose: bool = False) -> None:
 
 
 def run_reddit_scraping(
-    subreddits: Optional[List[str]] = None,
+    subreddits: list[str] | None = None,
     limit_per_subreddit: int = 100,
     time_filter: str = "day",
     max_workers: int = 10,
     verbose: bool = False
 ) -> bool:
     """Run Reddit scraping.
-    
+
     Args:
         subreddits: List of subreddits to scrape
         limit_per_subreddit: Limit per subreddit
         time_filter: Time filter for posts
         max_workers: Max workers for scraping
         verbose: Enable verbose logging
-        
+
     Returns:
         True if successful, False otherwise
     """
     logger.info("Starting Reddit scraping...")
-    
+
     try:
         # Build command
         cmd = [
@@ -53,16 +52,16 @@ def run_reddit_scraping(
             "--time-filter", time_filter,
             "--workers", str(max_workers)
         ]
-        
+
         if subreddits:
             cmd.extend(["--subreddits"] + subreddits)
-        
+
         if verbose:
             cmd.append("--verbose")
-        
+
         # Run the command
         result = subprocess.run(cmd, capture_output=True, text=True)
-        
+
         if result.returncode == 0:
             logger.info("Reddit scraping completed successfully")
             if verbose:
@@ -72,7 +71,7 @@ def run_reddit_scraping(
             logger.error(f"Reddit scraping failed with return code {result.returncode}")
             logger.error(f"Error output: {result.stderr}")
             return False
-            
+
     except Exception as e:
         logger.error(f"Error running Reddit scraping: {e}")
         return False
@@ -86,19 +85,19 @@ def run_incremental_scraping(
     verbose: bool = False
 ) -> bool:
     """Run incremental Reddit scraping.
-    
+
     Args:
         subreddit: Subreddit to scrape
         max_threads: Max threads to process
         max_comments_per_thread: Max comments per thread
         max_workers: Max workers
         verbose: Enable verbose logging
-        
+
     Returns:
         True if successful, False otherwise
     """
     logger.info(f"Starting incremental Reddit scraping for r/{subreddit}...")
-    
+
     try:
         # Build command
         cmd = [
@@ -109,13 +108,13 @@ def run_incremental_scraping(
             "--max-comments-per-thread", str(max_comments_per_thread),
             "--workers", str(max_workers)
         ]
-        
+
         if verbose:
             cmd.append("--verbose")
-        
+
         # Run the command
         result = subprocess.run(cmd, capture_output=True, text=True)
-        
+
         if result.returncode == 0:
             logger.info("Incremental Reddit scraping completed successfully")
             if verbose:
@@ -125,33 +124,33 @@ def run_incremental_scraping(
             logger.error(f"Incremental Reddit scraping failed with return code {result.returncode}")
             logger.error(f"Error output: {result.stderr}")
             return False
-            
+
     except Exception as e:
         logger.error(f"Error running incremental Reddit scraping: {e}")
         return False
 
 
 def run_sentiment_analysis(
-    max_articles: Optional[int] = None,
+    max_articles: int | None = None,
     source_filter: str = "reddit",
     hours_back: int = 24,
     max_workers: int = 6,
     verbose: bool = False
 ) -> bool:
     """Run sentiment analysis on newly scraped data.
-    
+
     Args:
         max_articles: Max articles to process
         source_filter: Source filter
         hours_back: Only process articles from last N hours
         max_workers: Max workers for sentiment analysis
         verbose: Enable verbose logging
-        
+
     Returns:
         True if successful, False otherwise
     """
     logger.info(f"Starting sentiment analysis for {source_filter} articles from last {hours_back} hours...")
-    
+
     try:
         # Build command
         cmd = [
@@ -160,16 +159,16 @@ def run_sentiment_analysis(
             "--hours-back", str(hours_back),
             "--max-workers", str(max_workers)
         ]
-        
+
         if max_articles:
             cmd.extend(["--max-articles", str(max_articles)])
-        
+
         if verbose:
             cmd.append("--verbose")
-        
+
         # Run the command
         result = subprocess.run(cmd, capture_output=True, text=True)
-        
+
         if result.returncode == 0:
             logger.info("Sentiment analysis completed successfully")
             if verbose:
@@ -179,7 +178,7 @@ def run_sentiment_analysis(
             logger.error(f"Sentiment analysis failed with return code {result.returncode}")
             logger.error(f"Error output: {result.stderr}")
             return False
-            
+
     except Exception as e:
         logger.error(f"Error running sentiment analysis: {e}")
         return False
@@ -187,7 +186,7 @@ def run_sentiment_analysis(
 
 def run_combined_job(
     job_type: str = "posts",
-    subreddits: Optional[List[str]] = None,
+    subreddits: list[str] | None = None,
     subreddit: str = "wallstreetbets",
     limit_per_subreddit: int = 100,
     max_threads: int = 3,
@@ -199,7 +198,7 @@ def run_combined_job(
     verbose: bool = False
 ) -> None:
     """Run combined scraping and sentiment analysis job.
-    
+
     Args:
         job_type: Type of job ('posts' or 'comments')
         subreddits: List of subreddits for posts scraping
@@ -214,12 +213,12 @@ def run_combined_job(
         verbose: Enable verbose logging
     """
     setup_logging(verbose)
-    
+
     logger.info(f"Starting combined {job_type} scraping and sentiment analysis job")
-    
+
     # Step 1: Run scraping
     scraping_success = False
-    
+
     if job_type == "posts":
         scraping_success = run_reddit_scraping(
             subreddits=subreddits,
@@ -239,11 +238,11 @@ def run_combined_job(
     else:
         logger.error(f"Unknown job type: {job_type}")
         return
-    
+
     if not scraping_success:
         logger.error("Scraping failed, skipping sentiment analysis")
         return
-    
+
     # Step 2: Run sentiment analysis
     sentiment_success = run_sentiment_analysis(
         source_filter="reddit",
@@ -251,7 +250,7 @@ def run_combined_job(
         max_workers=sentiment_workers,
         verbose=verbose
     )
-    
+
     if sentiment_success:
         logger.info("✅ Combined job completed successfully!")
     else:
@@ -261,9 +260,9 @@ def run_combined_job(
 def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(description="Combined Reddit scraping and sentiment analysis job")
-    
+
     subparsers = parser.add_subparsers(dest="command", help="Job types")
-    
+
     # Posts job
     posts_parser = subparsers.add_parser("posts", help="Scrape Reddit posts and analyze sentiment")
     posts_parser.add_argument(
@@ -297,7 +296,7 @@ def main() -> None:
         help="Workers for sentiment analysis (default: 6)",
     )
     posts_parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
-    
+
     # Comments job
     comments_parser = subparsers.add_parser("comments", help="Scrape Reddit comments and analyze sentiment")
     comments_parser.add_argument(
@@ -331,13 +330,13 @@ def main() -> None:
         help="Workers for sentiment analysis (default: 6)",
     )
     comments_parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
-    
+
     args = parser.parse_args()
-    
+
     if not args.command:
         parser.print_help()
         return
-    
+
     try:
         if args.command == "posts":
             run_combined_job(

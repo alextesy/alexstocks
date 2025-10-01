@@ -8,9 +8,8 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.db.models import Article, ArticleTicker, Base, Ticker
-from app.db.session import SessionLocal
-from ingest.reddit import ingest_reddit_data, get_reddit_credentials
+from app.db.models import Article, ArticleTicker, Ticker
+from ingest.reddit import get_reddit_credentials, ingest_reddit_data
 from ingest.reddit_parser import RedditParser
 
 
@@ -196,7 +195,7 @@ class TestRedditIngestion:
         # Create in-memory SQLite database for testing
         # Use JSON instead of JSONB for SQLite compatibility
         self.engine = create_engine("sqlite:///:memory:", echo=False)
-        
+
         # Create tables with SQLite-compatible types
         from sqlalchemy import text
         with self.engine.connect() as conn:
@@ -237,7 +236,7 @@ class TestRedditIngestion:
                 )
             """))
             conn.commit()
-        
+
         self.SessionLocal = sessionmaker(bind=self.engine)
 
     def test_ingest_reddit_data_no_credentials(self):
@@ -254,21 +253,21 @@ class TestRedditIngestion:
         """Test successful Reddit ingestion."""
         # Setup mocks
         mock_credentials.return_value = ("client_id", "client_secret", "user_agent")
-        
+
         mock_parser = MagicMock()
         mock_parser_class.return_value = mock_parser
-        
+
         # Mock articles
         mock_article = MagicMock()
         mock_article.reddit_id = "test123"
         mock_article.subreddit = "test"
         mock_parser.parse_multiple_subreddits.return_value = [mock_article]
-        
+
         # Mock ticker linker
         mock_linker = MagicMock()
         mock_linker_class.return_value = mock_linker
         mock_linker.link_articles_to_db.return_value = [(mock_article, [])]
-        
+
         # Add a test ticker to database
         db = self.SessionLocal()
         try:
@@ -293,10 +292,10 @@ class TestRedditIngestion:
         """Test Reddit ingestion with ticker links."""
         # Setup mocks
         mock_credentials.return_value = ("client_id", "client_secret", "user_agent")
-        
+
         mock_parser = MagicMock()
         mock_parser_class.return_value = mock_parser
-        
+
         # Mock article with Reddit data
         mock_article = Article(
             source="reddit",
@@ -311,13 +310,13 @@ class TestRedditIngestion:
             num_comments=25
         )
         mock_parser.parse_multiple_subreddits.return_value = [mock_article]
-        
+
         # Mock ticker linker with links
         mock_linker = MagicMock()
         mock_linker_class.return_value = mock_linker
         mock_article_ticker = ArticleTicker(ticker="TEST", confidence=0.8)
         mock_linker.link_articles_to_db.return_value = [(mock_article, [mock_article_ticker])]
-        
+
         # Add a test ticker to database
         db = self.SessionLocal()
         try:

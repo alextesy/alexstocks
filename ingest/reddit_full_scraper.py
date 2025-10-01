@@ -5,7 +5,7 @@ import logging
 import sys
 import time
 from datetime import UTC, datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import praw
 from dotenv import load_dotenv
@@ -37,7 +37,7 @@ class RedditFullScraper:
         """
         self.discussion_scraper = RedditDiscussionScraper()
         self.max_scraping_workers = max_scraping_workers
-        self.reddit: Optional[praw.Reddit] = None
+        self.reddit: praw.Reddit | None = None
 
     def initialize_reddit(
         self, client_id: str, client_secret: str, user_agent: str
@@ -54,7 +54,7 @@ class RedditFullScraper:
 
     def extract_all_comments_from_thread(
         self, submission: Submission, max_replace_more: int = None
-    ) -> List[Comment]:
+    ) -> list[Comment]:
         """Extract ALL comments from a thread including nested replies.
 
         Args:
@@ -72,7 +72,7 @@ class RedditFullScraper:
 
         try:
             start_time = time.time()
-            
+
             # Expand ALL "more comments" if no limit specified
             if max_replace_more is None:
                 logger.info("Expanding ALL 'more comments' (no limit)...")
@@ -80,10 +80,10 @@ class RedditFullScraper:
             else:
                 logger.info(f"Expanding up to {max_replace_more} 'more comments'...")
                 submission.comments.replace_more(limit=max_replace_more)
-            
+
             # Get flattened list of ALL comments
             all_comments = submission.comments.list()
-            
+
             # Filter out deleted/removed comments
             valid_comments = []
             for comment in all_comments:
@@ -92,7 +92,7 @@ class RedditFullScraper:
 
             elapsed_time = time.time() - start_time
             logger.info(f"Extracted {len(valid_comments)} valid comments out of {len(all_comments)} total in {elapsed_time:.2f}s")
-            
+
             return valid_comments
 
         except Exception as e:
@@ -121,10 +121,10 @@ class RedditFullScraper:
         self,
         db: Session,
         submission: Submission,
-        tickers: List[Ticker],
+        tickers: list[Ticker],
         max_replace_more: int = None,
         skip_existing: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Scrape a thread completely, getting all comments.
 
         Args:
@@ -139,7 +139,7 @@ class RedditFullScraper:
         """
         try:
             logger.info(f"Starting complete scrape of thread: {submission.title}")
-            
+
             # Get or create thread record
             existing_thread = db.execute(
                 select(RedditThread).where(RedditThread.reddit_id == submission.id)
@@ -219,14 +219,14 @@ class RedditFullScraper:
                 batch = new_comments[i:i + batch_size]
                 batch_num = (i // batch_size) + 1
                 total_batches = (len(new_comments) + batch_size - 1) // batch_size
-                
+
                 logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch)} comments)")
 
                 for comment in batch:
                     try:
                         # Parse comment to article
                         article = self.discussion_scraper.parse_comment_to_article(comment, submission)
-                        
+
                         # Check if article already exists (by reddit_id) if not skipping
                         if not skip_existing:
                             existing_article = db.execute(
@@ -243,7 +243,7 @@ class RedditFullScraper:
 
                         # Link to tickers
                         ticker_links = linker.link_article(article, use_title_only=True)
-                        
+
                         # Save ticker links
                         for link in ticker_links:
                             article_ticker = ArticleTicker(
@@ -283,7 +283,7 @@ class RedditFullScraper:
             thread_record.total_comments = submission.num_comments
             thread_record.last_scraped_at = datetime.now(UTC)
             thread_record.is_complete = True  # Mark as complete since we got all comments
-            
+
             db.commit()
 
             logger.info(
@@ -309,7 +309,7 @@ class RedditFullScraper:
         max_threads: int = 1,
         max_replace_more: int = None,
         skip_existing: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Scrape latest daily discussion threads completely.
 
         Args:
@@ -400,7 +400,7 @@ def setup_logging(verbose: bool = False) -> None:
 def run_full_scrape(
     subreddit: str = "wallstreetbets",
     max_threads: int = 1,
-    max_replace_more: Optional[int] = None,
+    max_replace_more: int | None = None,
     max_workers: int = 5,
     skip_existing: bool = True,
     verbose: bool = False,
@@ -417,7 +417,7 @@ def run_full_scrape(
     """
     setup_logging(verbose)
     logger.info(f"Starting FULL Reddit scraping for r/{subreddit}")
-    
+
     if max_replace_more is None:
         logger.warning("⚠️  No limit on 'more comments' expansion - this may take a VERY long time!")
     else:
@@ -465,7 +465,7 @@ def run_full_scrape(
 def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(description="Full Reddit thread scraping CLI")
-    
+
     parser.add_argument(
         "--subreddit",
         type=str,

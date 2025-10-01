@@ -21,7 +21,7 @@ def clean_sample_data() -> None:
             # Delete articles
             db.query(Article).filter(Article.source == 'sample').delete()
             logger.info(f"Deleted {len(sample_articles)} sample articles")
-        
+
         # Delete test articles
         test_articles = db.query(Article).filter(Article.source == 'test').all()
         if test_articles:
@@ -31,14 +31,14 @@ def clean_sample_data() -> None:
             # Delete articles
             db.query(Article).filter(Article.source == 'test').delete()
             logger.info(f"Deleted {len(test_articles)} test articles")
-        
+
         db.commit()
         logger.info("Sample and test data cleanup completed")
-        
+
         # Show remaining data
         remaining = db.query(Article).count()
         logger.info(f"Remaining articles: {remaining}")
-        
+
     except Exception as e:
         logger.error(f"Failed to clean sample data: {e}")
         db.rollback()

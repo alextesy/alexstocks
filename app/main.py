@@ -1,14 +1,15 @@
 """FastAPI application with server-rendered templates."""
 
 import logging
-from typing import Optional
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+
 from app.services.sentiment import get_sentiment_service_hybrid
-from app.services.velocity import get_velocity_service
-from app.services.stock_data import stock_service
 from app.services.sentiment_analytics import get_sentiment_analytics_service
+from app.services.stock_data import stock_service
+from app.services.velocity import get_velocity_service
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +34,10 @@ def get_sentiment_display_data(sentiment_score: float | None) -> dict:
             "text_color": "text-gray-800",
             "icon": "❓"
         }
-    
+
     sentiment_service = get_sentiment_service_hybrid()
     label = sentiment_service.get_sentiment_label(sentiment_score)
-    
+
     if label == "Positive":
         return {
             "label": "Positive",
@@ -47,7 +48,7 @@ def get_sentiment_display_data(sentiment_score: float | None) -> dict:
         }
     elif label == "Negative":
         return {
-            "label": "Negative", 
+            "label": "Negative",
             "color": "red",
             "bg_color": "bg-red-100",
             "text_color": "text-red-800",
@@ -56,7 +57,7 @@ def get_sentiment_display_data(sentiment_score: float | None) -> dict:
     else:
         return {
             "label": "Neutral",
-            "color": "gray", 
+            "color": "gray",
             "bg_color": "bg-gray-100",
             "text_color": "text-gray-800",
             "icon": "➡️"
@@ -75,14 +76,16 @@ templates.env.globals["get_velocity_display_data"] = get_velocity_display_data_w
 
 def get_sentiment_over_time_data(db, ticker: str, days: int = 30) -> dict:
     """Get sentiment data aggregated over time for bar chart visualization."""
+    from datetime import datetime, timedelta
+
+    from sqlalchemy import func
+
     from app.db.models import Article, ArticleTicker
-    from sqlalchemy import func, text
-    from datetime import datetime, timedelta, date
-    
+
     try:
         # Get sentiment data grouped by day for the last N days
         cutoff_date = datetime.utcnow() - timedelta(days=days)
-        
+
         # Query to get daily positive and negative counts
         from sqlalchemy import case
         daily_sentiment = (
@@ -111,7 +114,7 @@ def get_sentiment_over_time_data(db, ticker: str, days: int = 30) -> dict:
             .order_by(func.date(Article.published_at))
             .all()
         )
-        
+
         # Create a dictionary for quick lookup
         sentiment_by_date = {}
         for row in daily_sentiment:
@@ -119,12 +122,12 @@ def get_sentiment_over_time_data(db, ticker: str, days: int = 30) -> dict:
                 "positive": int(row.positive_count or 0),
                 "negative": int(row.negative_count or 0)
             }
-        
+
         # Generate data for all days in the range, filling missing days with zeros
         chart_data = []
         start_date = (datetime.utcnow() - timedelta(days=days)).date()
         end_date = datetime.utcnow().date()
-        
+
         current_date = start_date
         while current_date <= end_date:
             date_str = current_date.strftime("%Y-%m-%d")
@@ -141,13 +144,13 @@ def get_sentiment_over_time_data(db, ticker: str, days: int = 30) -> dict:
                     "negative": 0
                 })
             current_date += timedelta(days=1)
-        
+
         return {
             "data": chart_data,
             "period_days": days,
             "total_points": len(chart_data)
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting sentiment over time data: {e}")
         return {"data": [], "period_days": days, "total_points": 0}
@@ -183,10 +186,10 @@ async def get_stock_data(symbol: str):
 
 
 @app.get("/api/sentiment/histogram")
-async def get_sentiment_histogram(ticker: Optional[str] = None):
+async def get_sentiment_histogram(ticker: str | None = None):
     """Get sentiment histogram data for all articles or a specific ticker."""
     from app.db.session import SessionLocal
-    
+
     try:
         db = SessionLocal()
         try:
@@ -195,7 +198,7 @@ async def get_sentiment_histogram(ticker: Optional[str] = None):
                 sentiment_data = sentiment_analytics.get_sentiment_distribution_data(db, ticker.upper())
             else:
                 sentiment_data = sentiment_analytics.get_sentiment_distribution_data(db)
-            
+
             return sentiment_data
         finally:
             db.close()
@@ -211,7 +214,7 @@ async def get_sentiment_histogram(ticker: Optional[str] = None):
 async def get_sentiment_time_series(ticker: str, days: int = 30):
     """Get sentiment data over time for a specific ticker."""
     from app.db.session import SessionLocal
-    
+
     try:
         db = SessionLocal()
         try:
@@ -230,10 +233,11 @@ async def get_sentiment_time_series(ticker: str, days: int = 30):
 @app.get("/api/ticker/{ticker}/articles")
 async def get_ticker_articles(ticker: str, page: int = 1, limit: int = 50):
     """Get paginated articles for a specific ticker."""
-    from app.db.session import SessionLocal
+    from sqlalchemy import desc, func
+
     from app.db.models import Article, ArticleTicker, Ticker
-    from sqlalchemy import func, desc
-    
+    from app.db.session import SessionLocal
+
     try:
         db = SessionLocal()
         try:
@@ -244,18 +248,18 @@ async def get_ticker_articles(ticker: str, page: int = 1, limit: int = 50):
                     status_code=404,
                     content={"error": f"Ticker {ticker} not found"}
                 )
-            
+
             # Get total article count
             total_count = (
                 db.query(func.count(ArticleTicker.article_id))
                 .filter(ArticleTicker.ticker == ticker.upper())
                 .scalar() or 0
             )
-            
+
             # Calculate pagination
             offset = (page - 1) * limit
             total_pages = (total_count + limit - 1) // limit
-            
+
             # Get paginated articles
             articles_query = (
                 db.query(Article, ArticleTicker.confidence, ArticleTicker.matched_terms)
@@ -265,9 +269,9 @@ async def get_ticker_articles(ticker: str, page: int = 1, limit: int = 50):
                 .offset(offset)
                 .limit(limit)
             )
-            
+
             articles_with_confidence = articles_query.all()
-            
+
             # Format articles
             articles = []
             for article, confidence, matched_terms in articles_with_confidence:
@@ -281,7 +285,7 @@ async def get_ticker_articles(ticker: str, page: int = 1, limit: int = 50):
                     url = article.url
                     author_info = ""
                     subreddit_info = ""
-                
+
                 article_dict = {
                     "id": article.id,
                     "title": title,
@@ -296,7 +300,7 @@ async def get_ticker_articles(ticker: str, page: int = 1, limit: int = 50):
                     "matched_terms": matched_terms or [],
                 }
                 articles.append(article_dict)
-            
+
             return {
                 "ticker": ticker.upper(),
                 "ticker_name": ticker_obj.name,
@@ -323,21 +327,23 @@ async def get_ticker_articles(ticker: str, page: int = 1, limit: int = 50):
 @app.get("/api/stock/{symbol}/chart")
 async def get_stock_chart_data(symbol: str, period: str = "1mo"):
     """Get historical stock data for charting from database, combined with current price."""
-    from app.db.session import SessionLocal
-    from app.db.models import StockPriceHistory, StockPrice
-    from sqlalchemy import desc
     from datetime import datetime, timedelta
-    
+
+    from sqlalchemy import desc
+
+    from app.db.models import StockPrice, StockPriceHistory
+    from app.db.session import SessionLocal
+
     try:
         db = SessionLocal()
         try:
             # Map period to number of days
             period_days = {
-                "1d": 1, "5d": 5, "1mo": 30, "3mo": 90, 
+                "1d": 1, "5d": 5, "1mo": 30, "3mo": 90,
                 "6mo": 180, "1y": 365, "2y": 730, "5y": 1825
             }
             days = period_days.get(period, 30)
-            
+
             # Get historical data from database
             cutoff_date = datetime.now() - timedelta(days=days)
             historical_data = (
@@ -349,10 +355,10 @@ async def get_stock_chart_data(symbol: str, period: str = "1mo"):
                 .order_by(desc(StockPriceHistory.date))
                 .all()
             )
-            
+
             # Get current price data
             current_price = db.query(StockPrice).filter(StockPrice.symbol == symbol.upper()).first()
-            
+
             if historical_data:
                 chart_points = []
                 for point in reversed(historical_data):  # Reverse to get chronological order
@@ -361,23 +367,23 @@ async def get_stock_chart_data(symbol: str, period: str = "1mo"):
                         "price": point.close_price,
                         "volume": point.volume or 0
                     })
-                
+
                 # Add current price as latest point if available and more recent
                 if current_price and current_price.updated_at:
                     latest_historical_date = historical_data[0].date.date()
                     today = datetime.now().date()
-                    
+
                     if today >= latest_historical_date:
                         # Remove today's historical data if it exists (replace with current)
                         chart_points = [point for point in chart_points if point["date"] != today.strftime("%Y-%m-%d")]
-                        
+
                         # Add current price as today's data point
                         chart_points.append({
                             "date": today.strftime("%Y-%m-%d"),
                             "price": current_price.price,
                             "volume": 0
                         })
-                
+
                 chart_data = {
                     "symbol": symbol.upper(),
                     "period": period,
@@ -394,7 +400,7 @@ async def get_stock_chart_data(symbol: str, period: str = "1mo"):
                         "price": current_price.price,
                         "volume": 0
                     }]
-                    
+
                     chart_data = {
                         "symbol": symbol.upper(),
                         "period": period,
@@ -410,14 +416,14 @@ async def get_stock_chart_data(symbol: str, period: str = "1mo"):
                             return chart_data
                     except Exception as e:
                         logger.error(f"Error getting chart data for API: {e}")
-                
+
                 return JSONResponse(
                     status_code=404,
                     content={"error": f"No chart data found for {symbol}"}
                 )
         finally:
             db.close()
-            
+
     except Exception as e:
         logger.error(f"Error in chart API: {e}")
         return JSONResponse(
@@ -429,16 +435,18 @@ async def get_stock_chart_data(symbol: str, period: str = "1mo"):
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, page: int = 1) -> HTMLResponse:
     """Home page with ticker grid showing top 50 most discussed tickers in last 24h."""
-    from app.db.session import SessionLocal
-    from app.db.models import Ticker, ArticleTicker, Article, StockPrice
-    from sqlalchemy import func, and_
     from datetime import datetime, timedelta
-    
+
+    from sqlalchemy import and_, func
+
+    from app.db.models import Article, ArticleTicker, StockPrice, Ticker
+    from app.db.session import SessionLocal
+
     db = SessionLocal()
     try:
         # Calculate 24 hours ago
         twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
-        
+
         # Get tickers with article counts from last 24h, average sentiment, and stock prices
         # First, get the top 50 most discussed tickers in last 24h
         top_tickers_subquery = (
@@ -453,7 +461,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
             .limit(50)
             .subquery()
         )
-        
+
         # Now get full data for these top tickers
         tickers_query = (
             db.query(
@@ -473,7 +481,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
             )
             .join(top_tickers_subquery, Ticker.symbol == top_tickers_subquery.c.ticker)
             .outerjoin(
-                ArticleTicker, 
+                ArticleTicker,
                 and_(
                     Ticker.symbol == ArticleTicker.ticker,
                     ArticleTicker.article_id.in_(
@@ -491,21 +499,21 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
             )
             .order_by(top_tickers_subquery.c.recent_article_count.desc(), Ticker.symbol)
         )
-        
+
         # Get velocity service for calculating velocity data
         velocity_service = get_velocity_service(db)
-        
+
         # Get sentiment analytics service for overall sentiment histogram
         sentiment_analytics = get_sentiment_analytics_service()
         overall_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(db)
-        
+
         tickers = []
         for row in tickers_query.all():
             symbol, name, article_count, avg_sentiment, recent_article_count, price, previous_close, change, change_percent, market_state, currency, exchange, updated_at = row
-            
+
             # Calculate velocity for this ticker
             velocity_data = velocity_service.calculate_velocity(symbol)
-            
+
             # Build stock data from DB
             stock_data = None
             if price is not None:
@@ -520,7 +528,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                     "exchange": exchange,
                     "last_updated": updated_at.isoformat() if updated_at else None
                 }
-            
+
             ticker_dict = {
                 "symbol": symbol,
                 "name": name,
@@ -530,7 +538,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "stock_data": stock_data,
             }
             tickers.append(ticker_dict)
-        
+
         return templates.TemplateResponse(
             "home.html",
             {
@@ -547,20 +555,22 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
 async def get_all_tickers(
     page: int = 1,
     limit: int = 50,
-    search: Optional[str] = None,
+    search: str | None = None,
     sort_by: str = "recent_activity"  # recent_activity, alphabetical, total_articles
 ):
     """Get paginated list of all tickers with optional search and sorting."""
-    from app.db.session import SessionLocal
-    from app.db.models import Ticker, ArticleTicker, Article, StockPrice
-    from sqlalchemy import func, and_, or_
     from datetime import datetime, timedelta
-    
+
+    from sqlalchemy import func
+
+    from app.db.models import Article, ArticleTicker, StockPrice, Ticker
+    from app.db.session import SessionLocal
+
     db = SessionLocal()
     try:
         # Calculate pagination
         offset = (page - 1) * limit
-        
+
         # Base query for tickers
         base_query = db.query(
             Ticker.symbol,
@@ -576,14 +586,14 @@ async def get_all_tickers(
             StockPrice.exchange,
             StockPrice.updated_at
         )
-        
+
         # Add search filter if provided (only search ticker symbols)
         if search:
             search_term = f"%{search.upper()}%"
             base_query = base_query.filter(
                 Ticker.symbol.ilike(search_term)
             )
-        
+
         # Calculate 24h activity for all queries (for consistent ordering)
         twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
         recent_count = (
@@ -596,7 +606,7 @@ async def get_all_tickers(
             .group_by(ArticleTicker.ticker)
             .subquery()
         )
-        
+
         # Complete the query with joins and grouping
         tickers_query = (
             base_query
@@ -611,7 +621,7 @@ async def get_all_tickers(
                 StockPrice.currency, StockPrice.exchange, StockPrice.updated_at, recent_count.c.recent_count
             )
         )
-        
+
         # Apply sorting
         if sort_by == "recent_activity":
             tickers_query = tickers_query.order_by(func.coalesce(recent_count.c.recent_count, 0).desc(), Ticker.symbol)
@@ -619,7 +629,7 @@ async def get_all_tickers(
             tickers_query = tickers_query.order_by(Ticker.symbol)
         elif sort_by == "total_articles":
             tickers_query = tickers_query.order_by(func.count(ArticleTicker.article_id).desc(), Ticker.symbol)
-        
+
         # Get total count for pagination
         total_query = db.query(Ticker.symbol)
         if search:
@@ -628,16 +638,16 @@ async def get_all_tickers(
                 Ticker.symbol.ilike(search_term)
             )
         total_count = total_query.count()
-        
+
         # Apply pagination
         paginated_tickers = tickers_query.offset(offset).limit(limit).all()
-        
+
         # Format results
         tickers = []
         for row in paginated_tickers:
             # All queries now have the same structure with recent_activity_count
             symbol, name, total_article_count, avg_sentiment, price, previous_close, change, change_percent, market_state, currency, exchange, updated_at, recent_activity_count = row
-            
+
             # Build stock data from DB
             stock_data = None
             if price is not None:
@@ -652,7 +662,7 @@ async def get_all_tickers(
                     "exchange": exchange,
                     "last_updated": updated_at.isoformat() if updated_at else None
                 }
-            
+
             ticker_dict = {
                 "symbol": symbol,
                 "name": name,
@@ -661,7 +671,7 @@ async def get_all_tickers(
                 "stock_data": stock_data,
             }
             tickers.append(ticker_dict)
-        
+
         return {
             "tickers": tickers,
             "pagination": {
@@ -678,13 +688,12 @@ async def get_all_tickers(
 
 
 @app.get("/browse", response_class=HTMLResponse)
-async def browse_tickers(request: Request, page: int = 1, search: Optional[str] = None, sort_by: str = "recent_activity") -> HTMLResponse:
+async def browse_tickers(request: Request, page: int = 1, search: str | None = None, sort_by: str = "recent_activity") -> HTMLResponse:
     """Browse all tickers with pagination and search."""
-    from app.db.session import SessionLocal
-    
+
     # Get ticker data via API endpoint logic
     api_data = await get_all_tickers(page=page, search=search, sort_by=sort_by, limit=50)
-    
+
     return templates.TemplateResponse(
         "browse.html",
         {
@@ -700,24 +709,31 @@ async def browse_tickers(request: Request, page: int = 1, search: Optional[str] 
 @app.get("/t/{ticker}", response_class=HTMLResponse)
 async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLResponse:
     """Ticker detail page with articles."""
-    from app.db.session import SessionLocal
-    from app.db.models import Article, ArticleTicker, Ticker, StockPrice, StockPriceHistory
-    from sqlalchemy.orm import joinedload
+    from datetime import datetime
+
     from sqlalchemy import desc, func
-    from datetime import datetime, timedelta
-    
+
+    from app.db.models import (
+        Article,
+        ArticleTicker,
+        StockPrice,
+        StockPriceHistory,
+        Ticker,
+    )
+    from app.db.session import SessionLocal
+
     db = SessionLocal()
     try:
         # Get ticker info
         ticker_obj = db.query(Ticker).filter(Ticker.symbol == ticker.upper()).first()
-        
+
         # Get total article count for this ticker
         total_article_count = (
             db.query(func.count(ArticleTicker.article_id))
             .filter(ArticleTicker.ticker == ticker.upper())
             .scalar() or 0
         )
-        
+
         # Get stock data from database
         stock_data = None
         stock_price = db.query(StockPrice).filter(StockPrice.symbol == ticker.upper()).first()
@@ -733,7 +749,7 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
                 "exchange": stock_price.exchange,
                 "last_updated": stock_price.updated_at.isoformat() if stock_price.updated_at else None
             }
-        
+
         # Get chart data combining historical data + current price
         chart_data = None
         historical_data = (
@@ -743,7 +759,7 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
             .limit(30)
             .all()
         )
-        
+
         if historical_data:
             chart_points = []
             for point in reversed(historical_data):  # Reverse to get chronological order
@@ -752,24 +768,24 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
                     "price": point.close_price,
                     "volume": point.volume or 0
                 })
-            
+
             # Add current price as latest point if it's more recent than last historical data
             if stock_price and stock_price.updated_at:
                 latest_historical_date = historical_data[0].date.date()  # Most recent historical date
                 today = datetime.now().date()
-                
+
                 # If current price is from today and newer than latest historical data
                 if today >= latest_historical_date:
                     # Remove today's historical data if it exists (we'll replace with current price)
                     chart_points = [point for point in chart_points if point["date"] != today.strftime("%Y-%m-%d")]
-                    
+
                     # Add current price as today's data point
                     chart_points.append({
                         "date": today.strftime("%Y-%m-%d"),
                         "price": stock_price.price,
                         "volume": 0  # Volume not available in current price data
                     })
-            
+
             chart_data = {
                 "symbol": ticker.upper(),
                 "period": "1mo",
@@ -786,7 +802,7 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
                     "price": stock_price.price,
                     "volume": 0
                 }]
-                
+
                 chart_data = {
                     "symbol": ticker.upper(),
                     "period": "1mo",
@@ -800,12 +816,12 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
                 except Exception as e:
                     logger.error(f"Error getting chart data for UI: {e}")
                     chart_data = None
-        
+
         if not ticker_obj:
             # Get sentiment histogram even for unknown tickers
             sentiment_analytics = get_sentiment_analytics_service()
             ticker_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(db, ticker.upper())
-            
+
             # Return 404 or redirect to home
             return templates.TemplateResponse(
                 "ticker.html",
@@ -821,11 +837,11 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
                     "pagination": {"page": 1, "total_pages": 1, "has_next": False, "has_prev": False},
                 },
             )
-        
+
         # Pagination settings
         articles_per_page = 50
         offset = (page - 1) * articles_per_page
-        
+
         # Get articles for this ticker with matched terms (paginated)
         articles_query = (
             db.query(Article, ArticleTicker.confidence, ArticleTicker.matched_terms)
@@ -835,9 +851,9 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
             .offset(offset)
             .limit(articles_per_page)
         )
-        
+
         articles_with_confidence = articles_query.all()
-        
+
         # Calculate pagination info
         total_pages = (total_article_count + articles_per_page - 1) // articles_per_page
         pagination = {
@@ -847,14 +863,14 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
             "has_prev": page > 1,
             "total_articles": total_article_count
         }
-        
+
         # Get sentiment histogram for this ticker
         sentiment_analytics = get_sentiment_analytics_service()
         ticker_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(db, ticker.upper())
-        
+
         # Get sentiment over time data for visualization
         sentiment_over_time = get_sentiment_over_time_data(db, ticker.upper())
-        
+
         # Format articles for template
         articles = []
         for article, confidence, matched_terms in articles_with_confidence:
@@ -869,7 +885,7 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
                 url = article.url
                 author_info = ""
                 subreddit_info = ""
-            
+
             article_dict = {
                 "id": article.id,
                 "title": title,
@@ -885,7 +901,7 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
                 "matched_terms": matched_terms or [],
             }
             articles.append(article_dict)
-        
+
         return templates.TemplateResponse(
             "ticker.html",
             {

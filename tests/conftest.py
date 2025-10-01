@@ -1,16 +1,15 @@
 """Pytest configuration and shared fixtures."""
 
-import pytest
 import os
 import tempfile
-from typing import Generator
 from unittest.mock import Mock, patch
+
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db.models import Base, Article, Ticker, ArticleTicker, RedditThread
-from app.db.session import SessionLocal
+from app.db.models import Article, Base, Ticker
 
 
 @pytest.fixture(scope="session")
@@ -66,7 +65,7 @@ def sample_tickers():
 def sample_articles():
     """Create sample article data for tests."""
     from datetime import UTC, datetime
-    
+
     return [
         Article(
             source="reddit",
@@ -200,9 +199,9 @@ def temp_file():
     with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
         f.write("Test content")
         temp_path = f.name
-    
+
     yield temp_path
-    
+
     # Cleanup
     try:
         os.unlink(temp_path)
@@ -227,19 +226,19 @@ def pytest_collection_modifyitems(config, items):
         # Add integration marker to tests with 'integration' in the name
         if "integration" in item.nodeid:
             item.add_marker(pytest.mark.integration)
-        
+
         # Add performance marker to tests with 'performance' in the name
         if "performance" in item.nodeid:
             item.add_marker(pytest.mark.performance)
-        
+
         # Add slow marker to tests that might be slow
         if any(keyword in item.nodeid.lower() for keyword in ["full", "complete", "batch"]):
             item.add_marker(pytest.mark.slow)
-        
+
         # Add reddit marker to Reddit-related tests
         if "reddit" in item.nodeid.lower():
             item.add_marker(pytest.mark.reddit)
-        
+
         # Add llm marker to LLM-related tests
         if "llm" in item.nodeid.lower() or "hybrid" in item.nodeid.lower():
             item.add_marker(pytest.mark.llm)
@@ -254,7 +253,7 @@ pytest_plugins = []
 def wallstreetbets_post():
     """Create a typical WallStreetBets post."""
     from datetime import UTC, datetime
-    
+
     return Article(
         source="reddit",
         url="https://reddit.com/r/wallstreetbets/comments/wsb_post/",
@@ -275,7 +274,7 @@ def wallstreetbets_post():
 def technical_analysis_post():
     """Create a technical analysis post."""
     from datetime import UTC, datetime
-    
+
     return Article(
         source="reddit",
         url="https://reddit.com/r/stocks/comments/tech_analysis/",
@@ -296,7 +295,7 @@ def technical_analysis_post():
 def earnings_discussion_post():
     """Create an earnings discussion post."""
     from datetime import UTC, datetime
-    
+
     return Article(
         source="reddit",
         url="https://reddit.com/r/investing/comments/earnings_discussion/",

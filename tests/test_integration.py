@@ -1,15 +1,15 @@
 """Integration tests for the complete Reddit scraping and analysis pipeline."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from datetime import UTC, datetime
-from typing import List
+from unittest.mock import Mock, patch
 
-from app.db.models import Article, Ticker, ArticleTicker
-from ingest.reddit_parser import RedditParser
-from ingest.linker import TickerLinker
-from app.services.sentiment import SentimentService
+import pytest
+
+from app.db.models import Article, ArticleTicker
 from app.services.hybrid_sentiment import HybridSentimentService
+from app.services.sentiment import SentimentService
+from ingest.linker import TickerLinker
+from ingest.reddit_parser import RedditParser
 
 
 @pytest.mark.integration
@@ -22,40 +22,40 @@ class TestRedditScrapingPipeline:
         for ticker in sample_tickers:
             db_session.add(ticker)
         db_session.commit()
-        
+
         # Mock Reddit parser
         parser = RedditParser()
         parser.reddit = Mock()
-        
+
         # Mock subreddit and posts
         mock_subreddit = Mock()
         mock_subreddit.top.return_value = [mock_reddit_submission]
         parser.reddit.subreddit.return_value = mock_subreddit
-        
+
         # Parse Reddit posts
         articles = parser.parse_subreddit_posts("wallstreetbets", limit=1, time_filter="day")
-        
+
         assert len(articles) == 1
         article = articles[0]
         assert article.source == "reddit"
         assert article.subreddit == "wallstreetbets"
-        
+
         # Add article to database
         db_session.add(article)
         db_session.flush()  # Get the ID
-        
+
         # Test ticker linking
         with patch('ingest.linker.get_content_scraper'), \
              patch('ingest.linker.get_context_analyzer') as mock_context:
-            
+
             mock_context.return_value.analyze_ticker_relevance.return_value = (0.8, ["Strong context"])
-            
+
             linker = TickerLinker(sample_tickers)
             ticker_links = linker.link_article(article, use_title_only=True)
-            
+
             # Should find ticker mentions in the title
             assert len(ticker_links) > 0
-            
+
             # Save ticker links to database
             for link in ticker_links:
                 article_ticker = ArticleTicker(
@@ -65,14 +65,14 @@ class TestRedditScrapingPipeline:
                     matched_terms=link.matched_terms,
                 )
                 db_session.add(article_ticker)
-        
+
         db_session.commit()
-        
+
         # Verify data in database
         saved_article = db_session.query(Article).filter_by(reddit_id="test_submission_123").first()
         assert saved_article is not None
         assert saved_article.title == "Test Reddit Post"
-        
+
         # Check ticker links
         ticker_links = db_session.query(ArticleTicker).filter_by(article_id=saved_article.id).all()
         assert len(ticker_links) > 0
@@ -83,39 +83,39 @@ class TestRedditScrapingPipeline:
         for ticker in sample_tickers:
             db_session.add(ticker)
         db_session.commit()
-        
+
         # Create mock submission for the comment
         mock_submission = Mock()
         mock_submission.id = "test_submission"
         mock_submission.title = "Daily Discussion"
         mock_submission.subreddit = Mock()
         mock_submission.subreddit.display_name = "wallstreetbets"
-        
+
         # Parse comment to article
         from ingest.reddit_discussion_scraper import RedditDiscussionScraper
         scraper = RedditDiscussionScraper()
         article = scraper.parse_comment_to_article(mock_reddit_comment, mock_submission)
-        
+
         assert article.source == "reddit_comment"
         assert article.text == "This is a test comment about $AAPL stock"
-        
+
         # Add to database
         db_session.add(article)
         db_session.flush()
-        
+
         # Test ticker linking for comment
         with patch('ingest.linker.get_content_scraper'), \
              patch('ingest.linker.get_context_analyzer') as mock_context:
-            
+
             mock_context.return_value.analyze_ticker_relevance.return_value = (0.9, ["Direct mention"])
-            
+
             linker = TickerLinker(sample_tickers)
             ticker_links = linker.link_article(article, use_title_only=True)
-            
+
             # Should find AAPL mention
             assert len(ticker_links) > 0
             assert any(link.ticker == "AAPL" for link in ticker_links)
-            
+
             # Save ticker links
             for link in ticker_links:
                 article_ticker = ArticleTicker(
@@ -125,14 +125,14 @@ class TestRedditScrapingPipeline:
                     matched_terms=link.matched_terms,
                 )
                 db_session.add(article_ticker)
-        
+
         db_session.commit()
-        
+
         # Verify comment processing
         saved_comment = db_session.query(Article).filter_by(reddit_id="test_comment_456").first()
         assert saved_comment is not None
         assert saved_comment.source == "reddit_comment"
-        
+
         # Check ticker links
         ticker_links = db_session.query(ArticleTicker).filter_by(article_id=saved_comment.id).all()
         assert len(ticker_links) > 0
@@ -144,7 +144,7 @@ class TestRedditScrapingPipeline:
         for article in sample_articles:
             db_session.add(article)
         db_session.commit()
-        
+
         # Test sentiment analysis
         with patch('app.services.sentiment.SentimentIntensityAnalyzer') as mock_analyzer_class:
             mock_analyzer = Mock()
@@ -155,21 +155,21 @@ class TestRedditScrapingPipeline:
                 'compound': 0.7
             }
             mock_analyzer_class.return_value = mock_analyzer
-            
+
             sentiment_service = SentimentService()
-            
+
             # Analyze sentiment for each article
             for article in sample_articles:
                 if article.source == "reddit_comment":
                     text = article.text
                 else:
                     text = f"{article.title} {article.text}"
-                
+
                 sentiment_score = sentiment_service.analyze_sentiment(text)
                 article.sentiment = sentiment_score
-            
+
             db_session.commit()
-            
+
             # Verify sentiment scores
             for article in sample_articles:
                 assert article.sentiment == 0.7
@@ -180,33 +180,33 @@ class TestRedditScrapingPipeline:
         for article in sample_articles:
             db_session.add(article)
         db_session.commit()
-        
+
         # Test hybrid sentiment analysis
         with patch('app.services.hybrid_sentiment.get_llm_sentiment_service') as mock_llm, \
              patch('app.services.hybrid_sentiment.get_sentiment_service') as mock_vader:
-            
+
             mock_llm_service = Mock()
             mock_llm_service.analyze_sentiment.return_value = 0.8
             mock_llm.return_value = mock_llm_service
-            
+
             mock_vader_service = Mock()
             mock_vader_service.analyze_sentiment.return_value = 0.6
             mock_vader.return_value = mock_vader_service
-            
+
             hybrid_service = HybridSentimentService(dual_model_strategy=True)
-            
+
             # Analyze sentiment for each article
             for article in sample_articles:
                 if article.source == "reddit_comment":
                     text = article.text
                 else:
                     text = f"{article.title} {article.text}"
-                
+
                 sentiment_score = hybrid_service.analyze_sentiment(text)
                 article.sentiment = sentiment_score
-            
+
             db_session.commit()
-            
+
             # Verify sentiment scores (should use LLM since it's stronger)
             for article in sample_articles:
                 assert article.sentiment == 0.8
@@ -217,19 +217,19 @@ class TestRedditScrapingPipeline:
         for ticker in sample_tickers:
             db_session.add(ticker)
         db_session.commit()
-        
+
         # Mock Reddit credentials
         with patch('ingest.reddit.get_reddit_credentials') as mock_creds, \
              patch('ingest.reddit.RedditParser') as mock_parser_class, \
              patch('ingest.reddit.TickerLinker') as mock_linker_class, \
              patch('ingest.reddit.upsert_reddit_article') as mock_upsert:
-            
+
             mock_creds.return_value = ("client_id", "client_secret", "user_agent")
-            
+
             # Mock parser
             mock_parser = Mock()
             mock_parser_class.return_value = mock_parser
-            
+
             # Create test article
             test_article = Article(
                 source="reddit",
@@ -246,19 +246,19 @@ class TestRedditScrapingPipeline:
                 reddit_url="https://reddit.com/test",
             )
             mock_parser.parse_multiple_subreddits.return_value = [test_article]
-            
+
             # Mock linker
             mock_linker = Mock()
             mock_linker_class.return_value = mock_linker
             mock_linker.link_articles_to_db.return_value = [(test_article, [])]
-            
+
             # Mock upsert
             mock_upsert.return_value = test_article
-            
+
             # Run ingestion
             from ingest.reddit import ingest_reddit_data
             ingest_reddit_data(subreddits=["test"], limit_per_subreddit=1)
-            
+
             # Verify calls
             mock_creds.assert_called_once()
             mock_parser.initialize_reddit.assert_called_once()
@@ -271,7 +271,7 @@ class TestRedditScrapingPipeline:
         for ticker in sample_tickers:
             db_session.add(ticker)
         db_session.commit()
-        
+
         # Create realistic Reddit posts
         realistic_posts = [
             Article(
@@ -317,24 +317,24 @@ class TestRedditScrapingPipeline:
                 reddit_url="https://reddit.com/r/stocks/comments/analysis1/",
             ),
         ]
-        
+
         # Add posts to database
         for post in realistic_posts:
             db_session.add(post)
         db_session.flush()
-        
+
         # Test ticker linking
         with patch('ingest.linker.get_content_scraper'), \
              patch('ingest.linker.get_context_analyzer') as mock_context:
-            
+
             mock_context.return_value.analyze_ticker_relevance.return_value = (0.8, ["Strong context"])
-            
+
             linker = TickerLinker(sample_tickers)
-            
+
             total_links = 0
             for post in realistic_posts:
                 ticker_links = linker.link_article(post, use_title_only=False)
-                
+
                 # Save ticker links
                 for link in ticker_links:
                     article_ticker = ArticleTicker(
@@ -345,19 +345,19 @@ class TestRedditScrapingPipeline:
                     )
                     db_session.add(article_ticker)
                     total_links += 1
-            
+
             db_session.commit()
-            
+
             # Verify linking results
             assert total_links > 0
-            
+
             # Check specific ticker links
             gme_links = db_session.query(ArticleTicker).filter_by(ticker="GME").all()
             assert len(gme_links) > 0
-            
+
             aapl_links = db_session.query(ArticleTicker).filter_by(ticker="AAPL").all()
             assert len(aapl_links) > 0
-            
+
             spy_links = db_session.query(ArticleTicker).filter_by(ticker="SPY").all()
             assert len(spy_links) > 0
 
@@ -367,21 +367,21 @@ class TestRedditScrapingPipeline:
         for article in sample_articles:
             db_session.add(article)
         db_session.commit()
-        
+
         # Test with different sentiment services
         with patch('app.services.sentiment.SentimentIntensityAnalyzer') as mock_analyzer_class:
             mock_analyzer = Mock()
             mock_analyzer_class.return_value = mock_analyzer
-            
+
             sentiment_service = SentimentService()
-            
+
             # Test different sentiment scenarios
             sentiment_scenarios = [
                 ("🚀 $GME to the moon! 💎🙌", {'compound': 0.8}),  # Very positive
                 ("This stock is terrible! Lost everything!", {'compound': -0.7}),  # Very negative
                 ("The stock price is $100.", {'compound': 0.0}),  # Neutral
             ]
-            
+
             for text, expected_scores in sentiment_scenarios:
                 mock_analyzer.polarity_scores.return_value = expected_scores
                 result = sentiment_service.analyze_sentiment(text)
@@ -393,21 +393,21 @@ class TestRedditScrapingPipeline:
         for ticker in sample_tickers:
             db_session.add(ticker)
         db_session.commit()
-        
+
         # Test with invalid Reddit credentials
         with patch('ingest.reddit.get_reddit_credentials') as mock_creds:
             mock_creds.side_effect = ValueError("Invalid credentials")
-            
+
             from ingest.reddit import ingest_reddit_data
             # Should not raise exception, just log error
             ingest_reddit_data()
-        
+
         # Test with empty ticker list
         with patch('ingest.reddit.load_tickers', return_value=[]):
             from ingest.reddit import ingest_reddit_data
             # Should not raise exception, just log error
             ingest_reddit_data()
-        
+
         # Test with malformed article data
         malformed_article = Article(
             source="reddit",
@@ -423,17 +423,17 @@ class TestRedditScrapingPipeline:
             num_comments=0,
             reddit_url="",
         )
-        
+
         db_session.add(malformed_article)
         db_session.flush()
-        
+
         # Test ticker linking with malformed data
         with patch('ingest.linker.get_content_scraper'), \
              patch('ingest.linker.get_context_analyzer'):
-            
+
             linker = TickerLinker(sample_tickers)
             ticker_links = linker.link_article(malformed_article, use_title_only=True)
-            
+
             # Should return empty list for malformed data
             assert len(ticker_links) == 0
 
@@ -443,7 +443,7 @@ class TestRedditScrapingPipeline:
         for ticker in sample_tickers:
             db_session.add(ticker)
         db_session.commit()
-        
+
         # Create article that will cause an error
         article = Article(
             source="reddit",
@@ -459,22 +459,22 @@ class TestRedditScrapingPipeline:
             num_comments=5,
             reddit_url="https://reddit.com/test",
         )
-        
+
         db_session.add(article)
         db_session.flush()
-        
+
         # Simulate an error during ticker linking
         with patch('ingest.linker.get_content_scraper'), \
              patch('ingest.linker.get_context_analyzer') as mock_context:
-            
+
             mock_context.return_value.analyze_ticker_relevance.side_effect = Exception("Linking error")
-            
+
             linker = TickerLinker(sample_tickers)
-            
+
             # This should handle the error gracefully
             ticker_links = linker.link_article(article, use_title_only=True)
             assert len(ticker_links) == 0
-        
+
         # Verify article is still in database
         saved_article = db_session.query(Article).filter_by(reddit_id="test123").first()
         assert saved_article is not None

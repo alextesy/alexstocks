@@ -3,9 +3,8 @@
 
 import argparse
 import logging
-import sys
 import subprocess
-from typing import List, Optional
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ def run_monthly_scraping(
     verbose: bool = False
 ) -> bool:
     """Run monthly Reddit discussion scraping.
-    
+
     Args:
         subreddit: Subreddit to scrape
         days_back: Number of days to look back
@@ -43,12 +42,12 @@ def run_monthly_scraping(
         max_workers: Maximum number of workers for ticker linking
         skip_existing: Skip comments already in database
         verbose: Enable verbose logging
-        
+
     Returns:
         True if successful, False otherwise
     """
     logger.info("Starting monthly Reddit discussion scraping...")
-    
+
     try:
         # Build command
         cmd = [
@@ -59,16 +58,16 @@ def run_monthly_scraping(
             "--max-replace-more", str(max_replace_more),
             "--workers", str(max_workers)
         ]
-        
+
         if not skip_existing:
             cmd.append("--include-existing")
-        
+
         if verbose:
             cmd.append("--verbose")
-        
+
         # Run the command
         result = subprocess.run(cmd, capture_output=True, text=True)
-        
+
         if result.returncode == 0:
             logger.info("Monthly Reddit scraping completed successfully")
             if verbose:
@@ -78,33 +77,33 @@ def run_monthly_scraping(
             logger.error(f"Monthly Reddit scraping failed with return code {result.returncode}")
             logger.error(f"Error output: {result.stderr}")
             return False
-            
+
     except Exception as e:
         logger.error(f"Error running monthly Reddit scraping: {e}")
         return False
 
 
 def run_sentiment_analysis(
-    max_articles: Optional[int] = None,
+    max_articles: int | None = None,
     source_filter: str = "reddit",
     hours_back: int = 720,  # 30 days in hours
     max_workers: int = 6,
     verbose: bool = False
 ) -> bool:
     """Run sentiment analysis on newly scraped data.
-    
+
     Args:
         max_articles: Max articles to process
         source_filter: Source filter
         hours_back: Only process articles from last N hours (default: 720 = 30 days)
         max_workers: Max workers for sentiment analysis
         verbose: Enable verbose logging
-        
+
     Returns:
         True if successful, False otherwise
     """
     logger.info(f"Starting sentiment analysis for {source_filter} articles from last {hours_back} hours...")
-    
+
     try:
         # Build command
         cmd = [
@@ -113,16 +112,16 @@ def run_sentiment_analysis(
             "--hours-back", str(hours_back),
             "--max-workers", str(max_workers)
         ]
-        
+
         if max_articles:
             cmd.extend(["--max-articles", str(max_articles)])
-        
+
         if verbose:
             cmd.append("--verbose")
-        
+
         # Run the command
         result = subprocess.run(cmd, capture_output=True, text=True)
-        
+
         if result.returncode == 0:
             logger.info("Sentiment analysis completed successfully")
             if verbose:
@@ -132,7 +131,7 @@ def run_sentiment_analysis(
             logger.error(f"Sentiment analysis failed with return code {result.returncode}")
             logger.error(f"Error output: {result.stderr}")
             return False
-            
+
     except Exception as e:
         logger.error(f"Error running sentiment analysis: {e}")
         return False
@@ -150,7 +149,7 @@ def run_combined_monthly_job(
     verbose: bool = False
 ) -> None:
     """Run combined monthly scraping and sentiment analysis job.
-    
+
     Args:
         subreddit: Subreddit to scrape
         days_back: Number of days to look back for scraping
@@ -163,10 +162,10 @@ def run_combined_monthly_job(
         verbose: Enable verbose logging
     """
     setup_logging(verbose)
-    
+
     logger.info(f"Starting combined monthly scraping and sentiment analysis job for r/{subreddit}")
     logger.info(f"Looking back {days_back} days, processing up to {max_threads} threads")
-    
+
     # Step 1: Run monthly scraping
     scraping_success = run_monthly_scraping(
         subreddit=subreddit,
@@ -177,11 +176,11 @@ def run_combined_monthly_job(
         skip_existing=skip_existing,
         verbose=verbose
     )
-    
+
     if not scraping_success:
         logger.error("Monthly scraping failed, skipping sentiment analysis")
         return
-    
+
     # Step 2: Run sentiment analysis
     sentiment_success = run_sentiment_analysis(
         source_filter="reddit",
@@ -189,7 +188,7 @@ def run_combined_monthly_job(
         max_workers=sentiment_workers,
         verbose=verbose
     )
-    
+
     if sentiment_success:
         logger.info("✅ Combined monthly job completed successfully!")
         logger.info(f"📊 Processed {days_back} days of r/{subreddit} daily discussions")
@@ -201,7 +200,7 @@ def run_combined_monthly_job(
 def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(description="Combined monthly Reddit scraping and sentiment analysis job")
-    
+
     parser.add_argument(
         "--subreddit",
         type=str,
@@ -254,9 +253,9 @@ def main() -> None:
         action="store_true",
         help="Enable verbose logging",
     )
-    
+
     args = parser.parse_args()
-    
+
     try:
         run_combined_monthly_job(
             subreddit=args.subreddit,

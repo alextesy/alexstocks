@@ -5,14 +5,13 @@ import logging
 import sys
 import time
 from datetime import UTC, datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import praw
 from dotenv import load_dotenv
 from praw.models import Comment, Submission
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
 from app.db.models import Article, ArticleTicker, RedditThread, Ticker
 from app.db.session import SessionLocal
@@ -37,8 +36,8 @@ class RedditRobustScraper:
         """
         self.discussion_scraper = RedditDiscussionScraper()
         self.max_scraping_workers = max_scraping_workers
-        self.reddit: Optional[praw.Reddit] = None
-        
+        self.reddit: praw.Reddit | None = None
+
         # Rate limiting configuration
         self.requests_per_minute = 90  # Stay under 100 QPM limit
         self.request_times = []  # Track request times for rate limiting
@@ -61,10 +60,10 @@ class RedditRobustScraper:
     def _rate_limit_check(self) -> None:
         """Check and enforce rate limits."""
         current_time = time.time()
-        
+
         # Remove requests older than 1 minute
         self.request_times = [t for t in self.request_times if current_time - t < 60]
-        
+
         # If we're approaching the limit, wait
         if len(self.request_times) >= self.requests_per_minute:
             sleep_time = 60 - (current_time - self.request_times[0]) + 1
@@ -74,16 +73,16 @@ class RedditRobustScraper:
                 # Clean up old requests after sleep
                 current_time = time.time()
                 self.request_times = [t for t in self.request_times if current_time - t < 60]
-        
+
         # Record this request
         self.request_times.append(current_time)
 
     def _handle_rate_limit_error(self, error: Exception) -> bool:
         """Handle rate limit errors with exponential backoff.
-        
+
         Args:
             error: The exception that occurred
-            
+
         Returns:
             True if we should retry, False if we should give up
         """
@@ -96,7 +95,7 @@ class RedditRobustScraper:
 
     def extract_comments_with_retry(
         self, submission: Submission, max_replace_more: int = None, max_retries: int = 3
-    ) -> List[Comment]:
+    ) -> list[Comment]:
         """Extract comments with rate limit handling and retries.
 
         Args:
@@ -116,9 +115,9 @@ class RedditRobustScraper:
         for attempt in range(max_retries + 1):
             try:
                 self._rate_limit_check()
-                
+
                 start_time = time.time()
-                
+
                 # Expand "more comments" with rate limit handling
                 if max_replace_more is None:
                     logger.info("Expanding ALL 'more comments' (no limit)...")
@@ -127,10 +126,10 @@ class RedditRobustScraper:
                 else:
                     logger.info(f"Expanding up to {max_replace_more} 'more comments'...")
                     submission.comments.replace_more(limit=max_replace_more)
-                
+
                 # Get flattened list of ALL comments
                 all_comments = submission.comments.list()
-                
+
                 # Filter out deleted/removed comments
                 valid_comments = []
                 for comment in all_comments:
@@ -139,7 +138,7 @@ class RedditRobustScraper:
 
                 elapsed_time = time.time() - start_time
                 logger.info(f"Extracted {len(valid_comments)} valid comments out of {len(all_comments)} total in {elapsed_time:.2f}s")
-                
+
                 return valid_comments
 
             except Exception as e:
@@ -153,11 +152,11 @@ class RedditRobustScraper:
         return []
 
     def scrape_thread_robust(
-        self, 
-        submission: Submission, 
+        self,
+        submission: Submission,
         skip_existing: bool = True,
         max_replace_more: int = None
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """Scrape a thread with robust error handling and incremental saving.
 
         Args:
@@ -195,7 +194,7 @@ class RedditRobustScraper:
 
             # Extract comments with rate limit handling
             all_comments = self.extract_comments_with_retry(submission, max_replace_more)
-            
+
             if not all_comments:
                 logger.warning("No comments extracted from thread")
                 return {"total_comments": 0, "new_comments": 0, "processed_articles": 0, "ticker_links": 0}
@@ -236,18 +235,18 @@ class RedditRobustScraper:
 
             logger.info(f"Processing {len(new_comments)} comments with incremental saving every {self.batch_save_interval} comments")
 
-            for i, comment in enumerate(new_comments):
+            for _i, comment in enumerate(new_comments):
                 try:
                     # Parse comment to article
                     article = self.discussion_scraper.parse_comment_to_article(comment, submission)
-                    
+
                     # Add article to database
                     db.add(article)
                     db.flush()  # Get the ID
 
                     # Link to tickers
                     ticker_links = linker.link_article(article, use_title_only=True)
-                    
+
                     # Save ticker links
                     for link in ticker_links:
                         article_ticker = ArticleTicker(
@@ -268,12 +267,12 @@ class RedditRobustScraper:
                             db.commit()
                             batch_count += 1
                             logger.info(f"💾 Saved batch {batch_count}: {processed_count}/{len(new_comments)} comments processed")
-                            
+
                             # Update thread progress
                             thread_record.scraped_comments = max(thread_record.scraped_comments, processed_count)
                             thread_record.last_scraped_at = datetime.now(UTC)
                             db.commit()
-                            
+
                         except Exception as e:
                             logger.error(f"Error saving batch {batch_count}: {e}")
                             db.rollback()
@@ -303,7 +302,7 @@ class RedditRobustScraper:
             thread_record.total_comments = submission.num_comments
             thread_record.last_scraped_at = datetime.now(UTC)
             thread_record.is_complete = True
-            
+
             db.commit()
 
             logger.info(
@@ -328,11 +327,11 @@ class RedditRobustScraper:
             db.close()
 
     def scrape_latest_daily_threads_robust(
-        self, 
-        subreddit_name: str = "wallstreetbets", 
+        self,
+        subreddit_name: str = "wallstreetbets",
         max_threads: int = 1,
         max_replace_more: int = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Scrape latest daily discussion threads with robust error handling.
 
         Args:
@@ -370,19 +369,19 @@ class RedditRobustScraper:
 
         for i, thread in enumerate(discussion_threads, 1):
             logger.info(f"Processing thread {i}/{len(discussion_threads)}: {thread.title}")
-            
+
             try:
                 stats = self.scrape_thread_robust(thread, skip_existing=True, max_replace_more=max_replace_more)
-                
+
                 total_stats["threads_processed"] += 1
                 total_stats["total_comments"] += stats["total_comments"]
                 total_stats["new_comments"] += stats["new_comments"]
                 total_stats["articles"] += stats["processed_articles"]
                 total_stats["ticker_links"] += stats["ticker_links"]
                 total_stats["batches_saved"] += stats.get("batches_saved", 0)
-                
+
                 logger.info(f"✅ Thread {i} completed: {stats['new_comments']} new comments, {stats['processed_articles']} articles")
-                
+
             except Exception as e:
                 logger.error(f"❌ Error processing thread {i}: {e}")
                 continue

@@ -203,26 +203,26 @@ ENHANCED_ALIASES = {
 
 def enhance_ticker_aliases(input_file: str, output_file: str) -> None:
     """Enhance ticker aliases with additional variations.
-    
+
     Args:
         input_file: Path to input CSV file
         output_file: Path to output CSV file
     """
     enhanced_tickers = []
-    
-    with open(input_file, 'r', encoding='utf-8') as f:
+
+    with open(input_file, encoding='utf-8') as f:
         reader = csv.DictReader(f)
-        
+
         for row in reader:
             symbol = row['symbol']
             name = row['name']
-            
+
             # Parse existing aliases
             try:
                 existing_aliases = json.loads(row['aliases'])
             except json.JSONDecodeError:
                 existing_aliases = []
-            
+
             # Add enhanced aliases if available
             if symbol in ENHANCED_ALIASES:
                 enhanced_aliases = ENHANCED_ALIASES[symbol]
@@ -230,30 +230,30 @@ def enhance_ticker_aliases(input_file: str, output_file: str) -> None:
                 all_aliases = list(set(existing_aliases + enhanced_aliases))
             else:
                 all_aliases = existing_aliases
-            
+
             # Sort aliases for consistency
             all_aliases.sort()
-            
+
             enhanced_tickers.append({
                 'symbol': symbol,
                 'name': name,
                 'aliases': json.dumps(all_aliases)
             })
-    
+
     # Write enhanced data
     with open(output_file, 'w', encoding='utf-8', newline='') as f:
         fieldnames = ['symbol', 'name', 'aliases']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(enhanced_tickers)
-    
+
     logger.info(f"Enhanced {len(enhanced_tickers)} tickers with improved aliases")
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    
+
     input_file = Path(__file__).parent.parent.parent / "data" / "tickers_core.csv"
     output_file = input_file  # Overwrite the original file
-    
+
     enhance_ticker_aliases(str(input_file), str(output_file))

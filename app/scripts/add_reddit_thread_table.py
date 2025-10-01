@@ -54,17 +54,17 @@ def add_reddit_thread_table() -> None:
                 text("CREATE INDEX IF NOT EXISTS reddit_thread_subreddit_idx ON reddit_thread(subreddit);")
             )
             logger.info("Executing: CREATE INDEX reddit_thread_subreddit_idx...")
-            
+
             db.execute(
                 text("CREATE INDEX IF NOT EXISTS reddit_thread_type_idx ON reddit_thread(thread_type);")
             )
             logger.info("Executing: CREATE INDEX reddit_thread_type_idx...")
-            
+
             db.execute(
                 text("CREATE INDEX IF NOT EXISTS reddit_thread_last_scraped_idx ON reddit_thread(last_scraped_at DESC);")
             )
             logger.info("Executing: CREATE INDEX reddit_thread_last_scraped_idx...")
-            
+
             db.execute(
                 text("CREATE INDEX IF NOT EXISTS reddit_thread_created_idx ON reddit_thread(created_at DESC);")
             )

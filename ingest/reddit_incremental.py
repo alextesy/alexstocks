@@ -2,9 +2,7 @@
 
 import argparse
 import logging
-import os
 import sys
-from typing import Any
 
 from dotenv import load_dotenv
 
@@ -95,7 +93,7 @@ def show_status(subreddit: str = "wallstreetbets") -> None:
         subreddit: Subreddit to check status for
     """
     setup_logging(False)
-    
+
     try:
         # Get Reddit credentials
         client_id, client_secret, user_agent = get_reddit_credentials()
@@ -118,9 +116,9 @@ def show_status(subreddit: str = "wallstreetbets") -> None:
         print(f"📊 Reddit Scraping Status for r/{subreddit}")
         print(f"Total threads tracked: {status['total_threads']}")
         print(f"Total comments scraped: {status['total_comments_scraped']:,}")
-        
+
         if status['recent_threads']:
-            print(f"\n📋 Recent Threads:")
+            print("\n📋 Recent Threads:")
             for i, thread in enumerate(status['recent_threads'][:5], 1):
                 print(f"\n{i}. {thread['title']}")
                 print(f"   Type: {thread['type']}")
@@ -135,9 +133,9 @@ def show_status(subreddit: str = "wallstreetbets") -> None:
 def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(description="Incremental Reddit discussion scraping CLI")
-    
+
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
-    
+
     # Scrape command
     scrape_parser = subparsers.add_parser("scrape", help="Run incremental scraping")
     scrape_parser.add_argument(
@@ -169,7 +167,7 @@ def main() -> None:
         action="store_true",
         help="Enable verbose logging",
     )
-    
+
     # Status command
     status_parser = subparsers.add_parser("status", help="Show scraping status")
     status_parser.add_argument(

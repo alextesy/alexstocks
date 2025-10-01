@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     sentiment_provider: Literal["vader"] = "vader"
     velocity_window_hours: int = 24
     baseline_days: int = 7
-    
+
     # Sentiment Analysis Configuration (LLM by default)
     sentiment_use_llm: bool = True
     sentiment_llm_model: str = "ProsusAI/finbert"
@@ -25,12 +25,12 @@ class Settings(BaseSettings):
     sentiment_fallback_vader: bool = True
     sentiment_dual_model: bool = True
     sentiment_strong_threshold: float = 0.2
-    
+
     # Reddit API configuration
     reddit_client_id: str | None = None
     reddit_client_secret: str | None = None
     reddit_user_agent: str = "MarketPulse/1.0 by MarketPulseBot"
-    
+
     # Finnhub API configuration
     finnhub_secret: str | None = None
 

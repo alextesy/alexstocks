@@ -2,6 +2,7 @@
 
 import logging
 import sys
+
 from sqlalchemy import text
 
 from app.db.session import SessionLocal
@@ -22,25 +23,25 @@ def add_reddit_columns() -> None:
             "ALTER TABLE article ADD COLUMN IF NOT EXISTS num_comments INTEGER DEFAULT 0;",
             "ALTER TABLE article ADD COLUMN IF NOT EXISTS reddit_url TEXT;",
         ]
-        
+
         for sql in reddit_columns:
             logger.info(f"Executing: {sql}")
             db.execute(text(sql))
-        
+
         # Add indexes for Reddit queries
         reddit_indexes = [
             "CREATE INDEX IF NOT EXISTS article_reddit_id_idx ON article(reddit_id);",
             "CREATE INDEX IF NOT EXISTS article_subreddit_idx ON article(subreddit);",
             "CREATE INDEX IF NOT EXISTS article_upvotes_idx ON article(upvotes DESC);",
         ]
-        
+
         for sql in reddit_indexes:
             logger.info(f"Executing: {sql}")
             db.execute(text(sql))
-        
+
         db.commit()
         logger.info("Successfully added Reddit columns and indexes")
-        
+
     except Exception as e:
         logger.error(f"Error adding Reddit columns: {e}")
         db.rollback()
@@ -56,7 +57,7 @@ def main() -> None:
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-    
+
     try:
         add_reddit_columns()
         print("✅ Reddit columns added successfully")

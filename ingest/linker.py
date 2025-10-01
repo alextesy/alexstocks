@@ -2,7 +2,6 @@
 
 import logging
 import re
-from typing import List
 
 from app.db.models import Article, ArticleTicker, Ticker
 from app.models.dto import TickerLinkDTO
@@ -77,7 +76,7 @@ class TickerLinker:
                     text_parts.append(scraped_content)
 
             text = " ".join(text_parts).lower()
-        
+
         # Limit text length for performance (max 1000 chars for non-Reddit sources)
         if len(text) > 1000:
             # Find the end of the 5th sentence or 1000 chars, whichever comes first
@@ -86,16 +85,16 @@ class TickerLinker:
                 text = '.'.join(sentences[:5]) + '.'
             else:
                 text = text[:1000]
-        
+
         return text
-    
+
     def _fast_reddit_comment_linking(self, article: Article) -> list[TickerLinkDTO]:
         """Ultra-fast linking for Reddit comments - check all tickers but skip context analysis."""
         text = (article.text or "").lower()
-        
+
         if not text:
             return []
-        
+
         # Limit text to first few sentences for performance (max 500 chars)
         if len(text) > 500:
             # Find the end of the 3rd sentence or 500 chars, whichever comes first
@@ -104,10 +103,10 @@ class TickerLinker:
                 text = '.'.join(sentences[:3]) + '.'
             else:
                 text = text[:500]
-        
+
         ticker_links = []
         text_upper = text.upper()
-        
+
         # Pattern 1: $SYMBOL format (highest confidence)
         import re
         dollar_matches = re.findall(r'\$([A-Z]{1,5}(?:\.\w)?)', text_upper)
@@ -121,37 +120,37 @@ class TickerLinker:
                     reasoning=["dollar_symbol_format"]
                 )
                 ticker_links.append(ticker_link)
-        
+
         # Pattern 2: Check ticker symbols (but be very restrictive)
         # Only match if:
         # 1. Single character tickers: ONLY with $ prefix
-        # 2. Common word tickers: ONLY with $ prefix  
+        # 2. Common word tickers: ONLY with $ prefix
         # 3. Other tickers: normal word boundaries
-        
+
         # First, identify common word tickers and single character tickers
-        common_words = {'NOW', 'DAY', 'OUT', 'TIME', 'WEEK', 'GOOD', 'ALL', 'ARE', 'NEW', 'OLD', 'ONE', 'TWO', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'BIG', 'SMALL', 'HIGH', 'LOW', 'HOT', 'COLD', 'FAST', 'SLOW', 'HARD', 'SOFT', 'LONG', 'SHORT', 'WIDE', 'NARROW', 'DEEP', 'SHALLOW', 'THICK', 'THIN', 'HEAVY', 'LIGHT', 'STRONG', 'WEAK', 'RICH', 'POOR', 'YOUNG', 'OLD', 'FRESH', 'STALE', 'CLEAN', 'DIRTY', 'DRY', 'WET', 'FULL', 'EMPTY', 'OPEN', 'CLOSED', 'FREE', 'BUSY', 'QUIET', 'LOUD', 'BRIGHT', 'DARK', 'LIGHT', 'HEAVY', 'EASY', 'HARD', 'SIMPLE', 'COMPLEX', 'SAFE', 'DANGEROUS', 'HAPPY', 'SAD', 'GOOD', 'BAD', 'BEST', 'WORST', 'BETTER', 'WORSE', 'BIG', 'SMALL', 'LARGE', 'TINY', 'HUGE', 'MINI', 'MAXI', 'MEGA', 'MICRO', 'MACRO', 'SUPER', 'ULTRA', 'HYPER', 'MULTI', 'UNI', 'BI', 'TRI', 'QUAD', 'PENTA', 'HEXA', 'HEPTA', 'OCTA', 'NONA', 'DECA', 'CENTI', 'MILLI', 'KILO', 'MEGA', 'GIGA', 'TERA', 'PETA', 'EXA', 'ZETTA', 'YOTTA'}
-        
+        common_words = {'NOW', 'DAY', 'OUT', 'TIME', 'WEEK', 'GOOD', 'ALL', 'ARE', 'NEW', 'OLD', 'ONE', 'TWO', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'BIG', 'SMALL', 'HIGH', 'LOW', 'HOT', 'COLD', 'FAST', 'SLOW', 'HARD', 'SOFT', 'LONG', 'SHORT', 'WIDE', 'NARROW', 'DEEP', 'SHALLOW', 'THICK', 'THIN', 'HEAVY', 'LIGHT', 'STRONG', 'WEAK', 'RICH', 'POOR', 'YOUNG', 'FRESH', 'STALE', 'CLEAN', 'DIRTY', 'DRY', 'WET', 'FULL', 'EMPTY', 'OPEN', 'CLOSED', 'FREE', 'BUSY', 'QUIET', 'LOUD', 'BRIGHT', 'DARK', 'EASY', 'SIMPLE', 'COMPLEX', 'SAFE', 'DANGEROUS', 'HAPPY', 'SAD', 'BAD', 'BEST', 'WORST', 'BETTER', 'WORSE', 'LARGE', 'TINY', 'HUGE', 'MINI', 'MAXI', 'MEGA', 'MICRO', 'MACRO', 'SUPER', 'ULTRA', 'HYPER', 'MULTI', 'UNI', 'BI', 'TRI', 'QUAD', 'PENTA', 'HEXA', 'HEPTA', 'OCTA', 'NONA', 'DECA', 'CENTI', 'MILLI', 'KILO', 'GIGA', 'TERA', 'PETA', 'EXA', 'ZETTA', 'YOTTA'}
+
         # Find all potential ticker symbols
         symbol_pattern = r'(?<![A-Za-z0-9])([A-Z]{1,5}(?:\.\w)?)(?![A-Za-z0-9])'
         symbol_matches = re.findall(symbol_pattern, text_upper)
-        
+
         for match in symbol_matches:
             if match in self.alias_to_ticker:
                 ticker_symbol = self.alias_to_ticker[match]
-                
+
                 # Skip if we already found this ticker via $SYMBOL format
                 if any(link.ticker == ticker_symbol for link in ticker_links):
                     continue
-                
+
                 # Apply strict rules:
                 # 1. Single character tickers: ONLY with $ prefix
                 if len(match) == 1:
                     continue  # Skip single character tickers without $
-                
+
                 # 2. Common word tickers: ONLY with $ prefix
                 if match in common_words:
                     continue  # Skip common word tickers without $
-                
+
                 # 3. Other tickers: allow normal matching
                 ticker_link = TickerLinkDTO(
                     ticker=ticker_symbol,
@@ -160,15 +159,15 @@ class TickerLinker:
                     reasoning=["ticker_symbol"]
                 )
                 ticker_links.append(ticker_link)
-        
+
         return ticker_links
-    
+
     def _scrape_article_content(self, url: str) -> str | None:
         """Scrape article content from URL.
-        
+
         Args:
             url: Article URL to scrape
-            
+
         Returns:
             Scraped content or None if scraping fails
         """
@@ -177,7 +176,7 @@ class TickerLinker:
                 return self.content_scraper.scrape_article_content(url)
         except Exception as e:
             logger.warning(f"Failed to scrape content from {url}: {e}")
-        
+
         return None
 
     def _find_ticker_matches(self, text: str) -> dict[str, list[str]]:
@@ -210,23 +209,23 @@ class TickerLinker:
         # Use negative lookbehind/lookahead to prevent substring matches
         symbol_pattern = r"(?<![A-Za-z0-9])([A-Z]{1,5}(?:\.[A-Z])?)(?![A-Za-z0-9])"
         symbol_matches = re.findall(symbol_pattern, text.upper())
-        
+
         # Define common words that should only match with $ prefix
-        common_words = {'NOW', 'DAY', 'OUT', 'TIME', 'WEEK', 'GOOD', 'ALL', 'ARE', 'NEW', 'OLD', 'ONE', 'TWO', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'BIG', 'SMALL', 'HIGH', 'LOW', 'HOT', 'COLD', 'FAST', 'SLOW', 'HARD', 'SOFT', 'LONG', 'SHORT', 'WIDE', 'NARROW', 'DEEP', 'SHALLOW', 'THICK', 'THIN', 'HEAVY', 'LIGHT', 'STRONG', 'WEAK', 'RICH', 'POOR', 'YOUNG', 'OLD', 'FRESH', 'STALE', 'CLEAN', 'DIRTY', 'DRY', 'WET', 'FULL', 'EMPTY', 'OPEN', 'CLOSED', 'FREE', 'BUSY', 'QUIET', 'LOUD', 'BRIGHT', 'DARK', 'LIGHT', 'HEAVY', 'EASY', 'HARD', 'SIMPLE', 'COMPLEX', 'SAFE', 'DANGEROUS', 'HAPPY', 'SAD', 'GOOD', 'BAD', 'BEST', 'WORST', 'BETTER', 'WORSE', 'BIG', 'SMALL', 'LARGE', 'TINY', 'HUGE', 'MINI', 'MAXI', 'MEGA', 'MICRO', 'MACRO', 'SUPER', 'ULTRA', 'HYPER', 'MULTI', 'UNI', 'BI', 'TRI', 'QUAD', 'PENTA', 'HEXA', 'HEPTA', 'OCTA', 'NONA', 'DECA', 'CENTI', 'MILLI', 'KILO', 'MEGA', 'GIGA', 'TERA', 'PETA', 'EXA', 'ZETTA', 'YOTTA'}
-        
+        common_words = {'NOW', 'DAY', 'OUT', 'TIME', 'WEEK', 'GOOD', 'ALL', 'ARE', 'NEW', 'OLD', 'ONE', 'TWO', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'BIG', 'SMALL', 'HIGH', 'LOW', 'HOT', 'COLD', 'FAST', 'SLOW', 'HARD', 'SOFT', 'LONG', 'SHORT', 'WIDE', 'NARROW', 'DEEP', 'SHALLOW', 'THICK', 'THIN', 'HEAVY', 'LIGHT', 'STRONG', 'WEAK', 'RICH', 'POOR', 'YOUNG', 'FRESH', 'STALE', 'CLEAN', 'DIRTY', 'DRY', 'WET', 'FULL', 'EMPTY', 'OPEN', 'CLOSED', 'FREE', 'BUSY', 'QUIET', 'LOUD', 'BRIGHT', 'DARK', 'EASY', 'SIMPLE', 'COMPLEX', 'SAFE', 'DANGEROUS', 'HAPPY', 'SAD', 'BAD', 'BEST', 'WORST', 'BETTER', 'WORSE', 'LARGE', 'TINY', 'HUGE', 'MINI', 'MAXI', 'MEGA', 'MICRO', 'MACRO', 'SUPER', 'ULTRA', 'HYPER', 'MULTI', 'UNI', 'BI', 'TRI', 'QUAD', 'PENTA', 'HEXA', 'HEPTA', 'OCTA', 'NONA', 'DECA', 'CENTI', 'MILLI', 'KILO', 'GIGA', 'TERA', 'PETA', 'EXA', 'ZETTA', 'YOTTA'}
+
         for match in symbol_matches:
             if match in self.alias_to_ticker:
                 ticker_symbol = self.alias_to_ticker[match]
-                
+
                 # Apply strict rules:
                 # 1. Single character tickers: ONLY with $ prefix
                 if len(match) == 1:
                     continue  # Skip single character tickers without $
-                
+
                 # 2. Common word tickers: ONLY with $ prefix
                 if match in common_words:
                     continue  # Skip common word tickers without $
-                
+
                 # 3. Other tickers: allow normal matching
                 if ticker_symbol not in matches:
                     matches[ticker_symbol] = []
@@ -258,7 +257,7 @@ class TickerLinker:
         # Fast path for Reddit comments - skip complex analysis
         if article.source == 'reddit_comment':
             return self._fast_reddit_comment_linking(article)
-        
+
         # Extract text for matching
         text = self._extract_text_for_matching(article, use_title_only=use_title_only)
 
@@ -280,7 +279,7 @@ class TickerLinker:
             confidence, reasoning = self.context_analyzer.analyze_ticker_relevance(
                 ticker_symbol, text, matched_terms
             )
-            
+
             # Only include matches with reasonable confidence
             if confidence >= 0.5:  # Higher minimum confidence threshold
                 ticker_link = TickerLinkDTO(
@@ -293,7 +292,7 @@ class TickerLinker:
 
         logger.debug(f"Linked article {article.url} to {len(ticker_links)} tickers")
         return ticker_links
-    
+
     def link_article_to_db(self, article: Article) -> list[ArticleTicker]:
         """Link an article to relevant tickers for database storage.
 
@@ -305,7 +304,7 @@ class TickerLinker:
         """
         # Get ticker links with context analysis
         ticker_links = self.link_article(article)
-        
+
         # Convert to ArticleTicker objects for database
         article_tickers = []
         for link in ticker_links:
@@ -315,7 +314,7 @@ class TickerLinker:
                 matched_terms=link.matched_terms
             )
             article_tickers.append(article_ticker)
-        
+
         return article_tickers
 
     def _calculate_confidence(self, text: str, ticker_symbol: str) -> float:
@@ -378,7 +377,7 @@ class TickerLinker:
         )
 
         return results
-    
+
     def link_articles_with_multithreaded_scraping(
         self, articles: list[Article]
     ) -> list[tuple[Article, list[TickerLinkDTO]]]:
@@ -394,28 +393,28 @@ class TickerLinker:
         logger.info(f"First pass: Linking {len(articles)} articles with existing content")
         initial_results = []
         articles_needing_scraping = []
-        
+
         for article in articles:
             # First try with title only (fast)
             ticker_links = self.link_article(article, use_title_only=True)
             initial_results.append((article, ticker_links))
-            
+
             # If no matches found and no text content, mark for scraping
             if not ticker_links and not article.text:
                 articles_needing_scraping.append(article)
-        
+
         # Pre-filter articles that need scraping based on title content
         if articles_needing_scraping:
             potential_matches = self._quick_title_filter(articles_needing_scraping)
             logger.info(f"Title filter: {len(potential_matches)}/{len(articles_needing_scraping)} articles have potential matches in title")
             articles_needing_scraping = potential_matches
-        
+
         # Only scrape articles that might have ticker matches but no content
         if articles_needing_scraping:
             logger.info(f"Second pass: Scraping content for {len(articles_needing_scraping)} articles with potential matches")
             urls_to_scrape = [article.url for article in articles_needing_scraping]
             scraped_content = self.content_scraper.scrape_articles_multithreaded(urls_to_scrape)
-            
+
             # Re-link articles with scraped content
             for i, (article, ticker_links) in enumerate(initial_results):
                 if article in articles_needing_scraping and article.url in scraped_content and scraped_content[article.url]:
@@ -436,32 +435,32 @@ class TickerLinker:
         )
 
         return initial_results
-    
+
     def _quick_title_filter(self, articles: list[Article]) -> list[Article]:
         """Quick filter articles based on title content to identify potential matches.
-        
+
         Args:
             articles: List of articles to filter
-            
+
         Returns:
             List of articles that might have ticker matches
         """
         potential_matches = []
-        
+
         for article in articles:
             if not article.title:
                 continue
-                
+
             title_lower = article.title.lower()
-            
+
             # Check if title contains any ticker symbols or company names
-            for alias, ticker_symbol in self.alias_to_ticker.items():
+            for alias, _ticker_symbol in self.alias_to_ticker.items():
                 if alias in title_lower:
                     potential_matches.append(article)
                     break
-        
+
         return potential_matches
-    
+
     def link_articles_to_db_with_multithreaded_scraping(
         self, articles: list[Article]
     ) -> list[tuple[Article, list[ArticleTicker]]]:
@@ -475,7 +474,7 @@ class TickerLinker:
         """
         # Get ticker links with multithreaded scraping
         ticker_links_results = self.link_articles_with_multithreaded_scraping(articles)
-        
+
         # Convert to ArticleTicker objects for database
         results = []
         for article, ticker_links in ticker_links_results:
@@ -486,11 +485,11 @@ class TickerLinker:
                     confidence=link.confidence
                 )
                 article_tickers.append(article_ticker)
-            
+
             results.append((article, article_tickers))
-        
+
         return results
-    
+
     def link_articles_to_db(
         self, articles: list[Article]
     ) -> list[tuple[Article, list[ArticleTicker]]]:

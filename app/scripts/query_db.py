@@ -4,7 +4,7 @@ import argparse
 import logging
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, desc, and_
+from sqlalchemy import desc, func
 
 from app.db.models import Article, ArticleTicker, Ticker
 from app.db.session import SessionLocal
@@ -29,7 +29,7 @@ def query_articles_by_source() -> None:
     db = SessionLocal()
     try:
         sources = db.query(Article.source, func.count(Article.id)).group_by(Article.source).all()
-        print(f"\n=== ARTICLES BY SOURCE ===")
+        print("\n=== ARTICLES BY SOURCE ===")
         for source, count in sources:
             print(f"{source}: {count} articles")
     finally:
@@ -52,7 +52,7 @@ def query_top_tickers(limit: int = 10) -> None:
             .limit(limit)
             .all()
         )
-        
+
         print(f"\n=== TOP {limit} TICKERS BY ARTICLE COUNT ===")
         for symbol, name, count in top_tickers:
             print(f"{symbol} ({name}): {count} articles")
@@ -70,7 +70,7 @@ def query_recent_articles(limit: int = 10) -> None:
             .limit(limit)
             .all()
         )
-        
+
         print(f"\n=== RECENT {limit} ARTICLES ===")
         for article in recent:
             print(f"{article.published_at.strftime('%Y-%m-%d %H:%M')} | {article.source} | {article.title[:80]}...")
@@ -90,7 +90,7 @@ def query_ticker_articles(ticker_symbol: str, limit: int = 10) -> None:
             .limit(limit)
             .all()
         )
-        
+
         print(f"\n=== ARTICLES FOR {ticker_symbol.upper()} (showing {len(articles)}) ===")
         for article, confidence in articles:
             print(f"{article.published_at.strftime('%Y-%m-%d %H:%M')} | {confidence:.2f} | {article.title[:80]}...")
@@ -103,7 +103,7 @@ def query_articles_by_date_range(days_back: int = 7) -> None:
     db = SessionLocal()
     try:
         cutoff_date = datetime.now(UTC) - timedelta(days=days_back)
-        
+
         articles = (
             db.query(Article)
             .filter(Article.published_at >= cutoff_date)
@@ -111,7 +111,7 @@ def query_articles_by_date_range(days_back: int = 7) -> None:
             .limit(20)
             .all()
         )
-        
+
         print(f"\n=== ARTICLES FROM LAST {days_back} DAYS (showing {len(articles)}) ===")
         for article in articles:
             print(f"{article.published_at.strftime('%Y-%m-%d %H:%M')} | {article.source} | {article.title[:80]}...")
@@ -123,30 +123,30 @@ def query_database_stats() -> None:
     """Query database statistics."""
     db = SessionLocal()
     try:
-        print(f"\n=== DATABASE STATISTICS ===")
-        
+        print("\n=== DATABASE STATISTICS ===")
+
         # Total counts
         ticker_count = db.query(Ticker).count()
         article_count = db.query(Article).count()
         link_count = db.query(ArticleTicker).count()
-        
+
         print(f"Total Tickers: {ticker_count}")
         print(f"Total Articles: {article_count}")
         print(f"Total Article-Ticker Links: {link_count}")
-        
+
         # Articles by source
         sources = db.query(Article.source, func.count(Article.id)).group_by(Article.source).all()
-        print(f"\nArticles by Source:")
+        print("\nArticles by Source:")
         for source, count in sources:
             print(f"  {source}: {count}")
-        
+
         # Date range
         oldest = db.query(func.min(Article.published_at)).scalar()
         newest = db.query(func.max(Article.published_at)).scalar()
-        print(f"\nDate Range:")
+        print("\nDate Range:")
         print(f"  Oldest: {oldest}")
         print(f"  Newest: {newest}")
-        
+
     finally:
         db.close()
 
@@ -162,11 +162,11 @@ def main() -> None:
     parser.add_argument("--days", type=int, metavar="N", help="Show articles from last N days")
     parser.add_argument("--stats", action="store_true", help="Show database statistics")
     parser.add_argument("--all", action="store_true", help="Show all queries")
-    
+
     args = parser.parse_args()
-    
+
     logging.basicConfig(level=logging.INFO)
-    
+
     if args.all or not any(vars(args).values()):
         # Show all if --all or no arguments
         query_database_stats()

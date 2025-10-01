@@ -2,7 +2,6 @@
 
 import logging
 import re
-from typing import Dict, List, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +75,6 @@ NEGATIVE_KEYWORDS = {
         "lockheed martin store", "lockheed martin customer service", "lockheed martin account",
         "lockheed martin employee", "lockheed martin job", "lockheed martin career",
         "lockheed martin hiring", "lockheed martin office", "lockheed martin location"
-    ],
-    "CAT": [
-        "caterpillar store", "caterpillar customer service", "caterpillar account",
-        "caterpillar dealer", "caterpillar parts", "caterpillar service",
-        "caterpillar equipment", "caterpillar machinery", "caterpillar rental"
     ],
     "HON": [
         "honeywell store", "honeywell customer service", "honeywell account",
@@ -248,135 +242,134 @@ INDUSTRY_KEYWORDS = {
 
 class ContextAnalyzer:
     """Analyzes context to determine ticker relevance in articles."""
-    
+
     def __init__(self):
         """Initialize context analyzer."""
         self.negative_keywords = NEGATIVE_KEYWORDS
         self.positive_keywords = POSITIVE_KEYWORDS
         self.financial_keywords = FINANCIAL_KEYWORDS
         self.industry_keywords = INDUSTRY_KEYWORDS
-    
+
     def analyze_ticker_relevance(
-        self, 
-        ticker_symbol: str, 
-        text: str, 
-        matched_terms: List[str]
-    ) -> Tuple[float, List[str]]:
+        self,
+        ticker_symbol: str,
+        text: str,
+        matched_terms: list[str]
+    ) -> tuple[float, list[str]]:
         """Analyze if ticker mention is relevant to the company.
-        
+
         Args:
             ticker_symbol: Ticker symbol to analyze
             text: Article text content
             matched_terms: Terms that matched the ticker
-            
+
         Returns:
             Tuple of (confidence_score, reasoning_terms)
         """
         text_lower = text.lower()
         confidence = 0.5  # Base confidence
         reasoning_terms = []
-        
+
         # Check for negative keywords (reduce confidence more aggressively)
         negative_score = self._check_negative_keywords(ticker_symbol, text_lower)
         if negative_score > 0:
             confidence -= negative_score * 0.6  # More aggressive penalty
             reasoning_terms.append(f"negative_context_{negative_score}")
-        
+
         # Check for positive keywords (increase confidence)
         positive_score = self._check_positive_keywords(ticker_symbol, text_lower)
         if positive_score > 0:
             confidence += positive_score * 0.3  # Increased weight for positive signals
             reasoning_terms.append(f"positive_context_{positive_score}")
-        
+
         # Check for financial context
         financial_score = self._check_financial_context(text_lower)
         if financial_score > 0:
             confidence += financial_score * 0.15
             reasoning_terms.append(f"financial_context_{financial_score}")
-        
+
         # Check for industry context
         industry_score = self._check_industry_context(ticker_symbol, text_lower)
         if industry_score > 0:
             confidence += industry_score * 0.1
             reasoning_terms.append(f"industry_context_{industry_score}")
-        
+
         # Check for company name presence
         company_name_score = self._check_company_name_presence(ticker_symbol, text_lower)
         if company_name_score > 0:
             confidence += company_name_score * 0.25
             reasoning_terms.append(f"company_name_{company_name_score}")
-        
+
         # Special handling for single-letter tickers (reduce false positives)
         if len(ticker_symbol) == 1:
             # Require higher confidence for single-letter tickers, but allow strong positive signals
             if confidence < 0.55 and not any("positive_context" in term for term in reasoning_terms):
                 confidence = 0.0
                 reasoning_terms.append("single_letter_low_confidence")
-        
+
         # Ensure confidence is between 0 and 1
         confidence = max(0.0, min(1.0, confidence))
-        
+
         return confidence, reasoning_terms
-    
+
     def _check_negative_keywords(self, ticker_symbol: str, text: str) -> float:
         """Check for negative keywords that suggest non-company context."""
         if ticker_symbol not in self.negative_keywords:
             return 0.0
-        
+
         negative_terms = self.negative_keywords[ticker_symbol]
         matches = 0
-        
+
         for term in negative_terms:
             # Use word boundary matching for more precise detection
-            import re
             pattern = r'\b' + re.escape(term) + r'\b'
             if re.search(pattern, text, re.IGNORECASE):
                 matches += 1
-        
+
         # Return normalized score (0-1)
         return min(1.0, matches / len(negative_terms))
-    
+
     def _check_positive_keywords(self, ticker_symbol: str, text: str) -> float:
         """Check for positive keywords that suggest company context."""
         if ticker_symbol not in self.positive_keywords:
             return 0.0
-        
+
         positive_terms = self.positive_keywords[ticker_symbol]
         matches = 0
-        
+
         for term in positive_terms:
             if term in text:
                 matches += 1
-        
+
         # Return normalized score (0-1)
         return min(1.0, matches / len(positive_terms))
-    
+
     def _check_financial_context(self, text: str) -> float:
         """Check for financial context keywords."""
         matches = 0
-        
+
         for keyword in self.financial_keywords:
             if keyword in text:
                 matches += 1
-        
+
         # Return normalized score (0-1)
         return min(1.0, matches / len(self.financial_keywords))
-    
+
     def _check_industry_context(self, ticker_symbol: str, text: str) -> float:
         """Check for industry-specific context keywords."""
         if ticker_symbol not in self.industry_keywords:
             return 0.0
-        
+
         industry_terms = self.industry_keywords[ticker_symbol]
         matches = 0
-        
+
         for term in industry_terms:
             if term in text:
                 matches += 1
-        
+
         # Return normalized score (0-1)
         return min(1.0, matches / len(industry_terms))
-    
+
     def _check_company_name_presence(self, ticker_symbol: str, text: str) -> float:
         """Check for company name presence in text."""
         # This would need to be enhanced with actual company names

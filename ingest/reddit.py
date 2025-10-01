@@ -4,7 +4,6 @@ import argparse
 import logging
 import os
 import sys
-from typing import Any
 
 from dotenv import load_dotenv
 from sqlalchemy import select
@@ -13,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Article, ArticleTicker, Ticker
 from app.db.session import SessionLocal
+
 # Sentiment analysis is now handled separately
 from ingest.linker import TickerLinker
 from ingest.reddit_parser import RedditParser
@@ -42,22 +42,22 @@ def setup_logging(verbose: bool = False) -> None:
 
 def get_reddit_credentials() -> tuple[str, str, str]:
     """Get Reddit API credentials from environment variables.
-    
+
     Returns:
         Tuple of (client_id, client_secret, user_agent)
-        
+
     Raises:
         ValueError: If required environment variables are not set
     """
     client_id = os.getenv("REDDIT_CLIENT_ID")
     client_secret = os.getenv("REDDIT_CLIENT_SECRET")
     user_agent = os.getenv("REDDIT_USER_AGENT", "MarketPulse/1.0 by MarketPulseBot")
-    
+
     if not client_id or not client_secret:
         raise ValueError(
             "Reddit API credentials not found. Please set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET environment variables."
         )
-    
+
     return client_id, client_secret, user_agent
 
 

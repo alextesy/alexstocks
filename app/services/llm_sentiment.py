@@ -1,13 +1,13 @@
 """LLM-based sentiment analysis service using Hugging Face transformers."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Import transformers with fallback handling
 try:
-    from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+    from transformers import pipeline
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
@@ -26,12 +26,12 @@ class LLMSentimentService:
         """
         if not TRANSFORMERS_AVAILABLE:
             raise RuntimeError("Transformers library not available. Please install with: pip install transformers torch")
-        
+
         self.model_name = model_name
         self.use_gpu = use_gpu
-        self._analyzer: Optional[Any] = None
+        self._analyzer: Any | None = None
         self._device = 0 if use_gpu else -1
-        
+
         logger.info(f"LLMSentimentService initialized with model: {model_name}")
 
     def _load_model(self) -> None:
@@ -41,7 +41,7 @@ class LLMSentimentService:
 
         try:
             logger.info(f"Loading LLM model: {self.model_name}")
-            
+
             # Try to use a financial sentiment model first, fallback to general sentiment
             try:
                 # Use a financial sentiment model (FinBERT)
@@ -66,7 +66,7 @@ class LLMSentimentService:
 
         except Exception as e:
             logger.error(f"Failed to load any LLM model: {e}")
-            raise RuntimeError(f"Could not load sentiment analysis model: {e}")
+            raise RuntimeError(f"Could not load sentiment analysis model: {e}") from e
 
     def analyze_sentiment(self, text: str) -> float:
         """
@@ -93,16 +93,16 @@ class LLMSentimentService:
 
         # Clean and prepare text
         cleaned_text = text.strip()
-        
+
         # Limit text length to avoid token limits (most models have 512 token limit)
         if len(cleaned_text) > 2000:  # Rough estimate for token limit
             cleaned_text = cleaned_text[:2000] + "..."
-            logger.debug(f"Truncated text to 2000 characters for analysis")
+            logger.debug("Truncated text to 2000 characters for analysis")
 
         try:
             # Get sentiment analysis results
             results = self._analyzer(cleaned_text)
-            
+
             # Extract sentiment scores
             sentiment_scores = {}
             for result in results[0]:
@@ -126,9 +126,9 @@ class LLMSentimentService:
 
         except Exception as e:
             logger.error(f"LLM sentiment analysis failed: {e}")
-            raise RuntimeError(f"Sentiment analysis failed: {e}")
+            raise RuntimeError(f"Sentiment analysis failed: {e}") from e
 
-    def _convert_to_compound_score(self, sentiment_scores: Dict[str, float]) -> float:
+    def _convert_to_compound_score(self, sentiment_scores: dict[str, float]) -> float:
         """Convert model-specific sentiment scores to compound score.
 
         Args:
@@ -142,34 +142,34 @@ class LLMSentimentService:
             # Standard positive/negative format (FinBERT)
             positive = sentiment_scores.get('positive', 0.0)
             negative = sentiment_scores.get('negative', 0.0)
-            neutral = sentiment_scores.get('neutral', 0.0)
-            
+            sentiment_scores.get('neutral', 0.0)
+
             # Calculate compound score: positive - negative
             compound = positive - negative
-            
+
         elif 'label_2' in sentiment_scores and 'label_0' in sentiment_scores:
             # RoBERTa format: label_0 (negative), label_1 (neutral), label_2 (positive)
             positive = sentiment_scores.get('label_2', 0.0)
             negative = sentiment_scores.get('label_0', 0.0)
-            neutral = sentiment_scores.get('label_1', 0.0)
-            
+            sentiment_scores.get('label_1', 0.0)
+
             # Calculate compound score: positive - negative
             compound = positive - negative
-            
+
         elif 'pos' in sentiment_scores and 'neg' in sentiment_scores:
             # Alternative format
             positive = sentiment_scores.get('pos', 0.0)
             negative = sentiment_scores.get('neg', 0.0)
             compound = positive - negative
-            
+
         else:
             # Fallback: use the highest scoring label
             if not sentiment_scores:
                 return 0.0
-                
+
             max_label = max(sentiment_scores, key=sentiment_scores.get)
             max_score = sentiment_scores[max_label]
-            
+
             # Map labels to sentiment direction
             if any(neg_word in max_label.lower() for neg_word in ['negative', 'neg', 'label_0']):
                 compound = -max_score
@@ -212,7 +212,7 @@ class LLMSentimentService:
         label = self.get_sentiment_label(score)
         return score, label
 
-    def get_model_info(self) -> Dict[str, Any]:
+    def get_model_info(self) -> dict[str, Any]:
         """Get information about the loaded model.
 
         Returns:
@@ -228,11 +228,11 @@ class LLMSentimentService:
 
 
 # Global instance for easy access
-_llm_sentiment_service: Optional[LLMSentimentService] = None
+_llm_sentiment_service: LLMSentimentService | None = None
 
 
 def get_llm_sentiment_service(
-    model_name: str = "ProsusAI/finbert", 
+    model_name: str = "ProsusAI/finbert",
     use_gpu: bool = False
 ) -> LLMSentimentService:
     """
