@@ -98,7 +98,10 @@ class RedditRobustScraper:
         return False
 
     def extract_comments_with_retry(
-        self, submission: Submission, max_replace_more: int | None = None, max_retries: int = 3
+        self,
+        submission: Submission,
+        max_replace_more: int | None = None,
+        max_retries: int = 3,
     ) -> list[Comment]:
         """Extract comments with rate limit handling and retries.
 

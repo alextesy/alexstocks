@@ -46,7 +46,9 @@ class TestTickerLinker:
                 return_value=self.mock_context_analyzer,
             ),
         ):
-            self.linker = TickerLinker(cast(list[Ticker], self.mock_tickers), max_scraping_workers=5)
+            self.linker = TickerLinker(
+                cast(list[Ticker], self.mock_tickers), max_scraping_workers=5
+            )
 
     def test_initialization(self):
         """Test TickerLinker initialization."""
@@ -425,7 +427,9 @@ class TestTickerLinkingRealWorldExamples:
                 return_value=self.mock_context_analyzer,
             ),
         ):
-            self.linker = TickerLinker(cast(list[Ticker], self.mock_tickers), max_scraping_workers=5)
+            self.linker = TickerLinker(
+                cast(list[Ticker], self.mock_tickers), max_scraping_workers=5
+            )
 
     def test_wallstreetbets_meme_stock_mentions(self):
         """Test linking with WallStreetBets meme stock language."""
