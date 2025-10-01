@@ -261,7 +261,7 @@ class RedditRobustScraper:
             # Get tickers for linking
             tickers = db.execute(select(Ticker)).scalars().all()
             linker = TickerLinker(
-                tickers, max_scraping_workers=self.max_scraping_workers
+                list(tickers), max_scraping_workers=self.max_scraping_workers
             )
 
             # Process comments with incremental saving

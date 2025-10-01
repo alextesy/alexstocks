@@ -7,7 +7,7 @@ from typing import Any
 import praw
 from dotenv import load_dotenv
 from praw.models import Comment, Submission
-from sqlalchemy import select
+from sqlalchemy import not_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -333,7 +333,7 @@ class RedditIncrementalScraper:
                     select(RedditThread)
                     .where(
                         RedditThread.subreddit == subreddit_name,
-                        not RedditThread.is_complete,
+                        not_(RedditThread.is_complete),
                     )
                     .order_by(RedditThread.created_at.desc())
                     .limit(5)
@@ -385,7 +385,7 @@ class RedditIncrementalScraper:
                 )
 
                 thread_stats = self.scrape_thread_incremental(
-                    db, thread, tickers, max_new_comments_per_thread
+                    db, thread, list(tickers), max_new_comments_per_thread
                 )
 
                 # Update totals

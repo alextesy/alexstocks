@@ -191,7 +191,7 @@ class ContentScraper:
 
         return content.strip()
 
-    def scrape_articles_multithreaded(self, urls: list[str]) -> dict[str, str]:
+    def scrape_articles_multithreaded(self, urls: list[str]) -> dict[str, str | None]:
         """Scrape multiple articles concurrently.
 
         Args:

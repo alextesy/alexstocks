@@ -194,12 +194,12 @@ class StockDataService:
                 resolution = "60"  # Hourly for short periods
 
             url = f"{self.finnhub_url}/stock/candle"
-            params = {
+            params: dict[str, str | int] = {
                 "symbol": symbol,
                 "resolution": resolution,
                 "from": start_time,
                 "to": end_time,
-                "token": self.finnhub_token,
+                "token": self.finnhub_token if self.finnhub_token else "",
             }
 
             async with httpx.AsyncClient(timeout=self.timeout) as client:

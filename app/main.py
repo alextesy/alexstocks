@@ -1,6 +1,7 @@
 """FastAPI application with server-rendered templates."""
 
 import logging
+from collections.abc import Collection
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -427,11 +428,11 @@ async def get_stock_chart_data(symbol: str, period: str = "1mo"):
                 else:
                     # No data at all, try API for UI (may include mock)
                     try:
-                        chart_data = await stock_service.get_chart_data_for_ui(
+                        chart_data_ui = await stock_service.get_chart_data_for_ui(
                             symbol.upper(), period
                         )
-                        if chart_data:
-                            return chart_data
+                        if chart_data_ui:
+                            return chart_data_ui
                     except Exception as e:
                         logger.error(f"Error getting chart data for API: {e}")
 

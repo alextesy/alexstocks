@@ -36,9 +36,10 @@ async def collect_real_yahoo_prices():
                 logger.info(f"Processing {symbol} ({i+1}/{len(symbols)})...")
 
                 # Try Yahoo Finance directly with longer delay
-                data = await stock_service._fetch_from_yahoo_safe(symbol)
+                data = await stock_service._fetch_historical_yahoo(symbol, "1d")  # type: ignore[attr-defined]
 
-                if data and data.get("price") and data.get("price") > 0:
+                price = data.get("price") if data else None
+                if data and price and price > 0:
                     # Verify this isn't mock data by checking if it has proper metadata
                     if data.get("exchange") and data.get("exchange") != "NASDAQ":
                         # This is likely real data

@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +199,7 @@ class TickerCollector:
                         table = t
                         break
 
-            if table:
+            if table and isinstance(table, Tag):
                 rows = table.find_all("tr")[1:]  # Skip header
                 for row in rows:
                     cells = row.find_all(["td", "th"])
@@ -307,7 +307,7 @@ class TickerCollector:
         """Merge ticker data from multiple sources."""
         logger.info("Merging ticker data from all sources...")
 
-        merged = {}
+        merged: dict[str, dict] = {}
 
         for source_tickers in ticker_sources:
             for symbol, ticker_data in source_tickers.items():

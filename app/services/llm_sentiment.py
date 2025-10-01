@@ -34,7 +34,7 @@ class LLMSentimentService:
 
         self.model_name = model_name
         self.use_gpu = use_gpu
-        self._analyzer: Any | None = None
+        self._analyzer: Any = None
         self._device = 0 if use_gpu else -1
 
         logger.info(f"LLMSentimentService initialized with model: {model_name}")
@@ -176,7 +176,7 @@ class LLMSentimentService:
             if not sentiment_scores:
                 return 0.0
 
-            max_label = max(sentiment_scores, key=sentiment_scores.get)
+            max_label = max(sentiment_scores, key=lambda x: sentiment_scores[x])
             max_score = sentiment_scores[max_label]
 
             # Map labels to sentiment direction

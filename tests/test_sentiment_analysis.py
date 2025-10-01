@@ -58,7 +58,7 @@ class TestSentimentService:
     def test_analyze_sentiment_none_text(self):
         """Test sentiment analysis with None text."""
         with pytest.raises(ValueError, match="Text cannot be empty or None"):
-            self.service.analyze_sentiment(None)
+            self.service.analyze_sentiment(None)  # type: ignore[arg-type]
 
     def test_analyze_sentiment_whitespace_only(self):
         """Test sentiment analysis with whitespace-only text."""

@@ -3,6 +3,8 @@
 import logging
 import time
 
+from typing import Any
+
 from sqlalchemy import func, text
 
 from app.db.models import Article, ArticleTicker, Ticker
@@ -17,7 +19,7 @@ class ArticleRelinkingService:
 
     def __init__(self):
         self.db = SessionLocal()
-        self.ticker_linker = None
+        self.ticker_linker: Any = None
         self.stats = {
             "articles_processed": 0,
             "articles_with_new_links": 0,
@@ -78,9 +80,9 @@ class ArticleRelinkingService:
 
         return count
 
-    def relink_article(self, article: Article, clear_existing: bool = True) -> dict:
+    def relink_article(self, article: Article, clear_existing: bool = True) -> dict[str, Any]:
         """Re-link a single article to tickers."""
-        result = {
+        result: dict[str, Any] = {
             "article_id": article.id,
             "old_links_count": 0,
             "new_links_count": 0,
@@ -259,13 +261,13 @@ class ArticleRelinkingService:
                 "articles_with_links": articles_with_links,
                 "total_links": total_links,
                 "coverage_percentage": (
-                    (articles_with_links / total_articles * 100)
-                    if total_articles > 0
+                    float(articles_with_links / total_articles * 100)
+                    if total_articles and articles_with_links is not None and total_articles > 0
                     else 0
                 ),
                 "avg_links_per_article": (
                     (total_links / articles_with_links)
-                    if articles_with_links > 0
+                    if articles_with_links and articles_with_links > 0
                     else 0
                 ),
                 "top_tickers": top_tickers,

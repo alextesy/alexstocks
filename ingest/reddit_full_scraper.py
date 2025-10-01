@@ -402,7 +402,7 @@ class RedditFullScraper:
                 )
 
                 thread_stats = self.scrape_thread_completely(
-                    db, thread, tickers, max_replace_more, skip_existing
+                    db, thread, list(tickers), max_replace_more, skip_existing
                 )
 
                 # Update totals

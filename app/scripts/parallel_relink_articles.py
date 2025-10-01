@@ -3,6 +3,7 @@
 import logging
 import multiprocessing as mp
 import time
+from typing import Any
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from sqlalchemy import create_engine
@@ -48,7 +49,7 @@ def process_article_batch(batch_data: tuple[list[dict], list[dict], int]) -> dic
 
     try:
         # Reconstruct ticker objects for this worker
-        tickers = []
+        tickers: list[Ticker] = []
         for ticker_data in ticker_data_list:
             ticker = Ticker(
                 symbol=ticker_data["symbol"],
@@ -66,7 +67,7 @@ def process_article_batch(batch_data: tuple[list[dict], list[dict], int]) -> dic
             tickers, max_scraping_workers=2
         )  # Reduce per-worker threads
 
-        worker_stats = {
+        worker_stats: dict[str, Any] = {
             "worker_id": worker_id,
             "articles_processed": 0,
             "articles_with_links": 0,
@@ -171,7 +172,7 @@ class ParallelArticleRelinkingService:
 
     def __init__(self, max_workers: int | None = None):
         self.max_workers = max_workers or max(1, mp.cpu_count() - 1)
-        self.stats = {
+        self.stats: dict[str, Any] = {
             "articles_processed": 0,
             "articles_with_links": 0,
             "total_links_removed": 0,
@@ -307,7 +308,7 @@ class ParallelArticleRelinkingService:
 
                         # Update progress bar with detailed info
                         elapsed = time.time() - start_time
-                        rate = (
+                        rate = float(
                             self.stats["articles_processed"] / elapsed
                             if elapsed > 0
                             else 0
@@ -348,20 +349,21 @@ class ParallelArticleRelinkingService:
         print(f"Total Links Added: {self.stats['total_links_added']:,}")
         print(f"Processing Time: {self.stats['processing_time']:.1f} seconds")
 
-        if self.stats["articles_processed"] > 0:
-            coverage_rate = (
-                self.stats["articles_with_links"] / self.stats["articles_processed"]
-            ) * 100
-            avg_links_per_article = (
+        if self.stats["articles_processed"] and self.stats["articles_processed"] > 0:
+            coverage_rate = float(
+                (self.stats["articles_with_links"] / self.stats["articles_processed"])
+                * 100
+            )
+            avg_links_per_article = float(
                 self.stats["total_links_added"] / self.stats["articles_processed"]
             )
 
             print(f"Coverage Rate: {coverage_rate:.1f}%")
             print(f"Average Links per Article: {avg_links_per_article:.1f}")
 
-        if self.stats["processing_time"] > 0:
-            rate = self.stats["articles_processed"] / self.stats["processing_time"]
-            speedup = rate / 0.2  # Compare to sequential rate of 0.2 articles/sec
+        if self.stats["processing_time"] and self.stats["processing_time"] > 0:
+            rate = float(self.stats["articles_processed"] / self.stats["processing_time"])
+            speedup = float(rate / 0.2)  # Compare to sequential rate of 0.2 articles/sec
             print(f"Processing Rate: {rate:.1f} articles/second")
             print(f"Speedup vs Sequential: {speedup:.1f}x")
 
@@ -405,13 +407,13 @@ class ParallelArticleRelinkingService:
                 "articles_with_links": articles_with_links,
                 "total_links": total_links,
                 "coverage_percentage": (
-                    (articles_with_links / total_articles * 100)
-                    if total_articles > 0
+                    float(articles_with_links / total_articles * 100)
+                    if total_articles and articles_with_links is not None and total_articles > 0
                     else 0
                 ),
                 "avg_links_per_article": (
-                    (total_links / articles_with_links)
-                    if articles_with_links > 0
+                    float(total_links / articles_with_links)
+                    if articles_with_links and articles_with_links > 0
                     else 0
                 ),
                 "top_tickers": top_tickers,

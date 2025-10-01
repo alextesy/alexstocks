@@ -11,7 +11,9 @@
       "Bash(gh:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(uv:*)"
+      "Bash(uv:*)",
+      "Bash(DATABASE_URL=\"postgresql://test:test@localhost:5432/test\" python -c \"from app.config import settings; print(''Success:'', settings.postgres_url)\")",
+      "Bash(DATABASE_URL=\"postgresql://test:test@localhost:5432/test\" uv run python -c \"from app.config import settings; print(''Success:'', settings.postgres_url)\")"
     ],
     "deny": [],
     "ask": []

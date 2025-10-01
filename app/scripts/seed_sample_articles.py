@@ -83,9 +83,9 @@ def create_sample_articles() -> list[Article]:
     return articles
 
 
-def create_article_ticker_links(articles: list[Article]) -> list[ArticleTicker]:
+def create_article_ticker_links(articles: list[Article]) -> list[tuple[Article, ArticleTicker]]:
     """Create article-ticker relationships based on content."""
-    links = []
+    links: list[tuple[Article, ArticleTicker]] = []
 
     # Map articles to their primary tickers
     article_ticker_map = {

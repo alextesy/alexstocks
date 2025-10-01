@@ -1,6 +1,7 @@
 """Test re-linking on a sample of articles to verify the expanded ticker coverage."""
 
 import logging
+from typing import Any
 
 from app.db.models import Article, ArticleTicker, Ticker
 from app.scripts.relink_all_articles import ArticleRelinkingService
@@ -14,7 +15,7 @@ def test_relink_sample(sample_size: int = 20):
     print("TESTING EXPANDED TICKER LINKING")
     print(f"{'='*60}")
 
-    service = ArticleRelinkingService()
+    service: Any = ArticleRelinkingService()
 
     try:
         # Get sample of recent articles

@@ -45,7 +45,7 @@ def display_ticker_stats():
         print("\n📡 DATA SOURCES")
 
         # Get all sources (since sources is JSONB array)
-        all_sources = Counter()
+        all_sources: Counter[str] = Counter()
         all_tickers = db.query(Ticker.sources).all()
 
         for (sources,) in all_tickers:

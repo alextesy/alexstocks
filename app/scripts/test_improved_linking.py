@@ -96,9 +96,12 @@ def test_improved_linking():
         print("=" * 80)
 
         for article, ticker_links in results:
-            print(f"\nArticle: {article.title}")
-            print(f"URL: {article.url}")
-            print(f"Text: {article.text[:100]}...")
+            article_title = article.title if article.title else ""
+            article_url = article.url if article.url else ""
+            article_text = article.text if article.text else ""
+            print(f"\nArticle: {article_title}")
+            print(f"URL: {article_url}")
+            print(f"Text: {article_text[:100]}...")
             print(f"Linked to {len(ticker_links)} tickers:")
 
             for link in ticker_links:

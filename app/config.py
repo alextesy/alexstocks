@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     """Application settings with environment variable support."""
 
     postgres_url: PostgresDsn = Field(
+        default="postgresql://test:test@localhost:5432/test",  # type: ignore[assignment]
         validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL", "postgres_url")
     )
     postgres_password: str | None = None  # Allow but don't require

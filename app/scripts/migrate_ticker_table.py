@@ -78,7 +78,7 @@ def migrate_ticker_table():
 
             for row in reader:
                 # Parse sources
-                sources = []
+                sources: list[str] = []
                 if row.get("sources"):
                     sources = row["sources"].split(",")
 
