@@ -3,8 +3,8 @@
 import logging
 import multiprocessing as mp
 import time
-from typing import Any
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Any
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

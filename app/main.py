@@ -1,7 +1,6 @@
 """FastAPI application with server-rendered templates."""
 
 import logging
-from collections.abc import Collection
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse

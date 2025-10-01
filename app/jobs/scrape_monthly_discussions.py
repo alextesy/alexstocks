@@ -5,7 +5,8 @@ import argparse
 import logging
 import sys
 import time
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from datetime import date as date_type
 from typing import Any
 
 import praw
@@ -158,7 +159,7 @@ class MonthlyDiscussionScraper:
             all_daily_threads.sort(key=lambda x: x.created_utc, reverse=True)
 
             # Log summary by date
-            threads_by_date: dict[date, list[Any]] = {}
+            threads_by_date: dict[date_type, list[Any]] = {}
             for thread in all_daily_threads:
                 thread_date = datetime.fromtimestamp(thread.created_utc, tz=UTC).date()
                 if thread_date not in threads_by_date:
