@@ -54,7 +54,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv sync --dev
+        uv sync --all-groups
 
     - name: Set up test environment
       run: |
@@ -105,7 +105,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv sync --dev
+        uv sync --all-groups
 
     - name: Run ruff linter
       run: |
@@ -139,7 +139,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv sync --dev
+        uv sync --all-groups
 
     - name: Run bandit security linter
       run: |
@@ -188,7 +188,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv sync --dev
+        uv sync --all-groups
 
     - name: Set up integration test environment
       run: |
@@ -298,7 +298,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv sync --dev
+        uv sync --all-groups
 
     - name: Set up performance test environment
       run: |
