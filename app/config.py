@@ -2,14 +2,16 @@
 
 from typing import Literal
 
-from pydantic import PostgresDsn
+from pydantic import AliasChoices, Field, PostgresDsn
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     """Application settings with environment variable support."""
 
-    postgres_url: PostgresDsn
+    postgres_url: PostgresDsn = Field(
+        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL", "postgres_url")
+    )
     postgres_password: str | None = None  # Allow but don't require
     tickers_path: str = "data/tickers_core.csv"
     aliases_path: str = "data/aliases.yaml"
@@ -34,7 +36,7 @@ class Settings(BaseSettings):
     # Finnhub API configuration
     finnhub_secret: str | None = None
 
-    model_config = {"env_file": ".env"}
+    model_config = {"env_file": ".env", "extra": "ignore"}
 
 
 # Global settings instance
