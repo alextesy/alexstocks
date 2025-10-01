@@ -242,7 +242,9 @@ class ParallelArticleRelinkingService:
         logger.info(f"Loaded {len(ticker_data_list)} tickers for workers")
         return ticker_data_list
 
-    def parallel_relink_articles(self, limit: int | None = None, batch_size: int = 50) -> dict:
+    def parallel_relink_articles(
+        self, limit: int | None = None, batch_size: int = 50
+    ) -> dict:
         """Re-link articles using parallel processing."""
         print(f"\n🚀 Starting parallel re-linking with {self.max_workers} workers...")
         start_time = time.time()
