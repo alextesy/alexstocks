@@ -91,7 +91,9 @@ class RedditFullScraper:
                     valid_comments.append(comment)
 
             elapsed_time = time.time() - start_time
-            logger.info(f"Extracted {len(valid_comments)} valid comments out of {len(all_comments)} total in {elapsed_time:.2f}s")
+            logger.info(
+                f"Extracted {len(valid_comments)} valid comments out of {len(all_comments)} total in {elapsed_time:.2f}s"
+            )
 
             return valid_comments
 
@@ -112,7 +114,7 @@ class RedditFullScraper:
         result = db.execute(
             select(Article.reddit_id).where(
                 Article.source == "reddit_comment",
-                Article.reddit_url.like(f"%{thread_id}%")
+                Article.reddit_url.like(f"%{thread_id}%"),
             )
         )
         return {row[0] for row in result if row[0]}
@@ -147,7 +149,9 @@ class RedditFullScraper:
 
             if existing_thread:
                 thread_record = existing_thread
-                logger.info(f"Found existing thread record with {thread_record.scraped_comments} scraped comments")
+                logger.info(
+                    f"Found existing thread record with {thread_record.scraped_comments} scraped comments"
+                )
             else:
                 # Determine thread type
                 title_lower = submission.title.lower()
@@ -179,14 +183,23 @@ class RedditFullScraper:
             existing_comment_ids = set()
             if skip_existing:
                 existing_comment_ids = self.get_existing_comment_ids(db, submission.id)
-                logger.info(f"Found {len(existing_comment_ids)} existing comments in database")
+                logger.info(
+                    f"Found {len(existing_comment_ids)} existing comments in database"
+                )
 
             # Extract ALL comments
-            all_comments = self.extract_all_comments_from_thread(submission, max_replace_more)
+            all_comments = self.extract_all_comments_from_thread(
+                submission, max_replace_more
+            )
 
             if not all_comments:
                 logger.warning("No comments extracted from thread")
-                return {"total_comments": 0, "new_comments": 0, "processed_articles": 0, "ticker_links": 0}
+                return {
+                    "total_comments": 0,
+                    "new_comments": 0,
+                    "processed_articles": 0,
+                    "ticker_links": 0,
+                }
 
             # Filter out existing comments if skipping
             new_comments = []
@@ -194,18 +207,29 @@ class RedditFullScraper:
                 for comment in all_comments:
                     if comment.id not in existing_comment_ids:
                         new_comments.append(comment)
-                logger.info(f"Found {len(new_comments)} new comments to process (skipping {len(all_comments) - len(new_comments)} existing)")
+                logger.info(
+                    f"Found {len(new_comments)} new comments to process (skipping {len(all_comments) - len(new_comments)} existing)"
+                )
             else:
                 new_comments = all_comments
-                logger.info(f"Processing all {len(new_comments)} comments (not skipping existing)")
+                logger.info(
+                    f"Processing all {len(new_comments)} comments (not skipping existing)"
+                )
 
             if not new_comments:
                 logger.info("No new comments to process")
                 thread_record.last_scraped_at = datetime.now(UTC)
-                return {"total_comments": len(all_comments), "new_comments": 0, "processed_articles": 0, "ticker_links": 0}
+                return {
+                    "total_comments": len(all_comments),
+                    "new_comments": 0,
+                    "processed_articles": 0,
+                    "ticker_links": 0,
+                }
 
             # Initialize ticker linker
-            linker = TickerLinker(tickers, max_scraping_workers=self.max_scraping_workers)
+            linker = TickerLinker(
+                tickers, max_scraping_workers=self.max_scraping_workers
+            )
 
             # Process comments in batches for better performance
             batch_size = 100
@@ -213,28 +237,38 @@ class RedditFullScraper:
             total_ticker_links = 0
             processed_count = 0
 
-            logger.info(f"Processing {len(new_comments)} comments in batches of {batch_size}")
+            logger.info(
+                f"Processing {len(new_comments)} comments in batches of {batch_size}"
+            )
 
             for i in range(0, len(new_comments), batch_size):
-                batch = new_comments[i:i + batch_size]
+                batch = new_comments[i : i + batch_size]
                 batch_num = (i // batch_size) + 1
                 total_batches = (len(new_comments) + batch_size - 1) // batch_size
 
-                logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch)} comments)")
+                logger.info(
+                    f"Processing batch {batch_num}/{total_batches} ({len(batch)} comments)"
+                )
 
                 for comment in batch:
                     try:
                         # Parse comment to article
-                        article = self.discussion_scraper.parse_comment_to_article(comment, submission)
+                        article = self.discussion_scraper.parse_comment_to_article(
+                            comment, submission
+                        )
 
                         # Check if article already exists (by reddit_id) if not skipping
                         if not skip_existing:
                             existing_article = db.execute(
-                                select(Article).where(Article.reddit_id == article.reddit_id)
+                                select(Article).where(
+                                    Article.reddit_id == article.reddit_id
+                                )
                             ).scalar_one_or_none()
 
                             if existing_article:
-                                logger.debug(f"Comment {comment.id} already exists, skipping")
+                                logger.debug(
+                                    f"Comment {comment.id} already exists, skipping"
+                                )
                                 continue
 
                         # Add article to database
@@ -260,7 +294,9 @@ class RedditFullScraper:
 
                         # Log progress every 50 comments
                         if processed_count % 50 == 0:
-                            logger.info(f"Processed {processed_count}/{len(new_comments)} comments...")
+                            logger.info(
+                                f"Processed {processed_count}/{len(new_comments)} comments..."
+                            )
 
                     except IntegrityError as e:
                         logger.warning(f"Integrity error for comment {comment.id}: {e}")
@@ -279,10 +315,14 @@ class RedditFullScraper:
                     db.rollback()
 
             # Update thread record
-            thread_record.scraped_comments = max(thread_record.scraped_comments, len(all_comments))
+            thread_record.scraped_comments = max(
+                thread_record.scraped_comments, len(all_comments)
+            )
             thread_record.total_comments = submission.num_comments
             thread_record.last_scraped_at = datetime.now(UTC)
-            thread_record.is_complete = True  # Mark as complete since we got all comments
+            thread_record.is_complete = (
+                True  # Mark as complete since we got all comments
+            )
 
             db.commit()
 
@@ -301,7 +341,12 @@ class RedditFullScraper:
 
         except Exception as e:
             logger.error(f"Error in complete thread scraping: {e}")
-            return {"total_comments": 0, "new_comments": 0, "processed_articles": 0, "ticker_links": 0}
+            return {
+                "total_comments": 0,
+                "new_comments": 0,
+                "processed_articles": 0,
+                "ticker_links": 0,
+            }
 
     def scrape_latest_daily_threads_completely(
         self,
@@ -352,7 +397,9 @@ class RedditFullScraper:
             }
 
             for i, thread in enumerate(processed_threads, 1):
-                logger.info(f"Processing thread {i}/{len(processed_threads)}: {thread.title}")
+                logger.info(
+                    f"Processing thread {i}/{len(processed_threads)}: {thread.title}"
+                )
 
                 thread_stats = self.scrape_thread_completely(
                     db, thread, tickers, max_replace_more, skip_existing
@@ -419,7 +466,9 @@ def run_full_scrape(
     logger.info(f"Starting FULL Reddit scraping for r/{subreddit}")
 
     if max_replace_more is None:
-        logger.warning("⚠️  No limit on 'more comments' expansion - this may take a VERY long time!")
+        logger.warning(
+            "⚠️  No limit on 'more comments' expansion - this may take a VERY long time!"
+        )
     else:
         logger.info(f"Will expand up to {max_replace_more} 'more comments' per thread")
 

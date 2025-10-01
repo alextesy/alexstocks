@@ -57,7 +57,7 @@ class MonthlyDiscussionScraper:
         self,
         subreddit_name: str = "wallstreetbets",
         days_back: int = 30,
-        max_posts_per_search: int = 200
+        max_posts_per_search: int = 200,
     ) -> list[Submission]:
         """Find daily discussion threads from the last N days.
 
@@ -80,7 +80,9 @@ class MonthlyDiscussionScraper:
             end_date = datetime.now(UTC)
             start_date = end_date - timedelta(days=days_back)
 
-            logger.info(f"Searching for daily discussions from {start_date.date()} to {end_date.date()}")
+            logger.info(
+                f"Searching for daily discussions from {start_date.date()} to {end_date.date()}"
+            )
 
             # Define discussion thread keywords
             discussion_keywords = [
@@ -90,7 +92,7 @@ class MonthlyDiscussionScraper:
                 "daily thread",
                 "discussion thread",
                 "daily chat",
-                "weekend chat"
+                "weekend chat",
             ]
 
             # Search through multiple methods to find historical threads
@@ -99,7 +101,7 @@ class MonthlyDiscussionScraper:
                 ("new", "new posts"),
                 ("top_day", "top posts (day)"),
                 ("top_week", "top posts (week)"),
-                ("top_month", "top posts (month)")
+                ("top_month", "top posts (month)"),
             ]
 
             for method, description in search_methods:
@@ -111,11 +113,21 @@ class MonthlyDiscussionScraper:
                     elif method == "new":
                         posts = list(subreddit.new(limit=max_posts_per_search))
                     elif method == "top_day":
-                        posts = list(subreddit.top(time_filter="day", limit=max_posts_per_search))
+                        posts = list(
+                            subreddit.top(time_filter="day", limit=max_posts_per_search)
+                        )
                     elif method == "top_week":
-                        posts = list(subreddit.top(time_filter="week", limit=max_posts_per_search))
+                        posts = list(
+                            subreddit.top(
+                                time_filter="week", limit=max_posts_per_search
+                            )
+                        )
                     elif method == "top_month":
-                        posts = list(subreddit.top(time_filter="month", limit=max_posts_per_search))
+                        posts = list(
+                            subreddit.top(
+                                time_filter="month", limit=max_posts_per_search
+                            )
+                        )
 
                     found_in_method = 0
                     for post in posts:
@@ -124,12 +136,17 @@ class MonthlyDiscussionScraper:
                         # Check if post is within our date range
                         if start_date <= post_date <= end_date:
                             title_lower = post.title.lower()
-                            if any(keyword in title_lower for keyword in discussion_keywords):
+                            if any(
+                                keyword in title_lower
+                                for keyword in discussion_keywords
+                            ):
                                 # Avoid duplicates
                                 if post not in all_daily_threads:
                                     all_daily_threads.append(post)
                                     found_in_method += 1
-                                    logger.info(f"Found daily thread: {post.title} ({post_date.date()})")
+                                    logger.info(
+                                        f"Found daily thread: {post.title} ({post_date.date()})"
+                                    )
 
                     logger.info(f"Found {found_in_method} new threads in {description}")
 
@@ -148,7 +165,9 @@ class MonthlyDiscussionScraper:
                     threads_by_date[thread_date] = []
                 threads_by_date[thread_date].append(thread)
 
-            logger.info(f"Found {len(all_daily_threads)} daily discussion threads from the last {days_back} days")
+            logger.info(
+                f"Found {len(all_daily_threads)} daily discussion threads from the last {days_back} days"
+            )
             logger.info("Threads by date:")
             for date in sorted(threads_by_date.keys(), reverse=True):
                 threads = threads_by_date[date]
@@ -197,7 +216,9 @@ class MonthlyDiscussionScraper:
                     valid_comments.append(comment)
 
             elapsed_time = time.time() - start_time
-            logger.info(f"Extracted {len(valid_comments)} valid comments out of {len(all_comments)} total in {elapsed_time:.2f}s")
+            logger.info(
+                f"Extracted {len(valid_comments)} valid comments out of {len(all_comments)} total in {elapsed_time:.2f}s"
+            )
 
             return valid_comments
 
@@ -218,7 +239,7 @@ class MonthlyDiscussionScraper:
         result = db.execute(
             select(Article.reddit_id).where(
                 Article.source == "reddit_comment",
-                Article.reddit_url.like(f"%{thread_id}%")
+                Article.reddit_url.like(f"%{thread_id}%"),
             )
         )
         return {row[0] for row in result if row[0]}
@@ -253,7 +274,9 @@ class MonthlyDiscussionScraper:
 
             if existing_thread:
                 thread_record = existing_thread
-                logger.info(f"Found existing thread record with {thread_record.scraped_comments} scraped comments")
+                logger.info(
+                    f"Found existing thread record with {thread_record.scraped_comments} scraped comments"
+                )
             else:
                 # Determine thread type
                 title_lower = submission.title.lower()
@@ -285,14 +308,23 @@ class MonthlyDiscussionScraper:
             existing_comment_ids = set()
             if skip_existing:
                 existing_comment_ids = self.get_existing_comment_ids(db, submission.id)
-                logger.info(f"Found {len(existing_comment_ids)} existing comments in database")
+                logger.info(
+                    f"Found {len(existing_comment_ids)} existing comments in database"
+                )
 
             # Extract ALL comments
-            all_comments = self.extract_all_comments_from_thread(submission, max_replace_more)
+            all_comments = self.extract_all_comments_from_thread(
+                submission, max_replace_more
+            )
 
             if not all_comments:
                 logger.warning("No comments extracted from thread")
-                return {"total_comments": 0, "new_comments": 0, "processed_articles": 0, "ticker_links": 0}
+                return {
+                    "total_comments": 0,
+                    "new_comments": 0,
+                    "processed_articles": 0,
+                    "ticker_links": 0,
+                }
 
             # Filter out existing comments if skipping
             new_comments = []
@@ -300,18 +332,29 @@ class MonthlyDiscussionScraper:
                 for comment in all_comments:
                     if comment.id not in existing_comment_ids:
                         new_comments.append(comment)
-                logger.info(f"Found {len(new_comments)} new comments to process (skipping {len(all_comments) - len(new_comments)} existing)")
+                logger.info(
+                    f"Found {len(new_comments)} new comments to process (skipping {len(all_comments) - len(new_comments)} existing)"
+                )
             else:
                 new_comments = all_comments
-                logger.info(f"Processing all {len(new_comments)} comments (not skipping existing)")
+                logger.info(
+                    f"Processing all {len(new_comments)} comments (not skipping existing)"
+                )
 
             if not new_comments:
                 logger.info("No new comments to process")
                 thread_record.last_scraped_at = datetime.now(UTC)
-                return {"total_comments": len(all_comments), "new_comments": 0, "processed_articles": 0, "ticker_links": 0}
+                return {
+                    "total_comments": len(all_comments),
+                    "new_comments": 0,
+                    "processed_articles": 0,
+                    "ticker_links": 0,
+                }
 
             # Initialize ticker linker
-            linker = TickerLinker(tickers, max_scraping_workers=self.max_scraping_workers)
+            linker = TickerLinker(
+                tickers, max_scraping_workers=self.max_scraping_workers
+            )
 
             # Process comments in batches for better performance
             batch_size = 50  # Smaller batches for monthly scraping
@@ -319,28 +362,38 @@ class MonthlyDiscussionScraper:
             total_ticker_links = 0
             processed_count = 0
 
-            logger.info(f"Processing {len(new_comments)} comments in batches of {batch_size}")
+            logger.info(
+                f"Processing {len(new_comments)} comments in batches of {batch_size}"
+            )
 
             for i in range(0, len(new_comments), batch_size):
-                batch = new_comments[i:i + batch_size]
+                batch = new_comments[i : i + batch_size]
                 batch_num = (i // batch_size) + 1
                 total_batches = (len(new_comments) + batch_size - 1) // batch_size
 
-                logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch)} comments)")
+                logger.info(
+                    f"Processing batch {batch_num}/{total_batches} ({len(batch)} comments)"
+                )
 
                 for comment in batch:
                     try:
                         # Parse comment to article
-                        article = self.discussion_scraper.parse_comment_to_article(comment, submission)
+                        article = self.discussion_scraper.parse_comment_to_article(
+                            comment, submission
+                        )
 
                         # Check if article already exists (by reddit_id) if not skipping
                         if not skip_existing:
                             existing_article = db.execute(
-                                select(Article).where(Article.reddit_id == article.reddit_id)
+                                select(Article).where(
+                                    Article.reddit_id == article.reddit_id
+                                )
                             ).scalar_one_or_none()
 
                             if existing_article:
-                                logger.debug(f"Comment {comment.id} already exists, skipping")
+                                logger.debug(
+                                    f"Comment {comment.id} already exists, skipping"
+                                )
                                 continue
 
                         # Add article to database
@@ -366,7 +419,9 @@ class MonthlyDiscussionScraper:
 
                         # Log progress every 25 comments
                         if processed_count % 25 == 0:
-                            logger.info(f"Processed {processed_count}/{len(new_comments)} comments...")
+                            logger.info(
+                                f"Processed {processed_count}/{len(new_comments)} comments..."
+                            )
 
                     except IntegrityError as e:
                         logger.warning(f"Integrity error for comment {comment.id}: {e}")
@@ -385,10 +440,14 @@ class MonthlyDiscussionScraper:
                     db.rollback()
 
             # Update thread record
-            thread_record.scraped_comments = max(thread_record.scraped_comments, len(all_comments))
+            thread_record.scraped_comments = max(
+                thread_record.scraped_comments, len(all_comments)
+            )
             thread_record.total_comments = submission.num_comments
             thread_record.last_scraped_at = datetime.now(UTC)
-            thread_record.is_complete = True  # Mark as complete since we got all comments
+            thread_record.is_complete = (
+                True  # Mark as complete since we got all comments
+            )
 
             db.commit()
 
@@ -407,7 +466,12 @@ class MonthlyDiscussionScraper:
 
         except Exception as e:
             logger.error(f"Error in complete thread scraping: {e}")
-            return {"total_comments": 0, "new_comments": 0, "processed_articles": 0, "ticker_links": 0}
+            return {
+                "total_comments": 0,
+                "new_comments": 0,
+                "processed_articles": 0,
+                "ticker_links": 0,
+            }
 
     def scrape_monthly_discussions(
         self,
@@ -446,7 +510,9 @@ class MonthlyDiscussionScraper:
             )
 
             if not daily_threads:
-                logger.warning(f"No daily discussion threads found in r/{subreddit_name} for the last {days_back} days")
+                logger.warning(
+                    f"No daily discussion threads found in r/{subreddit_name} for the last {days_back} days"
+                )
                 return {"error": "No daily discussion threads found"}
 
             # Process threads (limit to most recent ones)
@@ -461,7 +527,9 @@ class MonthlyDiscussionScraper:
 
             for i, thread in enumerate(processed_threads, 1):
                 thread_date = datetime.fromtimestamp(thread.created_utc, tz=UTC)
-                logger.info(f"Processing thread {i}/{len(processed_threads)}: {thread.title} ({thread_date.date()})")
+                logger.info(
+                    f"Processing thread {i}/{len(processed_threads)}: {thread.title} ({thread_date.date()})"
+                )
 
                 thread_stats = self.scrape_thread_completely(
                     db, thread, tickers, max_replace_more, skip_existing
@@ -528,7 +596,9 @@ def run_monthly_scraping(
     """
     setup_logging(verbose)
     logger.info(f"Starting monthly Reddit discussion scraping for r/{subreddit}")
-    logger.info(f"Looking back {days_back} days, processing up to {max_threads} threads")
+    logger.info(
+        f"Looking back {days_back} days, processing up to {max_threads} threads"
+    )
 
     try:
         # Get Reddit credentials
@@ -572,7 +642,9 @@ def run_monthly_scraping(
 
 def main() -> None:
     """Main CLI entry point."""
-    parser = argparse.ArgumentParser(description="Monthly Reddit discussion scraping CLI")
+    parser = argparse.ArgumentParser(
+        description="Monthly Reddit discussion scraping CLI"
+    )
 
     parser.add_argument(
         "--subreddit",

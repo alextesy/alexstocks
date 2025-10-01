@@ -53,7 +53,9 @@ def test_relink_sample(sample_size: int = 20):
             old_count = len(old_tickers)
 
             # Test new linking (without clearing existing)
-            ticker_links = service.ticker_linker.link_article(article, use_title_only=True)
+            ticker_links = service.ticker_linker.link_article(
+                article, use_title_only=True
+            )
             new_tickers = [link.ticker for link in ticker_links]
             new_count = len(new_tickers)
 
@@ -87,10 +89,14 @@ def test_relink_sample(sample_size: int = 20):
         print(f"{'='*60}")
         print(f"Articles tested: {len(recent_articles)}")
         print(f"Articles with improvements: {articles_with_improvements}")
-        print(f"Improvement rate: {(articles_with_improvements/len(recent_articles)*100):.1f}%")
+        print(
+            f"Improvement rate: {(articles_with_improvements/len(recent_articles)*100):.1f}%"
+        )
         print(f"Total old links: {total_old_links}")
         print(f"Total new links: {total_new_links}")
-        print(f"Link increase: {((total_new_links/max(total_old_links,1)-1)*100):+.1f}%")
+        print(
+            f"Link increase: {((total_new_links/max(total_old_links,1)-1)*100):+.1f}%"
+        )
 
         # Show ticker database stats
         total_tickers = service.db.query(Ticker).count()

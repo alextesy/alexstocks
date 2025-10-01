@@ -15,12 +15,16 @@ def add_matched_terms_column():
 
     try:
         # Check if the column already exists
-        result = db.execute(text("""
+        result = db.execute(
+            text(
+                """
             SELECT column_name
             FROM information_schema.columns
             WHERE table_name = 'article_ticker'
             AND column_name = 'matched_terms'
-        """))
+        """
+            )
+        )
 
         if result.fetchone():
             logger.info("matched_terms column already exists. Skipping creation.")
@@ -30,10 +34,14 @@ def add_matched_terms_column():
         logger.info("Adding matched_terms column to article_ticker table...")
 
         # Add the column
-        db.execute(text("""
+        db.execute(
+            text(
+                """
             ALTER TABLE article_ticker
             ADD COLUMN matched_terms JSONB
-        """))
+        """
+            )
+        )
 
         db.commit()
         logger.info("Successfully added matched_terms column")

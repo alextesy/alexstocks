@@ -17,7 +17,7 @@ class TestSentimentService:
 
     def setup_method(self):
         """Set up test fixtures."""
-        with patch('vaderSentiment.vaderSentiment.SentimentIntensityAnalyzer'):
+        with patch("vaderSentiment.vaderSentiment.SentimentIntensityAnalyzer"):
             self.service = SentimentService()
 
     def test_initialization(self):
@@ -85,7 +85,7 @@ class TestSentimentService:
 
     def test_analyze_with_label(self):
         """Test analyze_with_label method."""
-        with patch.object(self.service, 'analyze_sentiment', return_value=0.7):
+        with patch.object(self.service, "analyze_sentiment", return_value=0.7):
             score, label = self.service.analyze_with_label("Great stock!")
 
             assert score == 0.7
@@ -100,14 +100,14 @@ class TestLLMSentimentService:
         self.mock_pipeline = Mock()
         self.mock_pipeline.return_value = [
             [
-                {'label': 'positive', 'score': 0.8},
-                {'label': 'negative', 'score': 0.1},
-                {'label': 'neutral', 'score': 0.1}
+                {"label": "positive", "score": 0.8},
+                {"label": "negative", "score": 0.1},
+                {"label": "neutral", "score": 0.1},
             ]
         ]
 
-    @patch('app.services.llm_sentiment.TRANSFORMERS_AVAILABLE', True)
-    @patch('app.services.llm_sentiment.pipeline')
+    @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True)
+    @patch("app.services.llm_sentiment.pipeline")
     def test_initialization_success(self, mock_pipeline):
         """Test successful LLM service initialization."""
         mock_pipeline.return_value = self.mock_pipeline
@@ -118,66 +118,72 @@ class TestLLMSentimentService:
         assert service.use_gpu is False
         assert service._device == -1
 
-    @patch('app.services.llm_sentiment.TRANSFORMERS_AVAILABLE', False)
+    @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", False)
     def test_initialization_no_transformers(self):
         """Test initialization when transformers is not available."""
         with pytest.raises(RuntimeError, match="Transformers library not available"):
             LLMSentimentService()
 
-    @patch('app.services.llm_sentiment.TRANSFORMERS_AVAILABLE', True)
-    @patch('app.services.llm_sentiment.pipeline')
+    @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True)
+    @patch("app.services.llm_sentiment.pipeline")
     def test_analyze_sentiment_positive(self, mock_pipeline):
         """Test positive sentiment analysis with LLM."""
         # Mock the pipeline to return positive sentiment
-        mock_pipeline.return_value = Mock(return_value=[
-            [
-                {'label': 'positive', 'score': 0.8},
-                {'label': 'negative', 'score': 0.1},
-                {'label': 'neutral', 'score': 0.1}
+        mock_pipeline.return_value = Mock(
+            return_value=[
+                [
+                    {"label": "positive", "score": 0.8},
+                    {"label": "negative", "score": 0.1},
+                    {"label": "neutral", "score": 0.1},
+                ]
             ]
-        ])
+        )
 
         service = LLMSentimentService()
         result = service.analyze_sentiment("I love this stock! It's amazing!")
 
         assert result == 0.7  # positive - negative = 0.8 - 0.1
 
-    @patch('app.services.llm_sentiment.TRANSFORMERS_AVAILABLE', True)
-    @patch('app.services.llm_sentiment.pipeline')
+    @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True)
+    @patch("app.services.llm_sentiment.pipeline")
     def test_analyze_sentiment_negative(self, mock_pipeline):
         """Test negative sentiment analysis with LLM."""
-        mock_pipeline.return_value = Mock(return_value=[
-            [
-                {'label': 'positive', 'score': 0.1},
-                {'label': 'negative', 'score': 0.8},
-                {'label': 'neutral', 'score': 0.1}
+        mock_pipeline.return_value = Mock(
+            return_value=[
+                [
+                    {"label": "positive", "score": 0.1},
+                    {"label": "negative", "score": 0.8},
+                    {"label": "neutral", "score": 0.1},
+                ]
             ]
-        ])
+        )
 
         service = LLMSentimentService()
         result = service.analyze_sentiment("This stock is terrible!")
 
         assert result == -0.7  # positive - negative = 0.1 - 0.8
 
-    @patch('app.services.llm_sentiment.TRANSFORMERS_AVAILABLE', True)
-    @patch('app.services.llm_sentiment.pipeline')
+    @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True)
+    @patch("app.services.llm_sentiment.pipeline")
     def test_analyze_sentiment_roberta_format(self, mock_pipeline):
         """Test sentiment analysis with RoBERTa format."""
-        mock_pipeline.return_value = Mock(return_value=[
-            [
-                {'label': 'label_0', 'score': 0.1},  # negative
-                {'label': 'label_1', 'score': 0.2},  # neutral
-                {'label': 'label_2', 'score': 0.7}   # positive
+        mock_pipeline.return_value = Mock(
+            return_value=[
+                [
+                    {"label": "label_0", "score": 0.1},  # negative
+                    {"label": "label_1", "score": 0.2},  # neutral
+                    {"label": "label_2", "score": 0.7},  # positive
+                ]
             ]
-        ])
+        )
 
         service = LLMSentimentService()
         result = service.analyze_sentiment("Great stock!")
 
         assert result == 0.6  # positive - negative = 0.7 - 0.1
 
-    @patch('app.services.llm_sentiment.TRANSFORMERS_AVAILABLE', True)
-    @patch('app.services.llm_sentiment.pipeline')
+    @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True)
+    @patch("app.services.llm_sentiment.pipeline")
     def test_analyze_sentiment_text_truncation(self, mock_pipeline):
         """Test text truncation for long inputs."""
         mock_pipeline.return_value = self.mock_pipeline
@@ -194,7 +200,7 @@ class TestLLMSentimentService:
 
     def test_analyze_sentiment_empty_text(self):
         """Test LLM sentiment analysis with empty text."""
-        with patch('app.services.llm_sentiment.TRANSFORMERS_AVAILABLE', True):
+        with patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True):
             service = LLMSentimentService()
 
             with pytest.raises(ValueError, match="Text cannot be empty or None"):
@@ -202,7 +208,7 @@ class TestLLMSentimentService:
 
     def test_get_sentiment_label(self):
         """Test sentiment label conversion."""
-        with patch('app.services.llm_sentiment.TRANSFORMERS_AVAILABLE', True):
+        with patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True):
             service = LLMSentimentService()
 
             assert service.get_sentiment_label(0.1) == "Positive"
@@ -211,7 +217,7 @@ class TestLLMSentimentService:
 
     def test_get_model_info(self):
         """Test model information retrieval."""
-        with patch('app.services.llm_sentiment.TRANSFORMERS_AVAILABLE', True):
+        with patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True):
             service = LLMSentimentService(model_name="test-model", use_gpu=True)
 
             info = service.get_model_info()
@@ -233,13 +239,19 @@ class TestHybridSentimentService:
 
     def test_initialization_dual_model_strategy(self):
         """Test initialization with dual model strategy."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(
-                use_llm=True,
-                dual_model_strategy=True,
-                fallback_to_vader=True
+                use_llm=True, dual_model_strategy=True, fallback_to_vader=True
             )
 
             assert service.dual_model_strategy is True
@@ -248,11 +260,12 @@ class TestHybridSentimentService:
 
     def test_initialization_llm_only(self):
         """Test initialization with LLM only."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service):
+        with patch(
+            "app.services.hybrid_sentiment.get_llm_sentiment_service",
+            return_value=self.mock_llm_service,
+        ):
             service = HybridSentimentService(
-                use_llm=True,
-                dual_model_strategy=False,
-                fallback_to_vader=False
+                use_llm=True, dual_model_strategy=False, fallback_to_vader=False
             )
 
             assert service.use_llm is True
@@ -262,11 +275,11 @@ class TestHybridSentimentService:
 
     def test_initialization_vader_only(self):
         """Test initialization with VADER only."""
-        with patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
-            service = HybridSentimentService(
-                use_llm=False,
-                dual_model_strategy=False
-            )
+        with patch(
+            "app.services.hybrid_sentiment.get_vader_service",
+            return_value=self.mock_vader_service,
+        ):
+            service = HybridSentimentService(use_llm=False, dual_model_strategy=False)
 
             assert service.use_llm is False
             assert service._vader_service == self.mock_vader_service
@@ -274,12 +287,19 @@ class TestHybridSentimentService:
 
     def test_analyze_sentiment_dual_model_strong_llm(self):
         """Test dual model strategy with strong LLM signal."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(
-                dual_model_strategy=True,
-                strong_llm_threshold=0.2
+                dual_model_strategy=True, strong_llm_threshold=0.2
             )
 
             # LLM returns strong positive signal
@@ -288,18 +308,27 @@ class TestHybridSentimentService:
             result = service.analyze_sentiment("I love this stock!")
 
             assert result == 0.8
-            self.mock_llm_service.analyze_sentiment.assert_called_once_with("I love this stock!")
+            self.mock_llm_service.analyze_sentiment.assert_called_once_with(
+                "I love this stock!"
+            )
             # VADER should not be called since LLM signal is strong
             self.mock_vader_service.analyze_sentiment.assert_not_called()
 
     def test_analyze_sentiment_dual_model_weak_llm_strong_vader(self):
         """Test dual model strategy with weak LLM, strong VADER."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(
-                dual_model_strategy=True,
-                strong_llm_threshold=0.2
+                dual_model_strategy=True, strong_llm_threshold=0.2
             )
 
             # LLM returns weak signal
@@ -315,12 +344,19 @@ class TestHybridSentimentService:
 
     def test_analyze_sentiment_dual_model_weak_llm_weak_vader(self):
         """Test dual model strategy with both weak signals."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(
-                dual_model_strategy=True,
-                strong_llm_threshold=0.2
+                dual_model_strategy=True, strong_llm_threshold=0.2
             )
 
             # Both return weak signals
@@ -329,19 +365,27 @@ class TestHybridSentimentService:
 
             result = service.analyze_sentiment("The stock price is $100")
 
-            assert result == 0.1  # Should use LLM since it's slightly further from neutral
+            assert (
+                result == 0.1
+            )  # Should use LLM since it's slightly further from neutral
             self.mock_llm_service.analyze_sentiment.assert_called_once()
             self.mock_vader_service.analyze_sentiment.assert_called_once()
 
     def test_analyze_sentiment_llm_fallback_to_vader(self):
         """Test LLM fallback to VADER when LLM fails."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(
-                use_llm=True,
-                dual_model_strategy=False,
-                fallback_to_vader=True
+                use_llm=True, dual_model_strategy=False, fallback_to_vader=True
             )
 
             # LLM fails
@@ -357,7 +401,10 @@ class TestHybridSentimentService:
 
     def test_analyze_sentiment_vader_only(self):
         """Test VADER-only sentiment analysis."""
-        with patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with patch(
+            "app.services.hybrid_sentiment.get_vader_service",
+            return_value=self.mock_vader_service,
+        ):
             service = HybridSentimentService(use_llm=False)
 
             self.mock_vader_service.analyze_sentiment.return_value = 0.3
@@ -365,11 +412,16 @@ class TestHybridSentimentService:
             result = service.analyze_sentiment("Test text")
 
             assert result == 0.3
-            self.mock_vader_service.analyze_sentiment.assert_called_once_with("Test text")
+            self.mock_vader_service.analyze_sentiment.assert_called_once_with(
+                "Test text"
+            )
 
     def test_analyze_sentiment_empty_text(self):
         """Test hybrid sentiment analysis with empty text."""
-        with patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with patch(
+            "app.services.hybrid_sentiment.get_vader_service",
+            return_value=self.mock_vader_service,
+        ):
             service = HybridSentimentService(use_llm=False)
 
             with pytest.raises(ValueError, match="Text cannot be empty or None"):
@@ -380,12 +432,17 @@ class TestHybridSentimentService:
         service = HybridSentimentService(use_llm=False, dual_model_strategy=False)
         service._vader_service = None
 
-        with pytest.raises(RuntimeError, match="No sentiment analysis service available"):
+        with pytest.raises(
+            RuntimeError, match="No sentiment analysis service available"
+        ):
             service.analyze_sentiment("Test text")
 
     def test_get_sentiment_label(self):
         """Test sentiment label conversion."""
-        with patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with patch(
+            "app.services.hybrid_sentiment.get_vader_service",
+            return_value=self.mock_vader_service,
+        ):
             service = HybridSentimentService(use_llm=False)
 
             assert service.get_sentiment_label(0.1) == "Positive"
@@ -394,10 +451,13 @@ class TestHybridSentimentService:
 
     def test_analyze_with_label(self):
         """Test analyze_with_label method."""
-        with patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with patch(
+            "app.services.hybrid_sentiment.get_vader_service",
+            return_value=self.mock_vader_service,
+        ):
             service = HybridSentimentService(use_llm=False)
 
-            with patch.object(service, 'analyze_sentiment', return_value=0.7):
+            with patch.object(service, "analyze_sentiment", return_value=0.7):
                 score, label = service.analyze_with_label("Great stock!")
 
                 assert score == 0.7
@@ -405,15 +465,20 @@ class TestHybridSentimentService:
 
     def test_get_service_info(self):
         """Test service information retrieval."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service):
+        with patch(
+            "app.services.hybrid_sentiment.get_llm_sentiment_service",
+            return_value=self.mock_llm_service,
+        ):
             service = HybridSentimentService(
                 use_llm=True,
                 llm_model_name="test-model",
                 use_gpu=True,
-                fallback_to_vader=True
+                fallback_to_vader=True,
             )
 
-            self.mock_llm_service.get_model_info.return_value = {"model_name": "test-model"}
+            self.mock_llm_service.get_model_info.return_value = {
+                "model_name": "test-model"
+            }
 
             info = service.get_service_info()
 
@@ -433,8 +498,16 @@ class TestSentimentAnalysisRealWorldExamples:
 
     def test_wallstreetbets_meme_sentiment(self):
         """Test sentiment analysis of WallStreetBets meme language."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(dual_model_strategy=True)
 
@@ -449,8 +522,16 @@ class TestSentimentAnalysisRealWorldExamples:
 
     def test_technical_analysis_sentiment(self):
         """Test sentiment analysis of technical analysis discussions."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(dual_model_strategy=True)
 
@@ -468,8 +549,16 @@ class TestSentimentAnalysisRealWorldExamples:
 
     def test_earnings_discussion_sentiment(self):
         """Test sentiment analysis of earnings discussions."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(dual_model_strategy=True)
 
@@ -484,8 +573,16 @@ class TestSentimentAnalysisRealWorldExamples:
 
     def test_negative_sentiment_analysis(self):
         """Test negative sentiment analysis."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(dual_model_strategy=True)
 
@@ -500,8 +597,16 @@ class TestSentimentAnalysisRealWorldExamples:
 
     def test_mixed_sentiment_analysis(self):
         """Test mixed sentiment analysis."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(dual_model_strategy=True)
 
@@ -519,8 +624,16 @@ class TestSentimentAnalysisRealWorldExamples:
 
     def test_sarcasm_detection(self):
         """Test sentiment analysis with sarcastic content."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(dual_model_strategy=True)
 
@@ -538,8 +651,16 @@ class TestSentimentAnalysisRealWorldExamples:
 
     def test_financial_terminology_sentiment(self):
         """Test sentiment analysis with financial terminology."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(dual_model_strategy=True)
 
@@ -554,8 +675,16 @@ class TestSentimentAnalysisRealWorldExamples:
 
     def test_emoji_heavy_sentiment(self):
         """Test sentiment analysis with heavy emoji usage."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(dual_model_strategy=True)
 
@@ -570,8 +699,16 @@ class TestSentimentAnalysisRealWorldExamples:
 
     def test_long_form_analysis_sentiment(self):
         """Test sentiment analysis of long-form analysis posts."""
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service', return_value=self.mock_llm_service), \
-             patch('app.services.hybrid_sentiment.get_vader_service', return_value=self.mock_vader_service):
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service",
+                return_value=self.mock_llm_service,
+            ),
+            patch(
+                "app.services.hybrid_sentiment.get_vader_service",
+                return_value=self.mock_vader_service,
+            ),
+        ):
 
             service = HybridSentimentService(dual_model_strategy=True)
 

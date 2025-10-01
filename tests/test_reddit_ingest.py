@@ -18,11 +18,14 @@ class TestRedditCredentials:
 
     def test_get_reddit_credentials_success(self):
         """Test successful credential retrieval."""
-        with patch.dict(os.environ, {
-            "REDDIT_CLIENT_ID": "test_client_id",
-            "REDDIT_CLIENT_SECRET": "test_client_secret",
-            "REDDIT_USER_AGENT": "TestBot/1.0"
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "REDDIT_CLIENT_ID": "test_client_id",
+                "REDDIT_CLIENT_SECRET": "test_client_secret",
+                "REDDIT_USER_AGENT": "TestBot/1.0",
+            },
+        ):
             client_id, client_secret, user_agent = get_reddit_credentials()
             assert client_id == "test_client_id"
             assert client_secret == "test_client_secret"
@@ -30,26 +33,28 @@ class TestRedditCredentials:
 
     def test_get_reddit_credentials_default_user_agent(self):
         """Test default user agent when not provided."""
-        with patch.dict(os.environ, {
-            "REDDIT_CLIENT_ID": "test_client_id",
-            "REDDIT_CLIENT_SECRET": "test_client_secret"
-        }, clear=True):
+        with patch.dict(
+            os.environ,
+            {
+                "REDDIT_CLIENT_ID": "test_client_id",
+                "REDDIT_CLIENT_SECRET": "test_client_secret",
+            },
+            clear=True,
+        ):
             client_id, client_secret, user_agent = get_reddit_credentials()
             assert user_agent == "MarketPulse/1.0 by MarketPulseBot"
 
     def test_get_reddit_credentials_missing_client_id(self):
         """Test error when client ID is missing."""
-        with patch.dict(os.environ, {
-            "REDDIT_CLIENT_SECRET": "test_client_secret"
-        }, clear=True):
+        with patch.dict(
+            os.environ, {"REDDIT_CLIENT_SECRET": "test_client_secret"}, clear=True
+        ):
             with pytest.raises(ValueError, match="Reddit API credentials not found"):
                 get_reddit_credentials()
 
     def test_get_reddit_credentials_missing_client_secret(self):
         """Test error when client secret is missing."""
-        with patch.dict(os.environ, {
-            "REDDIT_CLIENT_ID": "test_client_id"
-        }, clear=True):
+        with patch.dict(os.environ, {"REDDIT_CLIENT_ID": "test_client_id"}, clear=True):
             with pytest.raises(ValueError, match="Reddit API credentials not found"):
                 get_reddit_credentials()
 
@@ -63,12 +68,12 @@ class TestRedditParser:
 
     def test_initialize_reddit(self):
         """Test Reddit client initialization."""
-        with patch('praw.Reddit') as mock_reddit:
+        with patch("praw.Reddit") as mock_reddit:
             self.parser.initialize_reddit("client_id", "client_secret", "user_agent")
             mock_reddit.assert_called_once_with(
                 client_id="client_id",
                 client_secret="client_secret",
-                user_agent="user_agent"
+                user_agent="user_agent",
             )
 
     def test_parse_submission(self):
@@ -95,7 +100,10 @@ class TestRedditParser:
         assert article.title == "Test Post Title"
         assert "Test Post Title" in article.text
         assert "Test post content" in article.text
-        assert article.reddit_url == "https://reddit.com/r/test/comments/test123/test_post/"
+        assert (
+            article.reddit_url
+            == "https://reddit.com/r/test/comments/test123/test_post/"
+        )
         assert article.published_at == datetime(2022, 1, 1, 0, 0, 0, tzinfo=UTC)
 
     def test_parse_submission_no_author(self):
@@ -132,7 +140,7 @@ class TestRedditParser:
 
         assert article.text == "Test Post"  # Only title, no selftext
 
-    @patch('ingest.reddit_parser.RedditParser.fetch_subreddit_posts')
+    @patch("ingest.reddit_parser.RedditParser.fetch_subreddit_posts")
     def test_parse_subreddit_posts(self, mock_fetch):
         """Test parsing posts from a subreddit."""
         # Mock Reddit submissions
@@ -158,24 +166,24 @@ class TestRedditParser:
 
         mock_fetch.return_value = [mock_submission1, mock_submission2]
 
-        articles = self.parser.parse_subreddit_posts("test", limit=10, time_filter="day")
+        articles = self.parser.parse_subreddit_posts(
+            "test", limit=10, time_filter="day"
+        )
 
         assert len(articles) == 2
         assert articles[0].reddit_id == "post1"
         assert articles[1].reddit_id == "post2"
         assert all(article.subreddit == "test" for article in articles)
 
-    @patch('ingest.reddit_parser.RedditParser.parse_subreddit_posts')
+    @patch("ingest.reddit_parser.RedditParser.parse_subreddit_posts")
     def test_parse_multiple_subreddits(self, mock_parse):
         """Test parsing posts from multiple subreddits."""
         # Mock articles from different subreddits
         mock_articles1 = [
             MagicMock(reddit_id="post1", subreddit="subreddit1"),
-            MagicMock(reddit_id="post2", subreddit="subreddit1")
+            MagicMock(reddit_id="post2", subreddit="subreddit1"),
         ]
-        mock_articles2 = [
-            MagicMock(reddit_id="post3", subreddit="subreddit2")
-        ]
+        mock_articles2 = [MagicMock(reddit_id="post3", subreddit="subreddit2")]
 
         mock_parse.side_effect = [mock_articles1, mock_articles2]
 
@@ -198,15 +206,22 @@ class TestRedditIngestion:
 
         # Create tables with SQLite-compatible types
         from sqlalchemy import text
+
         with self.engine.connect() as conn:
-            conn.execute(text("""
+            conn.execute(
+                text(
+                    """
                 CREATE TABLE ticker (
                     symbol VARCHAR PRIMARY KEY,
                     name VARCHAR NOT NULL,
                     aliases TEXT  -- JSON as text for SQLite
                 )
-            """))
-            conn.execute(text("""
+            """
+                )
+            )
+            conn.execute(
+                text(
+                    """
                 CREATE TABLE article (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     source VARCHAR NOT NULL,
@@ -224,8 +239,12 @@ class TestRedditIngestion:
                     reddit_url TEXT,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
-            """))
-            conn.execute(text("""
+            """
+                )
+            )
+            conn.execute(
+                text(
+                    """
                 CREATE TABLE article_ticker (
                     article_id INTEGER,
                     ticker VARCHAR,
@@ -234,7 +253,9 @@ class TestRedditIngestion:
                     FOREIGN KEY (article_id) REFERENCES article(id) ON DELETE CASCADE,
                     FOREIGN KEY (ticker) REFERENCES ticker(symbol)
                 )
-            """))
+            """
+                )
+            )
             conn.commit()
 
         self.SessionLocal = sessionmaker(bind=self.engine)
@@ -242,14 +263,16 @@ class TestRedditIngestion:
     def test_ingest_reddit_data_no_credentials(self):
         """Test ingestion fails without Reddit credentials."""
         with patch.dict(os.environ, {}, clear=True):
-            with patch('ingest.reddit.SessionLocal', return_value=self.SessionLocal()):
+            with patch("ingest.reddit.SessionLocal", return_value=self.SessionLocal()):
                 # Should not raise exception, just log error and return
                 ingest_reddit_data(subreddits=["test"], limit_per_subreddit=10)
 
-    @patch('ingest.reddit.get_reddit_credentials')
-    @patch('ingest.reddit.RedditParser')
-    @patch('ingest.reddit.TickerLinker')
-    def test_ingest_reddit_data_success(self, mock_linker_class, mock_parser_class, mock_credentials):
+    @patch("ingest.reddit.get_reddit_credentials")
+    @patch("ingest.reddit.RedditParser")
+    @patch("ingest.reddit.TickerLinker")
+    def test_ingest_reddit_data_success(
+        self, mock_linker_class, mock_parser_class, mock_credentials
+    ):
         """Test successful Reddit ingestion."""
         # Setup mocks
         mock_credentials.return_value = ("client_id", "client_secret", "user_agent")
@@ -277,18 +300,24 @@ class TestRedditIngestion:
         finally:
             db.close()
 
-        with patch('ingest.reddit.SessionLocal', return_value=self.SessionLocal()):
+        with patch("ingest.reddit.SessionLocal", return_value=self.SessionLocal()):
             ingest_reddit_data(subreddits=["test"], limit_per_subreddit=10)
 
         # Verify parser was initialized and called
-        mock_parser.initialize_reddit.assert_called_once_with("client_id", "client_secret", "user_agent")
-        mock_parser.parse_multiple_subreddits.assert_called_once_with(["test"], 10, "day")
+        mock_parser.initialize_reddit.assert_called_once_with(
+            "client_id", "client_secret", "user_agent"
+        )
+        mock_parser.parse_multiple_subreddits.assert_called_once_with(
+            ["test"], 10, "day"
+        )
         mock_linker.link_articles_to_db.assert_called_once()
 
-    @patch('ingest.reddit.get_reddit_credentials')
-    @patch('ingest.reddit.RedditParser')
-    @patch('ingest.reddit.TickerLinker')
-    def test_ingest_reddit_data_with_ticker_links(self, mock_linker_class, mock_parser_class, mock_credentials):
+    @patch("ingest.reddit.get_reddit_credentials")
+    @patch("ingest.reddit.RedditParser")
+    @patch("ingest.reddit.TickerLinker")
+    def test_ingest_reddit_data_with_ticker_links(
+        self, mock_linker_class, mock_parser_class, mock_credentials
+    ):
         """Test Reddit ingestion with ticker links."""
         # Setup mocks
         mock_credentials.return_value = ("client_id", "client_secret", "user_agent")
@@ -307,7 +336,7 @@ class TestRedditIngestion:
             subreddit="test",
             author="testuser",
             upvotes=100,
-            num_comments=25
+            num_comments=25,
         )
         mock_parser.parse_multiple_subreddits.return_value = [mock_article]
 
@@ -315,7 +344,9 @@ class TestRedditIngestion:
         mock_linker = MagicMock()
         mock_linker_class.return_value = mock_linker
         mock_article_ticker = ArticleTicker(ticker="TEST", confidence=0.8)
-        mock_linker.link_articles_to_db.return_value = [(mock_article, [mock_article_ticker])]
+        mock_linker.link_articles_to_db.return_value = [
+            (mock_article, [mock_article_ticker])
+        ]
 
         # Add a test ticker to database
         db = self.SessionLocal()
@@ -326,13 +357,15 @@ class TestRedditIngestion:
         finally:
             db.close()
 
-        with patch('ingest.reddit.SessionLocal', return_value=self.SessionLocal()):
+        with patch("ingest.reddit.SessionLocal", return_value=self.SessionLocal()):
             ingest_reddit_data(subreddits=["test"], limit_per_subreddit=10)
 
         # Verify the article was saved with Reddit data
         db = self.SessionLocal()
         try:
-            saved_article = db.query(Article).filter(Article.reddit_id == "test123").first()
+            saved_article = (
+                db.query(Article).filter(Article.reddit_id == "test123").first()
+            )
             assert saved_article is not None
             assert saved_article.subreddit == "test"
             assert saved_article.author == "testuser"

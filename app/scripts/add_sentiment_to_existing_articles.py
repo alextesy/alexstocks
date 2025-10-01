@@ -28,9 +28,7 @@ def setup_logging(verbose: bool = False) -> None:
 
 
 def add_sentiment_to_articles(
-    batch_size: int = 100,
-    max_articles: int | None = None,
-    verbose: bool = False
+    batch_size: int = 100, max_articles: int | None = None, verbose: bool = False
 ) -> None:
     """Add sentiment analysis to existing articles.
 
@@ -69,14 +67,16 @@ def add_sentiment_to_articles(
 
         # Process articles in batches
         for i in range(0, total_articles, batch_size):
-            batch = articles[i:i + batch_size]
-            logger.info(f"Processing batch {i//batch_size + 1}: articles {i+1}-{min(i+batch_size, total_articles)}")
+            batch = articles[i : i + batch_size]
+            logger.info(
+                f"Processing batch {i//batch_size + 1}: articles {i+1}-{min(i+batch_size, total_articles)}"
+            )
 
             for article in batch:
                 try:
                     # Prepare text for sentiment analysis
                     # For Reddit comments, use only the text. For posts, use title + text
-                    if article.source == 'reddit_comment':
+                    if article.source == "reddit_comment":
                         sentiment_text = article.text or ""
                     else:
                         sentiment_text = article.title
@@ -84,7 +84,9 @@ def add_sentiment_to_articles(
                             sentiment_text += " " + article.text
 
                     # Analyze sentiment
-                    sentiment_score = sentiment_service.analyze_sentiment(sentiment_text)
+                    sentiment_score = sentiment_service.analyze_sentiment(
+                        sentiment_text
+                    )
 
                     # Update article with sentiment
                     db.execute(
@@ -95,10 +97,14 @@ def add_sentiment_to_articles(
 
                     successful += 1
                     if verbose:
-                        logger.debug(f"Article {article.id}: sentiment={sentiment_score:.3f}")
+                        logger.debug(
+                            f"Article {article.id}: sentiment={sentiment_score:.3f}"
+                        )
 
                 except Exception as e:
-                    logger.warning(f"Failed to analyze sentiment for article {article.id}: {e}")
+                    logger.warning(
+                        f"Failed to analyze sentiment for article {article.id}: {e}"
+                    )
                     failed += 1
 
                 processed += 1
@@ -106,14 +112,18 @@ def add_sentiment_to_articles(
             # Commit batch
             try:
                 db.commit()
-                logger.info(f"Batch committed: {successful} successful, {failed} failed")
+                logger.info(
+                    f"Batch committed: {successful} successful, {failed} failed"
+                )
             except Exception as e:
                 logger.error(f"Error committing batch: {e}")
                 db.rollback()
                 failed += batch_size
                 successful -= batch_size
 
-        logger.info(f"Sentiment analysis complete: {successful} successful, {failed} failed out of {processed} total")
+        logger.info(
+            f"Sentiment analysis complete: {successful} successful, {failed} failed out of {processed} total"
+        )
 
     except Exception as e:
         logger.error(f"Unexpected error during sentiment analysis: {e}")
@@ -126,7 +136,9 @@ def main() -> None:
     """Main CLI entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Add sentiment analysis to existing articles")
+    parser = argparse.ArgumentParser(
+        description="Add sentiment analysis to existing articles"
+    )
     parser.add_argument(
         "--batch-size",
         type=int,

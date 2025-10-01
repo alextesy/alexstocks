@@ -141,7 +141,7 @@ def ingest_reddit_data(
     limit_per_subreddit: int = 100,
     time_filter: str = "day",
     verbose: bool = False,
-    max_workers: int = 10
+    max_workers: int = 10,
 ) -> None:
     """Ingest Reddit data from specified subreddits.
 

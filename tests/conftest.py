@@ -28,7 +28,9 @@ def test_engine():
 def test_db_session(test_engine):
     """Create test database session."""
     Base.metadata.create_all(bind=test_engine)
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    TestingSessionLocal = sessionmaker(
+        autocommit=False, autoflush=False, bind=test_engine
+    )
     session = TestingSessionLocal()
     yield session
     session.close()
@@ -118,7 +120,7 @@ def mock_reddit_credentials():
     return {
         "client_id": "test_client_id",
         "client_secret": "test_client_secret",
-        "user_agent": "test_user_agent"
+        "user_agent": "test_user_agent",
     }
 
 
@@ -148,7 +150,9 @@ def mock_reddit_comment():
     comment.author = Mock()
     comment.author.name = "commenter"
     comment.score = 5
-    comment.permalink = "/r/wallstreetbets/comments/test_submission_123/test_comment_456/"
+    comment.permalink = (
+        "/r/wallstreetbets/comments/test_submission_123/test_comment_456/"
+    )
     return comment
 
 
@@ -181,22 +185,25 @@ def mock_context_analyzer():
 @pytest.fixture(autouse=True)
 def mock_environment_variables():
     """Mock environment variables for tests."""
-    with patch.dict(os.environ, {
-        "DATABASE_URL": "sqlite:///:memory:",
-        "REDDIT_CLIENT_ID": "test_client_id",
-        "REDDIT_CLIENT_SECRET": "test_client_secret",
-        "REDDIT_USER_AGENT": "test_user_agent",
-        "SENTIMENT_USE_LLM": "false",
-        "SENTIMENT_FALLBACK_VADER": "true",
-        "SENTIMENT_DUAL_MODEL": "false",
-    }):
+    with patch.dict(
+        os.environ,
+        {
+            "DATABASE_URL": "sqlite:///:memory:",
+            "REDDIT_CLIENT_ID": "test_client_id",
+            "REDDIT_CLIENT_SECRET": "test_client_secret",
+            "REDDIT_USER_AGENT": "test_user_agent",
+            "SENTIMENT_USE_LLM": "false",
+            "SENTIMENT_FALLBACK_VADER": "true",
+            "SENTIMENT_DUAL_MODEL": "false",
+        },
+    ):
         yield
 
 
 @pytest.fixture
 def temp_file():
     """Create a temporary file for testing."""
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
         f.write("Test content")
         temp_path = f.name
 
@@ -232,7 +239,9 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.performance)
 
         # Add slow marker to tests that might be slow
-        if any(keyword in item.nodeid.lower() for keyword in ["full", "complete", "batch"]):
+        if any(
+            keyword in item.nodeid.lower() for keyword in ["full", "complete", "batch"]
+        ):
             item.add_marker(pytest.mark.slow)
 
         # Add reddit marker to Reddit-related tests
@@ -310,4 +319,3 @@ def earnings_discussion_post():
         num_comments=45,
         reddit_url="https://reddit.com/r/investing/comments/earnings_discussion/",
     )
-

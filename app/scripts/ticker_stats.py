@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 
 def display_ticker_stats():
     """Display comprehensive ticker statistics."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("MARKET PULSE - TICKER DATABASE STATISTICS")
-    print("="*60)
+    print("=" * 60)
 
     db = SessionLocal()
     try:
@@ -55,11 +55,11 @@ def display_ticker_stats():
 
         for source, count in all_sources.most_common():
             source_name = {
-                'current': 'Current (Original)',
-                'nasdaq': 'NASDAQ Listed',
-                'nyse_other': 'NYSE/Other Listed',
-                'sp500': 'S&P 500',
-                'sec_cik': 'SEC CIK Database'
+                "current": "Current (Original)",
+                "nasdaq": "NASDAQ Listed",
+                "nyse_other": "NYSE/Other Listed",
+                "sp500": "S&P 500",
+                "sec_cik": "SEC CIK Database",
             }.get(source, source.title())
 
             print(f"   {source_name:<20}: {count:>6,}")
@@ -68,7 +68,18 @@ def display_ticker_stats():
         print("\n🔍 SAMPLE OF EXPANDED COVERAGE")
 
         # Look for some well-known tickers that weren't in the original 58
-        sample_symbols = ['TSMC', 'BABA', 'BTC-USD', 'ETH-USD', 'RIVN', 'COIN', 'PLTR', 'SNOW', 'ZM', 'DOCU']
+        sample_symbols = [
+            "TSMC",
+            "BABA",
+            "BTC-USD",
+            "ETH-USD",
+            "RIVN",
+            "COIN",
+            "PLTR",
+            "SNOW",
+            "ZM",
+            "DOCU",
+        ]
         found_samples = []
 
         for symbol in sample_symbols:
@@ -81,12 +92,7 @@ def display_ticker_stats():
 
         # Show S&P 500 companies
         print("\n🏆 S&P 500 SAMPLE")
-        sp500_sample = (
-            db.query(Ticker)
-            .filter(Ticker.is_sp500)
-            .limit(8)
-            .all()
-        )
+        sp500_sample = db.query(Ticker).filter(Ticker.is_sp500).limit(8).all()
 
         for ticker in sp500_sample:
             print(f"   {ticker.symbol:<10}: {ticker.name}")
@@ -114,13 +120,23 @@ def display_ticker_stats():
         # Aliases analysis
         print("\n🏷️  ALIASES ANALYSIS")
 
-        total_aliases = db.execute(
-            text("SELECT SUM(jsonb_array_length(aliases)) FROM ticker WHERE aliases IS NOT NULL")
-        ).scalar() or 0
+        total_aliases = (
+            db.execute(
+                text(
+                    "SELECT SUM(jsonb_array_length(aliases)) FROM ticker WHERE aliases IS NOT NULL"
+                )
+            ).scalar()
+            or 0
+        )
 
-        tickers_with_aliases = db.execute(
-            text("SELECT COUNT(*) FROM ticker WHERE jsonb_array_length(aliases) > 0")
-        ).scalar() or 0
+        tickers_with_aliases = (
+            db.execute(
+                text(
+                    "SELECT COUNT(*) FROM ticker WHERE jsonb_array_length(aliases) > 0"
+                )
+            ).scalar()
+            or 0
+        )
 
         avg_aliases = total_aliases / total_tickers if total_tickers > 0 else 0
 
@@ -129,7 +145,7 @@ def display_ticker_stats():
         print(f"   Average aliases per ticker: {avg_aliases:.1f}")
 
         print("\n✅ Database is ready for enhanced market coverage!")
-        print("="*60)
+        print("=" * 60)
 
     except Exception as e:
         logger.error(f"Failed to generate ticker stats: {e}")

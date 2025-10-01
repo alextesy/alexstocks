@@ -37,7 +37,7 @@ def get_articles_for_llm_override(
     limit: int | None = None,
     source_filter: str | None = None,
     hours_back: int | None = None,
-    force_all: bool = False
+    force_all: bool = False,
 ) -> list[Article]:
     """Get articles to override with LLM sentiment.
 
@@ -58,15 +58,13 @@ def get_articles_for_llm_override(
     else:
         # Only override articles that don't have LLM sentiment yet
         # (either no sentiment or VADER sentiment)
-        query = select(Article).where(
-            Article.sentiment.is_(None)
-        )
+        query = select(Article).where(Article.sentiment.is_(None))
         logger.info("Selecting articles without sentiment for LLM analysis")
 
     # Add source filter if specified
     if source_filter:
-        if source_filter == 'reddit':
-            query = query.where(Article.source.like('%reddit%'))
+        if source_filter == "reddit":
+            query = query.where(Article.source.like("%reddit%"))
         else:
             query = query.where(Article.source == source_filter)
 
@@ -100,7 +98,7 @@ def analyze_single_article_llm(article: Article) -> tuple[int, float | None]:
 
         # Prepare text for sentiment analysis
         # For Reddit comments, use only the text. For posts, use title + text
-        if article.source == 'reddit_comment':
+        if article.source == "reddit_comment":
             sentiment_text = article.text or ""
         else:
             sentiment_text = article.title
@@ -115,7 +113,9 @@ def analyze_single_article_llm(article: Article) -> tuple[int, float | None]:
         # Analyze sentiment with LLM
         sentiment_score = llm_service.analyze_sentiment(sentiment_text)
 
-        logger.debug(f"LLM sentiment for {article.source} {article.id}: {sentiment_score:.3f}")
+        logger.debug(
+            f"LLM sentiment for {article.source} {article.id}: {sentiment_score:.3f}"
+        )
         return article.id, sentiment_score
 
     except Exception as e:
@@ -124,9 +124,7 @@ def analyze_single_article_llm(article: Article) -> tuple[int, float | None]:
 
 
 def override_articles_parallel(
-    articles: list[Article],
-    max_workers: int = 4,
-    batch_size: int = 100
+    articles: list[Article], max_workers: int = 4, batch_size: int = 100
 ) -> int:
     """Override sentiment for multiple articles with LLM in parallel.
 
@@ -142,7 +140,9 @@ def override_articles_parallel(
         logger.info("No articles to process")
         return 0
 
-    logger.info(f"Overriding sentiment for {len(articles)} articles with LLM using {max_workers} parallel workers")
+    logger.info(
+        f"Overriding sentiment for {len(articles)} articles with LLM using {max_workers} parallel workers"
+    )
 
     # Process articles in parallel
     sentiment_results = []
@@ -155,7 +155,9 @@ def override_articles_parallel(
         }
 
         # Collect results with progress bar
-        with tqdm(total=len(articles), desc="LLM sentiment analysis", unit="articles") as pbar:
+        with tqdm(
+            total=len(articles), desc="LLM sentiment analysis", unit="articles"
+        ) as pbar:
             for future in as_completed(future_to_article):
                 article_id, sentiment_score = future.result()
                 sentiment_results.append((article_id, sentiment_score))
@@ -168,9 +170,11 @@ def override_articles_parallel(
     try:
         successful_updates = 0
 
-        with tqdm(total=len(sentiment_results), desc="Updating database", unit="articles") as pbar:
+        with tqdm(
+            total=len(sentiment_results), desc="Updating database", unit="articles"
+        ) as pbar:
             for i in range(0, len(sentiment_results), batch_size):
-                batch = sentiment_results[i:i + batch_size]
+                batch = sentiment_results[i : i + batch_size]
 
                 try:
                     for article_id, sentiment_score in batch:
@@ -189,7 +193,9 @@ def override_articles_parallel(
                     logger.error(f"Error updating batch: {e}")
                     db.rollback()
 
-        logger.info(f"Successfully updated LLM sentiment for {successful_updates} articles")
+        logger.info(
+            f"Successfully updated LLM sentiment for {successful_updates} articles"
+        )
         return successful_updates
 
     except Exception as e:
@@ -207,7 +213,7 @@ def run_llm_sentiment_override(
     force_all: bool = False,
     max_workers: int = 6,
     batch_size: int = 100,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> None:
     """Override existing sentiment analysis with LLM sentiment.
 
@@ -224,7 +230,9 @@ def run_llm_sentiment_override(
 
     if force_all:
         logger.info("🔄 Starting LLM sentiment override for ALL articles")
-        logger.warning("⚠️  This will replace ALL existing sentiment data with LLM sentiment")
+        logger.warning(
+            "⚠️  This will replace ALL existing sentiment data with LLM sentiment"
+        )
     else:
         logger.info("🔄 Starting LLM sentiment analysis for articles without sentiment")
 
@@ -245,7 +253,7 @@ def run_llm_sentiment_override(
             limit=max_articles,
             source_filter=source_filter,
             hours_back=hours_back,
-            force_all=force_all
+            force_all=force_all,
         )
 
         if not articles:
@@ -256,21 +264,25 @@ def run_llm_sentiment_override(
 
         # Confirm for force_all mode
         if force_all and len(articles) > 100:
-            logger.warning(f"⚠️  About to override sentiment for {len(articles)} articles")
-            logger.warning("⚠️  This will replace all existing sentiment data with LLM sentiment")
+            logger.warning(
+                f"⚠️  About to override sentiment for {len(articles)} articles"
+            )
+            logger.warning(
+                "⚠️  This will replace all existing sentiment data with LLM sentiment"
+            )
             response = input("Continue? (yes/no): ")
-            if response.lower() not in ['yes', 'y']:
+            if response.lower() not in ["yes", "y"]:
                 logger.info("Operation cancelled by user")
                 return
 
         # Override sentiment with LLM
         successful_count = override_articles_parallel(
-            articles,
-            max_workers=max_workers,
-            batch_size=batch_size
+            articles, max_workers=max_workers, batch_size=batch_size
         )
 
-        logger.info(f"✅ LLM sentiment override complete: {successful_count}/{len(articles)} articles processed successfully")
+        logger.info(
+            f"✅ LLM sentiment override complete: {successful_count}/{len(articles)} articles processed successfully"
+        )
 
         if force_all:
             logger.info("🎯 All articles now use LLM sentiment analysis (FinBERT)")
@@ -283,7 +295,9 @@ def run_llm_sentiment_override(
 
 def main() -> None:
     """Main CLI entry point."""
-    parser = argparse.ArgumentParser(description="Override existing sentiment with LLM sentiment")
+    parser = argparse.ArgumentParser(
+        description="Override existing sentiment with LLM sentiment"
+    )
     parser.add_argument(
         "--max-articles",
         type=int,

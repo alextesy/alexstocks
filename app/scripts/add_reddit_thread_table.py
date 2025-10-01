@@ -30,7 +30,8 @@ def add_reddit_thread_table() -> None:
         with db.begin():
             # Create RedditThread table
             db.execute(
-                text("""
+                text(
+                    """
                 CREATE TABLE IF NOT EXISTS reddit_thread (
                     reddit_id VARCHAR(20) PRIMARY KEY,
                     subreddit VARCHAR(50) NOT NULL,
@@ -45,28 +46,37 @@ def add_reddit_thread_table() -> None:
                     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                     is_complete BOOLEAN DEFAULT FALSE
                 );
-                """)
+                """
+                )
             )
             logger.info("Executing: CREATE TABLE reddit_thread...")
 
             # Add indexes
             db.execute(
-                text("CREATE INDEX IF NOT EXISTS reddit_thread_subreddit_idx ON reddit_thread(subreddit);")
+                text(
+                    "CREATE INDEX IF NOT EXISTS reddit_thread_subreddit_idx ON reddit_thread(subreddit);"
+                )
             )
             logger.info("Executing: CREATE INDEX reddit_thread_subreddit_idx...")
 
             db.execute(
-                text("CREATE INDEX IF NOT EXISTS reddit_thread_type_idx ON reddit_thread(thread_type);")
+                text(
+                    "CREATE INDEX IF NOT EXISTS reddit_thread_type_idx ON reddit_thread(thread_type);"
+                )
             )
             logger.info("Executing: CREATE INDEX reddit_thread_type_idx...")
 
             db.execute(
-                text("CREATE INDEX IF NOT EXISTS reddit_thread_last_scraped_idx ON reddit_thread(last_scraped_at DESC);")
+                text(
+                    "CREATE INDEX IF NOT EXISTS reddit_thread_last_scraped_idx ON reddit_thread(last_scraped_at DESC);"
+                )
             )
             logger.info("Executing: CREATE INDEX reddit_thread_last_scraped_idx...")
 
             db.execute(
-                text("CREATE INDEX IF NOT EXISTS reddit_thread_created_idx ON reddit_thread(created_at DESC);")
+                text(
+                    "CREATE INDEX IF NOT EXISTS reddit_thread_created_idx ON reddit_thread(created_at DESC);"
+                )
             )
             logger.info("Executing: CREATE INDEX reddit_thread_created_idx...")
 

@@ -108,7 +108,7 @@ def create_article_ticker_links(articles: list[Article]) -> list[ArticleTicker]:
                 link = ArticleTicker(
                     article_id=article.id,  # Will be set after article is saved
                     ticker=ticker_symbol,
-                    confidence=confidence
+                    confidence=confidence,
                 )
                 links.append((article, link))
 
@@ -145,11 +145,18 @@ def seed_sample_articles() -> bool:
 
         db.commit()
 
-        logger.info(f"Successfully seeded {len(saved_articles)} sample articles with {len(article_links)} ticker links")
+        logger.info(
+            f"Successfully seeded {len(saved_articles)} sample articles with {len(article_links)} ticker links"
+        )
 
         # Verify insertion
         article_count = db.query(Article).filter(Article.source == "sample").count()
-        link_count = db.query(ArticleTicker).join(Article).filter(Article.source == "sample").count()
+        link_count = (
+            db.query(ArticleTicker)
+            .join(Article)
+            .filter(Article.source == "sample")
+            .count()
+        )
         logger.info(f"Sample articles in database: {article_count}")
         logger.info(f"Sample article-ticker links: {link_count}")
 

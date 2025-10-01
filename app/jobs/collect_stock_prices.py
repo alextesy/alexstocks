@@ -6,15 +6,14 @@ import sys
 from datetime import datetime
 
 # Add project root to path
-sys.path.append('.')
+sys.path.append(".")
 
 from app.collectors.stock_price_collector import StockPriceCollector
 from app.db.session import SessionLocal
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -35,8 +34,10 @@ async def collect_current_prices():
             f"duration: {result['duration']:.2f}s"
         )
 
-        if result['errors']:
-            logger.warning(f"Errors encountered: {result['errors'][:5]}")  # Log first 5 errors
+        if result["errors"]:
+            logger.warning(
+                f"Errors encountered: {result['errors'][:5]}"
+            )  # Log first 5 errors
 
         return result
 
@@ -63,7 +64,7 @@ async def collect_historical_data():
             f"duration: {result['duration']:.2f}s"
         )
 
-        if result['errors']:
+        if result["errors"]:
             logger.warning(f"Errors encountered: {result['errors'][:5]}")
 
         return result
@@ -78,12 +79,12 @@ async def collect_historical_data():
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='Collect stock price data')
+    parser = argparse.ArgumentParser(description="Collect stock price data")
     parser.add_argument(
-        '--type',
-        choices=['current', 'historical', 'both'],
-        default='current',
-        help='Type of data to collect'
+        "--type",
+        choices=["current", "historical", "both"],
+        default="current",
+        help="Type of data to collect",
     )
 
     args = parser.parse_args()
@@ -91,14 +92,13 @@ if __name__ == "__main__":
     async def main():
         start_time = datetime.now()
 
-        if args.type in ['current', 'both']:
+        if args.type in ["current", "both"]:
             await collect_current_prices()
 
-        if args.type in ['historical', 'both']:
+        if args.type in ["historical", "both"]:
             await collect_historical_data()
 
         total_time = (datetime.now() - start_time).total_seconds()
         logger.info(f"Total job time: {total_time:.2f}s")
 
     asyncio.run(main())
-

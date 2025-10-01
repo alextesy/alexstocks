@@ -31,7 +31,7 @@ class TickerExplorer:
                 or_(
                     Ticker.symbol.ilike(f"%{query}%"),
                     Ticker.name.ilike(f"%{query}%"),
-                    text("aliases::text ILIKE :query")
+                    text("aliases::text ILIKE :query"),
                 )
             )
             .params(query=f"%{query}%")
@@ -44,20 +44,12 @@ class TickerExplorer:
     def get_by_exchange(self, exchange: str, limit: int = 20) -> list[Ticker]:
         """Get tickers by exchange."""
         return (
-            self.db.query(Ticker)
-            .filter(Ticker.exchange == exchange)
-            .limit(limit)
-            .all()
+            self.db.query(Ticker).filter(Ticker.exchange == exchange).limit(limit).all()
         )
 
     def get_sp500_tickers(self, limit: int = 20) -> list[Ticker]:
         """Get S&P 500 tickers."""
-        return (
-            self.db.query(Ticker)
-            .filter(Ticker.is_sp500)
-            .limit(limit)
-            .all()
-        )
+        return self.db.query(Ticker).filter(Ticker.is_sp500).limit(limit).all()
 
     def get_by_source(self, source: str, limit: int = 20) -> list[Ticker]:
         """Get tickers by data source."""
@@ -106,9 +98,9 @@ class TickerExplorer:
 
     def interactive_search(self):
         """Run interactive search session."""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("MARKET PULSE - TICKER DATABASE EXPLORER")
-        print("="*60)
+        print("=" * 60)
         print("\nCommands:")
         print("  search <term>     - Search tickers by symbol, name, or aliases")
         print("  exchange <code>   - Show tickers from specific exchange")
@@ -127,7 +119,7 @@ class TickerExplorer:
                 if not command:
                     continue
 
-                if command.lower() in ['quit', 'exit', 'q']:
+                if command.lower() in ["quit", "exit", "q"]:
                     print("👋 Goodbye!")
                     break
 
@@ -152,7 +144,11 @@ class TickerExplorer:
                     self.display_results(results, f"Source: {arg}")
 
                 elif cmd == "info" and arg:
-                    ticker = self.db.query(Ticker).filter(Ticker.symbol == arg.upper()).first()
+                    ticker = (
+                        self.db.query(Ticker)
+                        .filter(Ticker.symbol == arg.upper())
+                        .first()
+                    )
                     if ticker:
                         self.display_ticker(ticker)
                     else:
@@ -160,6 +156,7 @@ class TickerExplorer:
 
                 elif cmd == "stats":
                     from app.scripts.ticker_stats import display_ticker_stats
+
                     display_ticker_stats()
 
                 else:
@@ -193,7 +190,9 @@ def main():
 
             elif command.startswith("info "):
                 symbol = command[5:].upper()
-                ticker = explorer.db.query(Ticker).filter(Ticker.symbol == symbol).first()
+                ticker = (
+                    explorer.db.query(Ticker).filter(Ticker.symbol == symbol).first()
+                )
                 if ticker:
                     explorer.display_ticker(ticker)
                 else:
@@ -201,10 +200,13 @@ def main():
 
             elif command == "stats":
                 from app.scripts.ticker_stats import display_ticker_stats
+
                 display_ticker_stats()
 
             else:
-                print("Usage: python ticker_explorer.py [search <term>|info <symbol>|stats]")
+                print(
+                    "Usage: python ticker_explorer.py [search <term>|info <symbol>|stats]"
+                )
 
         finally:
             explorer.close()

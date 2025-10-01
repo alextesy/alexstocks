@@ -37,7 +37,7 @@ def get_articles_without_sentiment(
     db: Session,
     limit: int | None = None,
     source_filter: str | None = None,
-    hours_back: int | None = None
+    hours_back: int | None = None,
 ) -> list[Article]:
     """Get articles that don't have sentiment analysis yet.
 
@@ -54,8 +54,8 @@ def get_articles_without_sentiment(
 
     # Add source filter if specified
     if source_filter:
-        if source_filter == 'reddit':
-            query = query.where(Article.source.like('%reddit%'))
+        if source_filter == "reddit":
+            query = query.where(Article.source.like("%reddit%"))
         else:
             query = query.where(Article.source == source_filter)
 
@@ -74,7 +74,9 @@ def get_articles_without_sentiment(
     return list(db.execute(query).scalars().all())
 
 
-def analyze_single_article_sentiment(article: Article, use_llm_only: bool = False) -> tuple[int, float | None]:
+def analyze_single_article_sentiment(
+    article: Article, use_llm_only: bool = False
+) -> tuple[int, float | None]:
     """Analyze sentiment for a single article.
 
     Args:
@@ -93,7 +95,7 @@ def analyze_single_article_sentiment(article: Article, use_llm_only: bool = Fals
 
         # Prepare text for sentiment analysis
         # For Reddit comments, use only the text. For posts, use title + text
-        if article.source == 'reddit_comment':
+        if article.source == "reddit_comment":
             sentiment_text = article.text or ""
         else:
             sentiment_text = article.title
@@ -108,7 +110,9 @@ def analyze_single_article_sentiment(article: Article, use_llm_only: bool = Fals
         # Analyze sentiment
         sentiment_score = sentiment_service.analyze_sentiment(sentiment_text)
 
-        logger.debug(f"Analyzed sentiment for {article.source} {article.id}: {sentiment_score:.3f}")
+        logger.debug(
+            f"Analyzed sentiment for {article.source} {article.id}: {sentiment_score:.3f}"
+        )
         return article.id, sentiment_score
 
     except Exception as e:
@@ -120,7 +124,7 @@ def analyze_articles_parallel(
     articles: list[Article],
     max_workers: int = 4,
     batch_size: int = 100,
-    use_llm_only: bool = False
+    use_llm_only: bool = False,
 ) -> int:
     """Analyze sentiment for multiple articles in parallel.
 
@@ -136,7 +140,9 @@ def analyze_articles_parallel(
         logger.info("No articles to process")
         return 0
 
-    logger.info(f"Processing {len(articles)} articles with {max_workers} parallel workers")
+    logger.info(
+        f"Processing {len(articles)} articles with {max_workers} parallel workers"
+    )
 
     # Process articles in parallel
     sentiment_results = []
@@ -144,12 +150,16 @@ def analyze_articles_parallel(
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
         future_to_article = {
-            executor.submit(analyze_single_article_sentiment, article, use_llm_only): article
+            executor.submit(
+                analyze_single_article_sentiment, article, use_llm_only
+            ): article
             for article in articles
         }
 
         # Collect results with progress bar
-        with tqdm(total=len(articles), desc="Analyzing sentiment", unit="articles") as pbar:
+        with tqdm(
+            total=len(articles), desc="Analyzing sentiment", unit="articles"
+        ) as pbar:
             for future in as_completed(future_to_article):
                 article_id, sentiment_score = future.result()
                 sentiment_results.append((article_id, sentiment_score))
@@ -162,9 +172,11 @@ def analyze_articles_parallel(
     try:
         successful_updates = 0
 
-        with tqdm(total=len(sentiment_results), desc="Updating database", unit="articles") as pbar:
+        with tqdm(
+            total=len(sentiment_results), desc="Updating database", unit="articles"
+        ) as pbar:
             for i in range(0, len(sentiment_results), batch_size):
-                batch = sentiment_results[i:i + batch_size]
+                batch = sentiment_results[i : i + batch_size]
 
                 try:
                     for article_id, sentiment_score in batch:
@@ -201,7 +213,7 @@ def run_sentiment_analysis(
     max_workers: int = 4,
     batch_size: int = 100,
     use_llm_only: bool = False,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> None:
     """Run sentiment analysis on articles without sentiment data.
 
@@ -230,10 +242,7 @@ def run_sentiment_analysis(
         # Get articles without sentiment
         logger.info("Querying articles without sentiment analysis...")
         articles = get_articles_without_sentiment(
-            db,
-            limit=max_articles,
-            source_filter=source_filter,
-            hours_back=hours_back
+            db, limit=max_articles, source_filter=source_filter, hours_back=hours_back
         )
 
         if not articles:
@@ -247,10 +256,12 @@ def run_sentiment_analysis(
             articles,
             max_workers=max_workers,
             batch_size=batch_size,
-            use_llm_only=use_llm_only
+            use_llm_only=use_llm_only,
         )
 
-        logger.info(f"Sentiment analysis complete: {successful_count}/{len(articles)} articles processed successfully")
+        logger.info(
+            f"Sentiment analysis complete: {successful_count}/{len(articles)} articles processed successfully"
+        )
 
     except Exception as e:
         logger.error(f"Error during sentiment analysis: {e}")
@@ -260,7 +271,9 @@ def run_sentiment_analysis(
 
 def main() -> None:
     """Main CLI entry point."""
-    parser = argparse.ArgumentParser(description="Analyze sentiment for articles without sentiment data")
+    parser = argparse.ArgumentParser(
+        description="Analyze sentiment for articles without sentiment data"
+    )
     parser.add_argument(
         "--max-articles",
         type=int,

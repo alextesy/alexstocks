@@ -22,7 +22,9 @@ class RedditParser:
         """Initialize the Reddit parser."""
         self.reddit = None
 
-    def initialize_reddit(self, client_id: str, client_secret: str, user_agent: str) -> None:
+    def initialize_reddit(
+        self, client_id: str, client_secret: str, user_agent: str
+    ) -> None:
         """Initialize Reddit API client.
 
         Args:
@@ -31,9 +33,7 @@ class RedditParser:
             user_agent: User agent string for Reddit API
         """
         self.reddit = praw.Reddit(
-            client_id=client_id,
-            client_secret=client_secret,
-            user_agent=user_agent
+            client_id=client_id, client_secret=client_secret, user_agent=user_agent
         )
         logger.info("Reddit API client initialized")
 
@@ -82,10 +82,7 @@ class RedditParser:
         return article
 
     def fetch_subreddit_posts(
-        self,
-        subreddit_name: str,
-        limit: int = 100,
-        time_filter: str = "day"
+        self, subreddit_name: str, limit: int = 100, time_filter: str = "day"
     ) -> list[Submission]:
         """Fetch posts from a subreddit.
 
@@ -98,7 +95,9 @@ class RedditParser:
             List of Reddit submission objects
         """
         if not self.reddit:
-            raise ValueError("Reddit client not initialized. Call initialize_reddit() first.")
+            raise ValueError(
+                "Reddit client not initialized. Call initialize_reddit() first."
+            )
 
         try:
             subreddit = self.reddit.subreddit(subreddit_name)
@@ -114,10 +113,7 @@ class RedditParser:
             return []
 
     def parse_subreddit_posts(
-        self,
-        subreddit_name: str,
-        limit: int = 100,
-        time_filter: str = "day"
+        self, subreddit_name: str, limit: int = 100, time_filter: str = "day"
     ) -> list[Article]:
         """Parse posts from a subreddit into Article models.
 
@@ -147,7 +143,7 @@ class RedditParser:
         self,
         subreddit_names: list[str],
         limit_per_subreddit: int = 100,
-        time_filter: str = "day"
+        time_filter: str = "day",
     ) -> list[Article]:
         """Parse posts from multiple subreddits.
 
@@ -164,16 +160,16 @@ class RedditParser:
         for subreddit_name in subreddit_names:
             try:
                 articles = self.parse_subreddit_posts(
-                    subreddit_name,
-                    limit_per_subreddit,
-                    time_filter
+                    subreddit_name, limit_per_subreddit, time_filter
                 )
                 all_articles.extend(articles)
             except Exception as e:
                 logger.error(f"Error processing r/{subreddit_name}: {e}")
                 continue
 
-        logger.info(f"Total articles parsed from {len(subreddit_names)} subreddits: {len(all_articles)}")
+        logger.info(
+            f"Total articles parsed from {len(subreddit_names)} subreddits: {len(all_articles)}"
+        )
         return all_articles
 
 

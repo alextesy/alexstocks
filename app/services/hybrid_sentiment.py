@@ -13,13 +13,15 @@ logger = logging.getLogger(__name__)
 class HybridSentimentService:
     """Hybrid sentiment service that can switch between VADER and LLM models."""
 
-    def __init__(self,
-                 use_llm: bool = True,
-                 llm_model_name: str = "ProsusAI/finbert",
-                 use_gpu: bool = False,
-                 fallback_to_vader: bool = True,
-                 dual_model_strategy: bool = True,
-                 strong_llm_threshold: float = 0.2) -> None:
+    def __init__(
+        self,
+        use_llm: bool = True,
+        llm_model_name: str = "ProsusAI/finbert",
+        use_gpu: bool = False,
+        fallback_to_vader: bool = True,
+        dual_model_strategy: bool = True,
+        strong_llm_threshold: float = 0.2,
+    ) -> None:
         """Initialize the hybrid sentiment service.
 
         Args:
@@ -45,8 +47,7 @@ class HybridSentimentService:
             # For dual model strategy, we need both services
             try:
                 self._llm_service = get_llm_sentiment_service(
-                    model_name=llm_model_name,
-                    use_gpu=use_gpu
+                    model_name=llm_model_name, use_gpu=use_gpu
                 )
                 logger.info(f"HybridSentimentService initialized LLM: {llm_model_name}")
             except Exception as e:
@@ -57,7 +58,9 @@ class HybridSentimentService:
             # Always load VADER for dual model strategy
             try:
                 self._vader_service = get_vader_service()
-                logger.info("HybridSentimentService initialized VADER for dual model strategy")
+                logger.info(
+                    "HybridSentimentService initialized VADER for dual model strategy"
+                )
             except Exception as e:
                 logger.warning(f"Failed to initialize VADER service: {e}")
 
@@ -65,10 +68,11 @@ class HybridSentimentService:
             # Original LLM-first logic
             try:
                 self._llm_service = get_llm_sentiment_service(
-                    model_name=llm_model_name,
-                    use_gpu=use_gpu
+                    model_name=llm_model_name, use_gpu=use_gpu
                 )
-                logger.info(f"HybridSentimentService initialized with LLM: {llm_model_name}")
+                logger.info(
+                    f"HybridSentimentService initialized with LLM: {llm_model_name}"
+                )
             except Exception as e:
                 logger.warning(f"Failed to initialize LLM service: {e}")
                 if self.fallback_to_vader:
@@ -115,10 +119,14 @@ class HybridSentimentService:
 
                     # Choose the score that is furthest from 0 (most decisive)
                     if abs(vader_score) > abs(llm_score):
-                        logger.debug(f"Using VADER score {vader_score:.4f} over LLM {llm_score:.4f} (further from neutral)")
+                        logger.debug(
+                            f"Using VADER score {vader_score:.4f} over LLM {llm_score:.4f} (further from neutral)"
+                        )
                         return vader_score
                     else:
-                        logger.debug(f"Using LLM score {llm_score:.4f} over VADER {vader_score:.4f}")
+                        logger.debug(
+                            f"Using LLM score {llm_score:.4f} over VADER {vader_score:.4f}"
+                        )
                         return llm_score
 
                 except Exception as vader_e:
@@ -226,7 +234,9 @@ def get_hybrid_sentiment_service() -> HybridSentimentService:
         llm_model = os.getenv("SENTIMENT_LLM_MODEL", "ProsusAI/finbert")
         use_gpu = os.getenv("SENTIMENT_USE_GPU", "false").lower() == "true"
         fallback_vader = os.getenv("SENTIMENT_FALLBACK_VADER", "true").lower() == "true"
-        dual_model_strategy = os.getenv("SENTIMENT_DUAL_MODEL", "true").lower() == "true"
+        dual_model_strategy = (
+            os.getenv("SENTIMENT_DUAL_MODEL", "true").lower() == "true"
+        )
         strong_llm_threshold = float(os.getenv("SENTIMENT_STRONG_THRESHOLD", "0.2"))
 
         _hybrid_sentiment_service = HybridSentimentService(
@@ -235,7 +245,7 @@ def get_hybrid_sentiment_service() -> HybridSentimentService:
             use_gpu=use_gpu,
             fallback_to_vader=fallback_vader,
             dual_model_strategy=dual_model_strategy,
-            strong_llm_threshold=strong_llm_threshold
+            strong_llm_threshold=strong_llm_threshold,
         )
     return _hybrid_sentiment_service
 

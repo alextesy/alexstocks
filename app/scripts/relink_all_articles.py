@@ -19,11 +19,11 @@ class ArticleRelinkingService:
         self.db = SessionLocal()
         self.ticker_linker = None
         self.stats = {
-            'articles_processed': 0,
-            'articles_with_new_links': 0,
-            'total_new_links': 0,
-            'total_removed_links': 0,
-            'processing_time': 0.0
+            "articles_processed": 0,
+            "articles_with_new_links": 0,
+            "total_new_links": 0,
+            "total_removed_links": 0,
+            "processing_time": 0.0,
         }
 
     def initialize_linker(self) -> bool:
@@ -50,12 +50,13 @@ class ArticleRelinkingService:
             logger.error(f"Failed to initialize ticker linker: {e}")
             return False
 
-    def get_articles_to_relink(self, batch_size: int = 100, limit: int = None) -> list[Article]:
+    def get_articles_to_relink(
+        self, batch_size: int = 100, limit: int = None
+    ) -> list[Article]:
         """Get articles that need to be re-linked."""
-        query = (
-            self.db.query(Article)
-            .order_by(Article.published_at.desc())  # Start with most recent
-        )
+        query = self.db.query(Article).order_by(
+            Article.published_at.desc()
+        )  # Start with most recent
 
         if limit:
             query = query.limit(limit)
@@ -80,16 +81,16 @@ class ArticleRelinkingService:
     def relink_article(self, article: Article, clear_existing: bool = True) -> dict:
         """Re-link a single article to tickers."""
         result = {
-            'article_id': article.id,
-            'old_links_count': 0,
-            'new_links_count': 0,
-            'new_tickers': []
+            "article_id": article.id,
+            "old_links_count": 0,
+            "new_links_count": 0,
+            "new_tickers": [],
         }
 
         try:
             # Clear existing links if requested
             if clear_existing:
-                result['old_links_count'] = self.clear_existing_links(article)
+                result["old_links_count"] = self.clear_existing_links(article)
 
             # Find new ticker links
             ticker_links = self.ticker_linker.link_article(article, use_title_only=True)
@@ -100,12 +101,12 @@ class ArticleRelinkingService:
                     article_id=article.id,
                     ticker=ticker_link.ticker,
                     confidence=ticker_link.confidence,
-                    matched_terms=ticker_link.matched_terms
+                    matched_terms=ticker_link.matched_terms,
                 )
                 self.db.add(article_ticker)
-                result['new_tickers'].append(ticker_link.ticker)
+                result["new_tickers"].append(ticker_link.ticker)
 
-            result['new_links_count'] = len(ticker_links)
+            result["new_links_count"] = len(ticker_links)
 
             # Commit changes for this article
             self.db.commit()
@@ -115,16 +116,18 @@ class ArticleRelinkingService:
         except Exception as e:
             logger.error(f"Failed to relink article {article.id}: {e}")
             self.db.rollback()
-            result['error'] = str(e)
+            result["error"] = str(e)
             return result
 
-    def relink_all_articles(self, batch_size: int = 100, limit: int = None, clear_existing: bool = True) -> dict:
+    def relink_all_articles(
+        self, batch_size: int = 100, limit: int = None, clear_existing: bool = True
+    ) -> dict:
         """Re-link all articles in the database."""
         logger.info("Starting article re-linking process...")
         start_time = time.time()
 
         if not self.initialize_linker():
-            return {'error': 'Failed to initialize ticker linker'}
+            return {"error": "Failed to initialize ticker linker"}
 
         # Get total article count
         total_articles = self.db.query(Article).count()
@@ -150,26 +153,30 @@ class ArticleRelinkingService:
             if not batch_articles:
                 break
 
-            logger.info(f"Processing batch {batch_start + 1}-{batch_start + len(batch_articles)} of {total_articles}")
+            logger.info(
+                f"Processing batch {batch_start + 1}-{batch_start + len(batch_articles)} of {total_articles}"
+            )
 
             # Process each article in the batch
             for article in batch_articles:
                 result = self.relink_article(article, clear_existing=clear_existing)
 
                 # Update stats
-                self.stats['articles_processed'] += 1
+                self.stats["articles_processed"] += 1
 
-                if result.get('new_links_count', 0) > 0:
-                    self.stats['articles_with_new_links'] += 1
-                    self.stats['total_new_links'] += result['new_links_count']
+                if result.get("new_links_count", 0) > 0:
+                    self.stats["articles_with_new_links"] += 1
+                    self.stats["total_new_links"] += result["new_links_count"]
 
-                if result.get('old_links_count', 0) > 0:
-                    self.stats['total_removed_links'] += result['old_links_count']
+                if result.get("old_links_count", 0) > 0:
+                    self.stats["total_removed_links"] += result["old_links_count"]
 
                 # Log progress
-                if self.stats['articles_processed'] % 50 == 0:
+                if self.stats["articles_processed"] % 50 == 0:
                     elapsed = time.time() - start_time
-                    rate = self.stats['articles_processed'] / elapsed if elapsed > 0 else 0
+                    rate = (
+                        self.stats["articles_processed"] / elapsed if elapsed > 0 else 0
+                    )
                     logger.info(
                         f"Progress: {self.stats['articles_processed']}/{total_articles} "
                         f"({rate:.1f} articles/sec), "
@@ -184,7 +191,7 @@ class ArticleRelinkingService:
                 break
 
         # Final stats
-        self.stats['processing_time'] = time.time() - start_time
+        self.stats["processing_time"] = time.time() - start_time
 
         logger.info("Article re-linking completed!")
         self.print_summary()
@@ -202,15 +209,19 @@ class ArticleRelinkingService:
         print(f"Total Old Links Removed: {self.stats['total_removed_links']:,}")
         print(f"Processing Time: {self.stats['processing_time']:.1f} seconds")
 
-        if self.stats['articles_processed'] > 0:
-            avg_links_per_article = self.stats['total_new_links'] / self.stats['articles_processed']
-            coverage_rate = (self.stats['articles_with_new_links'] / self.stats['articles_processed']) * 100
+        if self.stats["articles_processed"] > 0:
+            avg_links_per_article = (
+                self.stats["total_new_links"] / self.stats["articles_processed"]
+            )
+            coverage_rate = (
+                self.stats["articles_with_new_links"] / self.stats["articles_processed"]
+            ) * 100
 
             print(f"Average Links per Article: {avg_links_per_article:.1f}")
             print(f"Coverage Rate: {coverage_rate:.1f}%")
 
-        if self.stats['processing_time'] > 0:
-            rate = self.stats['articles_processed'] / self.stats['processing_time']
+        if self.stats["processing_time"] > 0:
+            rate = self.stats["articles_processed"] / self.stats["processing_time"]
             print(f"Processing Rate: {rate:.1f} articles/second")
 
         print(f"{'='*60}")
@@ -231,7 +242,9 @@ class ArticleRelinkingService:
 
             # Top linked tickers
             top_tickers = (
-                self.db.query(ArticleTicker.ticker, func.count(ArticleTicker.article_id))
+                self.db.query(
+                    ArticleTicker.ticker, func.count(ArticleTicker.article_id)
+                )
                 .group_by(ArticleTicker.ticker)
                 .order_by(func.count(ArticleTicker.article_id).desc())
                 .limit(10)
@@ -239,12 +252,20 @@ class ArticleRelinkingService:
             )
 
             return {
-                'total_articles': total_articles,
-                'articles_with_links': articles_with_links,
-                'total_links': total_links,
-                'coverage_percentage': (articles_with_links / total_articles * 100) if total_articles > 0 else 0,
-                'avg_links_per_article': (total_links / articles_with_links) if articles_with_links > 0 else 0,
-                'top_tickers': top_tickers
+                "total_articles": total_articles,
+                "articles_with_links": articles_with_links,
+                "total_links": total_links,
+                "coverage_percentage": (
+                    (articles_with_links / total_articles * 100)
+                    if total_articles > 0
+                    else 0
+                ),
+                "avg_links_per_article": (
+                    (total_links / articles_with_links)
+                    if articles_with_links > 0
+                    else 0
+                ),
+                "top_tickers": top_tickers,
             }
 
         except Exception as e:
@@ -262,17 +283,17 @@ def main():
 
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     # Check for command line arguments
-    auto_confirm = len(sys.argv) > 1 and sys.argv[1] == '--yes'
+    auto_confirm = len(sys.argv) > 1 and sys.argv[1] == "--yes"
     limit = None
 
     # Check for limit argument
-    if len(sys.argv) > 2 and sys.argv[2].startswith('--limit='):
+    if len(sys.argv) > 2 and sys.argv[2].startswith("--limit="):
         try:
-            limit = int(sys.argv[2].split('=')[1])
+            limit = int(sys.argv[2].split("=")[1])
         except ValueError:
             print("Invalid limit value. Using no limit.")
 
@@ -289,11 +310,13 @@ def main():
             print(f"  Articles with Links: {current_stats['articles_with_links']:,}")
             print(f"  Total Links: {current_stats['total_links']:,}")
             print(f"  Coverage: {current_stats['coverage_percentage']:.1f}%")
-            print(f"  Avg Links per Article: {current_stats['avg_links_per_article']:.1f}")
+            print(
+                f"  Avg Links per Article: {current_stats['avg_links_per_article']:.1f}"
+            )
 
-            if current_stats['top_tickers']:
+            if current_stats["top_tickers"]:
                 print("\nTop Linked Tickers:")
-                for ticker, count in current_stats['top_tickers'][:5]:
+                for ticker, count in current_stats["top_tickers"][:5]:
                     print(f"    {ticker}: {count:,} articles")
 
         if not auto_confirm:
@@ -311,11 +334,11 @@ def main():
         result = service.relink_all_articles(
             batch_size=100,
             limit=limit,  # Process all articles or limited
-            clear_existing=True
+            clear_existing=True,
         )
 
         # Show final stats
-        if not result.get('error'):
+        if not result.get("error"):
             logger.info("\nFinal linking statistics:")
             final_stats = service.get_linking_stats()
 
@@ -325,7 +348,9 @@ def main():
                 print(f"  Articles with Links: {final_stats['articles_with_links']:,}")
                 print(f"  Total Links: {final_stats['total_links']:,}")
                 print(f"  Coverage: {final_stats['coverage_percentage']:.1f}%")
-                print(f"  Avg Links per Article: {final_stats['avg_links_per_article']:.1f}")
+                print(
+                    f"  Avg Links per Article: {final_stats['avg_links_per_article']:.1f}"
+                )
         else:
             logger.error(f"Re-linking failed: {result['error']}")
 

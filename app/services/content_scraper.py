@@ -12,32 +12,43 @@ logger = logging.getLogger(__name__)
 
 # Common selectors for article content
 ARTICLE_SELECTORS = [
-    'article',
+    "article",
     '[role="main"]',
-    '.article-content',
-    '.post-content',
-    '.entry-content',
-    '.content',
-    '.story-body',
-    '.article-body',
-    '.post-body',
-    '.entry-body',
-    'main',
-    '.main-content'
+    ".article-content",
+    ".post-content",
+    ".entry-content",
+    ".content",
+    ".story-body",
+    ".article-body",
+    ".post-body",
+    ".entry-body",
+    "main",
+    ".main-content",
 ]
 
 # Selectors to exclude
 EXCLUDE_SELECTORS = [
-    'nav', 'header', 'footer', '.navigation', '.menu',
-    '.sidebar', '.advertisement', '.ads', '.social-share',
-    '.comments', '.related-articles', '.newsletter'
+    "nav",
+    "header",
+    "footer",
+    ".navigation",
+    ".menu",
+    ".sidebar",
+    ".advertisement",
+    ".ads",
+    ".social-share",
+    ".comments",
+    ".related-articles",
+    ".newsletter",
 ]
 
 
 class ContentScraper:
     """Service for scraping article content from URLs."""
 
-    def __init__(self, timeout: int = 10, max_content_length: int = 50000, max_workers: int = 10):
+    def __init__(
+        self, timeout: int = 10, max_content_length: int = 50000, max_workers: int = 10
+    ):
         """Initialize content scraper.
 
         Args:
@@ -49,9 +60,11 @@ class ContentScraper:
         self.max_content_length = max_content_length
         self.max_workers = max_workers
         self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        })
+        self.session.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            }
+        )
 
     def scrape_article_content(self, url: str) -> str | None:
         """Scrape article content from URL.
@@ -74,7 +87,7 @@ class ContentScraper:
             response.raise_for_status()
 
             # Parse HTML
-            soup = BeautifulSoup(response.content, 'html.parser')
+            soup = BeautifulSoup(response.content, "html.parser")
 
             # Remove unwanted elements
             for selector in EXCLUDE_SELECTORS:
@@ -88,7 +101,7 @@ class ContentScraper:
                 # Clean and truncate content
                 content = self._clean_content(content)
                 if len(content) > self.max_content_length:
-                    content = content[:self.max_content_length] + "..."
+                    content = content[: self.max_content_length] + "..."
 
                 logger.debug(f"Scraped {len(content)} characters from {url}")
                 return content
@@ -123,7 +136,7 @@ class ContentScraper:
                     return content
 
         # Fallback: try to find content by text density
-        paragraphs = soup.find_all('p')
+        paragraphs = soup.find_all("p")
         if paragraphs:
             content_parts = []
             for p in paragraphs:
@@ -132,7 +145,7 @@ class ContentScraper:
                     content_parts.append(text)
 
             if content_parts:
-                return '\n\n'.join(content_parts)
+                return "\n\n".join(content_parts)
 
         # Last resort: get all text
         all_text = soup.get_text()
@@ -151,30 +164,30 @@ class ContentScraper:
             Cleaned content
         """
         # Remove extra whitespace
-        content = re.sub(r'\s+', ' ', content)
+        content = re.sub(r"\s+", " ", content)
 
         # Remove common noise patterns
         noise_patterns = [
-            r'Advertisement\s*',
-            r'Subscribe\s*to\s*.*?newsletter',
-            r'Follow\s*us\s*on\s*social\s*media',
-            r'Share\s*this\s*article',
-            r'Read\s*more\s*:',
-            r'Continue\s*reading',
-            r'Click\s*here\s*to\s*read\s*more',
+            r"Advertisement\s*",
+            r"Subscribe\s*to\s*.*?newsletter",
+            r"Follow\s*us\s*on\s*social\s*media",
+            r"Share\s*this\s*article",
+            r"Read\s*more\s*:",
+            r"Continue\s*reading",
+            r"Click\s*here\s*to\s*read\s*more",
         ]
 
         for pattern in noise_patterns:
-            content = re.sub(pattern, '', content, flags=re.IGNORECASE)
+            content = re.sub(pattern, "", content, flags=re.IGNORECASE)
 
         # Remove URLs
-        content = re.sub(r'https?://\S+', '', content)
+        content = re.sub(r"https?://\S+", "", content)
 
         # Remove email addresses
-        content = re.sub(r'\S+@\S+', '', content)
+        content = re.sub(r"\S+@\S+", "", content)
 
         # Remove phone numbers
-        content = re.sub(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', '', content)
+        content = re.sub(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b", "", content)
 
         return content.strip()
 
@@ -196,7 +209,9 @@ class ContentScraper:
             logger.debug("No scrapable URLs found")
             return results
 
-        logger.debug(f"Scraping {len(scrapable_urls)} URLs with {self.max_workers} workers")
+        logger.debug(
+            f"Scraping {len(scrapable_urls)} URLs with {self.max_workers} workers"
+        )
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # Submit all scraping tasks
@@ -215,8 +230,12 @@ class ContentScraper:
                     logger.warning(f"Failed to scrape {url}: {e}")
                     results[url] = None
 
-        successful_scrapes = sum(1 for content in results.values() if content is not None)
-        logger.debug(f"Successfully scraped {successful_scrapes}/{len(scrapable_urls)} URLs")
+        successful_scrapes = sum(
+            1 for content in results.values() if content is not None
+        )
+        logger.debug(
+            f"Successfully scraped {successful_scrapes}/{len(scrapable_urls)} URLs"
+        )
 
         return results
 
@@ -233,27 +252,27 @@ class ContentScraper:
             parsed = urlparse(url)
 
             # Check scheme
-            if parsed.scheme not in ['http', 'https']:
+            if parsed.scheme not in ["http", "https"]:
                 return False
 
             # Check for common non-scrapable patterns
             non_scrapable_patterns = [
-                r'\.pdf$',
-                r'\.docx?$',
-                r'\.xlsx?$',
-                r'\.pptx?$',
-                r'\.zip$',
-                r'\.mp4$',
-                r'\.mp3$',
-                r'\.jpg$',
-                r'\.png$',
-                r'\.gif$',
-                r'youtube\.com/watch',
-                r'youtu\.be/',
-                r'twitter\.com/',
-                r'facebook\.com/',
-                r'instagram\.com/',
-                r'linkedin\.com/',
+                r"\.pdf$",
+                r"\.docx?$",
+                r"\.xlsx?$",
+                r"\.pptx?$",
+                r"\.zip$",
+                r"\.mp4$",
+                r"\.mp3$",
+                r"\.jpg$",
+                r"\.png$",
+                r"\.gif$",
+                r"youtube\.com/watch",
+                r"youtu\.be/",
+                r"twitter\.com/",
+                r"facebook\.com/",
+                r"instagram\.com/",
+                r"linkedin\.com/",
             ]
 
             for pattern in non_scrapable_patterns:

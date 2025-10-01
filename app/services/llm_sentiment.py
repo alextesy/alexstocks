@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 # Import transformers with fallback handling
 try:
     from transformers import pipeline
+
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
@@ -17,7 +18,9 @@ except ImportError:
 class LLMSentimentService:
     """Service for analyzing sentiment using LLM models."""
 
-    def __init__(self, model_name: str = "ProsusAI/finbert", use_gpu: bool = False) -> None:
+    def __init__(
+        self, model_name: str = "ProsusAI/finbert", use_gpu: bool = False
+    ) -> None:
         """Initialize the LLM sentiment analyzer.
 
         Args:
@@ -25,7 +28,9 @@ class LLMSentimentService:
             use_gpu: Whether to use GPU acceleration if available
         """
         if not TRANSFORMERS_AVAILABLE:
-            raise RuntimeError("Transformers library not available. Please install with: pip install transformers torch")
+            raise RuntimeError(
+                "Transformers library not available. Please install with: pip install transformers torch"
+            )
 
         self.model_name = model_name
         self.use_gpu = use_gpu
@@ -49,17 +54,21 @@ class LLMSentimentService:
                     "sentiment-analysis",
                     model=self.model_name,
                     device=self._device,
-                    return_all_scores=True
+                    return_all_scores=True,
                 )
-                logger.info(f"Successfully loaded financial sentiment model: {self.model_name}")
+                logger.info(
+                    f"Successfully loaded financial sentiment model: {self.model_name}"
+                )
             except Exception as e:
-                logger.warning(f"Failed to load {self.model_name}, falling back to general model: {e}")
+                logger.warning(
+                    f"Failed to load {self.model_name}, falling back to general model: {e}"
+                )
                 # Fallback to a general sentiment model
                 self._analyzer = pipeline(
                     "sentiment-analysis",
                     model="cardiffnlp/twitter-roberta-base-sentiment-latest",
                     device=self._device,
-                    return_all_scores=True
+                    return_all_scores=True,
                 )
                 self.model_name = "cardiffnlp/twitter-roberta-base-sentiment-latest"
                 logger.info("Successfully loaded fallback sentiment model")
@@ -106,8 +115,8 @@ class LLMSentimentService:
             # Extract sentiment scores
             sentiment_scores = {}
             for result in results[0]:
-                label = result['label'].lower()
-                score = result['score']
+                label = result["label"].lower()
+                score = result["score"]
                 sentiment_scores[label] = score
 
             # Convert to compound score based on model output
@@ -138,28 +147,28 @@ class LLMSentimentService:
             Compound score between -1.0 and 1.0
         """
         # Handle different model output formats
-        if 'positive' in sentiment_scores and 'negative' in sentiment_scores:
+        if "positive" in sentiment_scores and "negative" in sentiment_scores:
             # Standard positive/negative format (FinBERT)
-            positive = sentiment_scores.get('positive', 0.0)
-            negative = sentiment_scores.get('negative', 0.0)
-            sentiment_scores.get('neutral', 0.0)
+            positive = sentiment_scores.get("positive", 0.0)
+            negative = sentiment_scores.get("negative", 0.0)
+            sentiment_scores.get("neutral", 0.0)
 
             # Calculate compound score: positive - negative
             compound = positive - negative
 
-        elif 'label_2' in sentiment_scores and 'label_0' in sentiment_scores:
+        elif "label_2" in sentiment_scores and "label_0" in sentiment_scores:
             # RoBERTa format: label_0 (negative), label_1 (neutral), label_2 (positive)
-            positive = sentiment_scores.get('label_2', 0.0)
-            negative = sentiment_scores.get('label_0', 0.0)
-            sentiment_scores.get('label_1', 0.0)
+            positive = sentiment_scores.get("label_2", 0.0)
+            negative = sentiment_scores.get("label_0", 0.0)
+            sentiment_scores.get("label_1", 0.0)
 
             # Calculate compound score: positive - negative
             compound = positive - negative
 
-        elif 'pos' in sentiment_scores and 'neg' in sentiment_scores:
+        elif "pos" in sentiment_scores and "neg" in sentiment_scores:
             # Alternative format
-            positive = sentiment_scores.get('pos', 0.0)
-            negative = sentiment_scores.get('neg', 0.0)
+            positive = sentiment_scores.get("pos", 0.0)
+            negative = sentiment_scores.get("neg", 0.0)
             compound = positive - negative
 
         else:
@@ -171,9 +180,15 @@ class LLMSentimentService:
             max_score = sentiment_scores[max_label]
 
             # Map labels to sentiment direction
-            if any(neg_word in max_label.lower() for neg_word in ['negative', 'neg', 'label_0']):
+            if any(
+                neg_word in max_label.lower()
+                for neg_word in ["negative", "neg", "label_0"]
+            ):
                 compound = -max_score
-            elif any(pos_word in max_label.lower() for pos_word in ['positive', 'pos', 'label_2']):
+            elif any(
+                pos_word in max_label.lower()
+                for pos_word in ["positive", "pos", "label_2"]
+            ):
                 compound = max_score
             else:
                 compound = 0.0  # neutral
@@ -232,8 +247,7 @@ _llm_sentiment_service: LLMSentimentService | None = None
 
 
 def get_llm_sentiment_service(
-    model_name: str = "ProsusAI/finbert",
-    use_gpu: bool = False
+    model_name: str = "ProsusAI/finbert", use_gpu: bool = False
 ) -> LLMSentimentService:
     """
     Get the global LLM sentiment service instance.
@@ -247,7 +261,9 @@ def get_llm_sentiment_service(
     """
     global _llm_sentiment_service
     if _llm_sentiment_service is None:
-        _llm_sentiment_service = LLMSentimentService(model_name=model_name, use_gpu=use_gpu)
+        _llm_sentiment_service = LLMSentimentService(
+            model_name=model_name, use_gpu=use_gpu
+        )
     return _llm_sentiment_service
 
 

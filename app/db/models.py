@@ -34,7 +34,9 @@ class Ticker(Base):
     exchange: Mapped[str | None] = mapped_column(String(50), nullable=True)
     sources: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     is_sp500: Mapped[bool] = mapped_column(default=False)
-    cik: Mapped[str | None] = mapped_column(String(20), nullable=True)  # SEC CIK identifier
+    cik: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # SEC CIK identifier
 
     # Relationships
     articles: Mapped[list["ArticleTicker"]] = relationship(
@@ -48,7 +50,9 @@ class Article(Base):
     __tablename__ = "article"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    source: Mapped[str] = mapped_column(String, nullable=False)  # e.g., 'reddit_comment', 'reddit_post', 'news', etc.
+    source: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # e.g., 'reddit_comment', 'reddit_post', 'news', etc.
     url: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     published_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
@@ -58,7 +62,9 @@ class Article(Base):
     lang: Mapped[str | None] = mapped_column(String, nullable=True)
     sentiment: Mapped[float | None] = mapped_column(Float, nullable=True)
     # Reddit-specific fields
-    reddit_id: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)
+    reddit_id: Mapped[str | None] = mapped_column(
+        String(20), unique=True, nullable=True
+    )
     subreddit: Mapped[str | None] = mapped_column(String(50), nullable=True)
     author: Mapped[str | None] = mapped_column(String(50), nullable=True)
     upvotes: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
@@ -101,7 +107,9 @@ class RedditThread(Base):
     reddit_id: Mapped[str] = mapped_column(String(20), primary_key=True)
     subreddit: Mapped[str] = mapped_column(String(50), nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
-    thread_type: Mapped[str] = mapped_column(String(20), nullable=False)  # 'daily', 'weekend'
+    thread_type: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # 'daily', 'weekend'
     url: Mapped[str] = mapped_column(String, nullable=False)
     author: Mapped[str | None] = mapped_column(String(50), nullable=True)
     upvotes: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
@@ -128,7 +136,9 @@ class StockPrice(Base):
     previous_close: Mapped[float | None] = mapped_column(Float, nullable=True)
     change: Mapped[float | None] = mapped_column(Float, nullable=True)
     change_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
-    market_state: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 'OPEN', 'CLOSED'
+    market_state: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # 'OPEN', 'CLOSED'
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="USD")
     exchange: Mapped[str | None] = mapped_column(String(50), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
@@ -168,7 +178,9 @@ class StockDataCollection(Base):
     __tablename__ = "stock_data_collection"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    collection_type: Mapped[str] = mapped_column(String(20), nullable=False)  # 'current', 'historical'
+    collection_type: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # 'current', 'historical'
     symbols_requested: Mapped[int] = mapped_column(Integer, nullable=False)
     symbols_success: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     symbols_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -200,7 +212,11 @@ Index("reddit_thread_last_scraped_idx", RedditThread.last_scraped_at.desc())
 Index("reddit_thread_created_idx", RedditThread.created_at.desc())
 # Stock price indexes
 Index("stock_price_updated_at_idx", StockPrice.updated_at.desc())
-Index("stock_price_history_symbol_date_idx", StockPriceHistory.symbol, StockPriceHistory.date.desc())
+Index(
+    "stock_price_history_symbol_date_idx",
+    StockPriceHistory.symbol,
+    StockPriceHistory.date.desc(),
+)
 Index("stock_price_history_date_idx", StockPriceHistory.date.desc())
 Index("stock_data_collection_started_idx", StockDataCollection.started_at.desc())
 Index("stock_data_collection_type_idx", StockDataCollection.collection_type)

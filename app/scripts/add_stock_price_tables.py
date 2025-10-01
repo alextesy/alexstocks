@@ -2,7 +2,7 @@
 
 import sys
 
-sys.path.append('.')
+sys.path.append(".")
 
 
 from app.db.models import Base
@@ -22,6 +22,6 @@ def add_stock_price_tables():
     print("- stock_price_history: Historical price data for charts")
     print("- stock_data_collection: Track collection runs")
 
+
 if __name__ == "__main__":
     add_stock_price_tables()
-

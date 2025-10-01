@@ -54,10 +54,7 @@ class StockDataService:
         """Fetch current price from Finnhub API using quote endpoint."""
         try:
             url = f"{self.finnhub_url}/quote"
-            params = {
-                "symbol": symbol,
-                "token": self.finnhub_token
-            }
+            params = {"symbol": symbol, "token": self.finnhub_token}
 
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(url, params=params)
@@ -81,7 +78,9 @@ class StockDataService:
                 current_price = float(data["c"])
                 previous_close = float(data.get("pc", current_price))
                 change = current_price - previous_close
-                change_percent = (change / previous_close * 100) if previous_close > 0 else 0
+                change_percent = (
+                    (change / previous_close * 100) if previous_close > 0 else 0
+                )
 
                 # Determine market state based on timestamp
                 current_time = datetime.now()
@@ -96,7 +95,7 @@ class StockDataService:
                     "currency": "USD",
                     "market_state": market_state,
                     "exchange": "NASDAQ",  # Default, could be enhanced with company endpoint
-                    "last_updated": datetime.now().isoformat()
+                    "last_updated": datetime.now().isoformat(),
                 }
 
         except Exception as e:
@@ -108,10 +107,7 @@ class StockDataService:
         try:
             # Use simple price endpoint first
             url = f"{self.twelve_data_url}/price"
-            params = {
-                "symbol": symbol,
-                "apikey": "demo"
-            }
+            params = {"symbol": symbol, "apikey": "demo"}
 
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(url, params=params)
@@ -138,14 +134,16 @@ class StockDataService:
                     "currency": "USD",
                     "market_state": "REGULAR",
                     "exchange": "NASDAQ",
-                    "last_updated": datetime.now().isoformat()
+                    "last_updated": datetime.now().isoformat(),
                 }
 
         except Exception as e:
             logger.error(f"Twelve Data simple API error: {e}")
             return None
 
-    async def get_stock_chart_data(self, symbol: str, period: str = "1mo") -> dict | None:
+    async def get_stock_chart_data(
+        self, symbol: str, period: str = "1mo"
+    ) -> dict | None:
         """
         Get historical stock data for charting.
         Uses Yahoo Finance as primary source (free), Finnhub as backup.
@@ -178,8 +176,14 @@ class StockDataService:
             # Map period to timestamps
             end_time = int(datetime.now().timestamp())
             period_days = {
-                "1d": 1, "5d": 5, "1mo": 30, "3mo": 90,
-                "6mo": 180, "1y": 365, "2y": 730, "5y": 1825
+                "1d": 1,
+                "5d": 5,
+                "1mo": 30,
+                "3mo": 90,
+                "6mo": 180,
+                "1y": 365,
+                "2y": 730,
+                "5y": 1825,
             }
             days = period_days.get(period, 30)
             start_time = int((datetime.now() - timedelta(days=days)).timestamp())
@@ -195,7 +199,7 @@ class StockDataService:
                 "resolution": resolution,
                 "from": start_time,
                 "to": end_time,
-                "token": self.finnhub_token
+                "token": self.finnhub_token,
             }
 
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -226,11 +230,15 @@ class StockDataService:
 
                 for i, timestamp in enumerate(timestamps):
                     if i < len(closes):
-                        chart_data.append({
-                            "date": datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d"),
-                            "price": round(float(closes[i]), 2),
-                            "volume": int(volumes[i]) if i < len(volumes) else 0
-                        })
+                        chart_data.append(
+                            {
+                                "date": datetime.fromtimestamp(timestamp).strftime(
+                                    "%Y-%m-%d"
+                                ),
+                                "price": round(float(closes[i]), 2),
+                                "volume": int(volumes[i]) if i < len(volumes) else 0,
+                            }
+                        )
 
                 if not chart_data:
                     return None
@@ -239,7 +247,7 @@ class StockDataService:
                     "symbol": symbol,
                     "period": period,
                     "data": chart_data,
-                    "meta": {"symbol": symbol, "source": "finnhub"}
+                    "meta": {"symbol": symbol, "source": "finnhub"},
                 }
 
         except Exception as e:
@@ -258,8 +266,14 @@ class StockDataService:
 
             # Map period to yfinance period
             period_map = {
-                "1d": "1d", "5d": "5d", "1mo": "1mo", "3mo": "3mo",
-                "6mo": "6mo", "1y": "1y", "2y": "2y", "5y": "5y"
+                "1d": "1d",
+                "5d": "5d",
+                "1mo": "1mo",
+                "3mo": "3mo",
+                "6mo": "6mo",
+                "1y": "1y",
+                "2y": "2y",
+                "5y": "5y",
             }
             yf_period = period_map.get(period, "1mo")
 
@@ -268,8 +282,11 @@ class StockDataService:
 
             # Run in executor to avoid blocking the event loop
             import asyncio
+
             loop = asyncio.get_event_loop()
-            hist = await loop.run_in_executor(None, lambda: ticker.history(period=yf_period))
+            hist = await loop.run_in_executor(
+                None, lambda: ticker.history(period=yf_period)
+            )
 
             if hist.empty:
                 logger.warning(f"No historical data from Yahoo Finance for {symbol}")
@@ -278,11 +295,17 @@ class StockDataService:
             # Convert to our format
             chart_data = []
             for date, row in hist.iterrows():
-                chart_data.append({
-                    "date": date.strftime("%Y-%m-%d"),
-                    "price": round(float(row['Close']), 2),
-                    "volume": int(row['Volume']) if 'Volume' in row and not pd.isna(row['Volume']) else 0
-                })
+                chart_data.append(
+                    {
+                        "date": date.strftime("%Y-%m-%d"),
+                        "price": round(float(row["Close"]), 2),
+                        "volume": (
+                            int(row["Volume"])
+                            if "Volume" in row and not pd.isna(row["Volume"])
+                            else 0
+                        ),
+                    }
+                )
 
             if not chart_data:
                 return None
@@ -291,7 +314,7 @@ class StockDataService:
                 "symbol": symbol,
                 "period": period,
                 "data": chart_data,
-                "meta": {"symbol": symbol, "source": "yahoo"}
+                "meta": {"symbol": symbol, "source": "yahoo"},
             }
 
         except Exception as e:
@@ -302,16 +325,29 @@ class StockDataService:
         """Generate realistic mock stock data as fallback."""
         # Base prices for common stocks (roughly realistic as of 2024)
         base_prices = {
-            "AAPL": 175.0, "MSFT": 380.0, "GOOGL": 140.0, "AMZN": 145.0,
-            "TSLA": 240.0, "META": 320.0, "NVDA": 450.0, "JPM": 150.0,
-            "V": 260.0, "JNJ": 160.0, "WMT": 155.0, "PG": 155.0,
-            "UNH": 520.0, "MA": 420.0, "HD": 340.0, "DIS": 90.0,
+            "AAPL": 175.0,
+            "MSFT": 380.0,
+            "GOOGL": 140.0,
+            "AMZN": 145.0,
+            "TSLA": 240.0,
+            "META": 320.0,
+            "NVDA": 450.0,
+            "JPM": 150.0,
+            "V": 260.0,
+            "JNJ": 160.0,
+            "WMT": 155.0,
+            "PG": 155.0,
+            "UNH": 520.0,
+            "MA": 420.0,
+            "HD": 340.0,
+            "DIS": 90.0,
         }
 
         base_price = base_prices.get(symbol, 100.0)
 
         # Add some realistic variation (±5%)
         import random
+
         variation = random.uniform(-0.05, 0.05)
         current_price = base_price * (1 + variation)
 
@@ -319,7 +355,7 @@ class StockDataService:
         daily_change = random.uniform(-0.03, 0.03)
         prev_close = current_price / (1 + daily_change)
         change = current_price - prev_close
-        change_percent = (change / prev_close * 100)
+        change_percent = change / prev_close * 100
 
         return {
             "symbol": symbol,
@@ -330,7 +366,7 @@ class StockDataService:
             "currency": "USD",
             "market_state": "CLOSED",
             "exchange": "NASDAQ",
-            "last_updated": datetime.now().isoformat()
+            "last_updated": datetime.now().isoformat(),
         }
 
     def _generate_mock_chart_data(self, symbol: str, period: str) -> dict:
@@ -343,8 +379,14 @@ class StockDataService:
 
         # Generate number of data points based on period
         period_days = {
-            "1d": 1, "5d": 5, "1mo": 30, "3mo": 90,
-            "6mo": 180, "1y": 365, "2y": 730, "5y": 1825
+            "1d": 1,
+            "5d": 5,
+            "1mo": 30,
+            "3mo": 90,
+            "6mo": 180,
+            "1y": 365,
+            "2y": 730,
+            "5y": 1825,
         }
         days = period_days.get(period, 30)
 
@@ -357,19 +399,21 @@ class StockDataService:
 
             # Small random walk
             change = random.uniform(-0.02, 0.02)
-            current_price *= (1 + change)
+            current_price *= 1 + change
 
-            chart_data.append({
-                "date": date,
-                "price": round(current_price, 2),
-                "volume": random.randint(1000000, 10000000)
-            })
+            chart_data.append(
+                {
+                    "date": date,
+                    "price": round(current_price, 2),
+                    "volume": random.randint(1000000, 10000000),
+                }
+            )
 
         return {
             "symbol": symbol,
             "period": period,
             "data": chart_data,
-            "meta": {"symbol": symbol, "source": "mock"}
+            "meta": {"symbol": symbol, "source": "mock"},
         }
 
     async def get_multiple_prices(self, symbols: list[str]) -> dict[str, dict | None]:
@@ -387,11 +431,15 @@ class StockDataService:
 
         return results
 
-    async def get_historical_data(self, symbol: str, period: str = "1mo") -> dict | None:
+    async def get_historical_data(
+        self, symbol: str, period: str = "1mo"
+    ) -> dict | None:
         """Get historical data for a symbol (database collection - no mock data)."""
         return await self.get_stock_chart_data(symbol, period)
 
-    async def get_chart_data_for_ui(self, symbol: str, period: str = "1mo") -> dict | None:
+    async def get_chart_data_for_ui(
+        self, symbol: str, period: str = "1mo"
+    ) -> dict | None:
         """Get chart data for UI display (can fall back to mock data)."""
         # Try to get real data first
         data = await self.get_stock_chart_data(symbol, period)

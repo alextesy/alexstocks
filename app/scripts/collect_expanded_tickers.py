@@ -24,9 +24,11 @@ class TickerCollector:
 
     def __init__(self):
         self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-        })
+        self.session.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+            }
+        )
         self.collected_tickers: dict[str, dict] = {}
 
     def normalize_symbol(self, symbol: str) -> str:
@@ -44,9 +46,14 @@ class TickerCollector:
         if not name:
             return ""
         # Remove extra whitespace and common suffixes
-        name = re.sub(r'\s+', ' ', name.strip())
+        name = re.sub(r"\s+", " ", name.strip())
         # Remove common corporate suffixes for cleaner names
-        name = re.sub(r'\s+(Inc\.?|Corp\.?|Corporation|Co\.?|Company|Ltd\.?|Limited|LLC|L\.P\.)\s*$', '', name, flags=re.IGNORECASE)
+        name = re.sub(
+            r"\s+(Inc\.?|Corp\.?|Corporation|Co\.?|Company|Ltd\.?|Limited|LLC|L\.P\.)\s*$",
+            "",
+            name,
+            flags=re.IGNORECASE,
+        )
         return name.strip()
 
     def generate_aliases(self, symbol: str, name: str) -> list[str]:
@@ -66,7 +73,24 @@ class TickerCollector:
 
             # Remove common words and create variations
             name_words = name.lower().split()
-            filtered_words = [w for w in name_words if w not in {'inc', 'corp', 'corporation', 'co', 'company', 'ltd', 'limited', 'llc', 'the', 'group', 'holdings'}]
+            filtered_words = [
+                w
+                for w in name_words
+                if w
+                not in {
+                    "inc",
+                    "corp",
+                    "corporation",
+                    "co",
+                    "company",
+                    "ltd",
+                    "limited",
+                    "llc",
+                    "the",
+                    "group",
+                    "holdings",
+                }
+            ]
 
             if len(filtered_words) >= 1:
                 # Single word company name
@@ -74,7 +98,7 @@ class TickerCollector:
                     aliases.append(filtered_words[0])
                 # Multi-word company name combinations
                 elif len(filtered_words) <= 3:
-                    aliases.append(' '.join(filtered_words))
+                    aliases.append(" ".join(filtered_words))
                     if len(filtered_words) >= 2:
                         aliases.append(filtered_words[0])  # First word only
 
@@ -89,24 +113,24 @@ class TickerCollector:
             response = self.session.get(NASDAQ_URL, timeout=30)
             response.raise_for_status()
 
-            lines = response.text.strip().split('\n')
+            lines = response.text.strip().split("\n")
             # Skip header and footer
             for line in lines[1:]:
-                if line.startswith('File Creation Time:'):
+                if line.startswith("File Creation Time:"):
                     break
 
-                parts = line.split('|')
+                parts = line.split("|")
                 if len(parts) >= 2:
                     symbol = self.normalize_symbol(parts[0])
                     name = self.normalize_name(parts[1])
 
                     if symbol and name:
                         tickers[symbol] = {
-                            'symbol': symbol,
-                            'name': name,
-                            'exchange': 'NASDAQ',
-                            'sources': ['nasdaq'],
-                            'aliases': self.generate_aliases(symbol, name)
+                            "symbol": symbol,
+                            "name": name,
+                            "exchange": "NASDAQ",
+                            "sources": ["nasdaq"],
+                            "aliases": self.generate_aliases(symbol, name),
                         }
 
             logger.info(f"Collected {len(tickers)} NASDAQ tickers")
@@ -125,25 +149,25 @@ class TickerCollector:
             response = self.session.get(NYSE_URL, timeout=30)
             response.raise_for_status()
 
-            lines = response.text.strip().split('\n')
+            lines = response.text.strip().split("\n")
             # Skip header and footer
             for line in lines[1:]:
-                if line.startswith('File Creation Time:'):
+                if line.startswith("File Creation Time:"):
                     break
 
-                parts = line.split('|')
+                parts = line.split("|")
                 if len(parts) >= 3:
                     symbol = self.normalize_symbol(parts[0])
                     name = self.normalize_name(parts[1])
-                    exchange = parts[2] if len(parts) > 2 else 'NYSE'
+                    exchange = parts[2] if len(parts) > 2 else "NYSE"
 
                     if symbol and name:
                         tickers[symbol] = {
-                            'symbol': symbol,
-                            'name': name,
-                            'exchange': exchange,
-                            'sources': ['nyse_other'],
-                            'aliases': self.generate_aliases(symbol, name)
+                            "symbol": symbol,
+                            "name": name,
+                            "exchange": exchange,
+                            "sources": ["nyse_other"],
+                            "aliases": self.generate_aliases(symbol, name),
                         }
 
             logger.info(f"Collected {len(tickers)} NYSE/Other tickers")
@@ -162,23 +186,23 @@ class TickerCollector:
             response = self.session.get(SP500_URL, timeout=30)
             response.raise_for_status()
 
-            soup = BeautifulSoup(response.content, 'html.parser')
+            soup = BeautifulSoup(response.content, "html.parser")
 
             # Find the main S&P 500 table
-            table = soup.find('table', {'id': 'constituents'})
+            table = soup.find("table", {"id": "constituents"})
             if not table:
                 # Fallback to first table with headers
-                tables = soup.find_all('table', class_='wikitable')
+                tables = soup.find_all("table", class_="wikitable")
                 for t in tables:
-                    headers = t.find('tr')
-                    if headers and 'Symbol' in headers.get_text():
+                    headers = t.find("tr")
+                    if headers and "Symbol" in headers.get_text():
                         table = t
                         break
 
             if table:
-                rows = table.find_all('tr')[1:]  # Skip header
+                rows = table.find_all("tr")[1:]  # Skip header
                 for row in rows:
-                    cells = row.find_all(['td', 'th'])
+                    cells = row.find_all(["td", "th"])
                     if len(cells) >= 2:
                         # Symbol is usually first column, company name second
                         symbol_cell = cells[0].get_text(strip=True)
@@ -189,12 +213,12 @@ class TickerCollector:
 
                         if symbol and name:
                             tickers[symbol] = {
-                                'symbol': symbol,
-                                'name': name,
-                                'exchange': 'S&P_500',
-                                'sources': ['sp500'],
-                                'aliases': self.generate_aliases(symbol, name),
-                                'is_sp500': True
+                                "symbol": symbol,
+                                "name": name,
+                                "exchange": "S&P_500",
+                                "sources": ["sp500"],
+                                "aliases": self.generate_aliases(symbol, name),
+                                "is_sp500": True,
                             }
 
             logger.info(f"Collected {len(tickers)} S&P 500 tickers")
@@ -217,18 +241,18 @@ class TickerCollector:
 
             # The SEC data is structured as: CIK -> {cik_str, ticker, title}
             for _cik, company_info in data.items():
-                symbol = self.normalize_symbol(company_info.get('ticker', ''))
-                name = self.normalize_name(company_info.get('title', ''))
-                cik_str = company_info.get('cik_str', '')
+                symbol = self.normalize_symbol(company_info.get("ticker", ""))
+                name = self.normalize_name(company_info.get("title", ""))
+                cik_str = company_info.get("cik_str", "")
 
                 if symbol and name:
                     tickers[symbol] = {
-                        'symbol': symbol,
-                        'name': name,
-                        'exchange': 'SEC',
-                        'sources': ['sec_cik'],
-                        'cik': cik_str,
-                        'aliases': self.generate_aliases(symbol, name)
+                        "symbol": symbol,
+                        "name": name,
+                        "exchange": "SEC",
+                        "sources": ["sec_cik"],
+                        "cik": cik_str,
+                        "aliases": self.generate_aliases(symbol, name),
                     }
 
             logger.info(f"Collected {len(tickers)} SEC CIK tickers")
@@ -252,24 +276,24 @@ class TickerCollector:
             with open(csv_path) as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    symbol = self.normalize_symbol(row['symbol'])
-                    name = self.normalize_name(row['name'])
+                    symbol = self.normalize_symbol(row["symbol"])
+                    name = self.normalize_name(row["name"])
 
                     # Parse existing aliases
                     aliases = []
-                    if row.get('aliases'):
+                    if row.get("aliases"):
                         try:
-                            aliases = json.loads(row['aliases'])
+                            aliases = json.loads(row["aliases"])
                         except json.JSONDecodeError:
                             pass
 
                     if symbol and name:
                         tickers[symbol] = {
-                            'symbol': symbol,
-                            'name': name,
-                            'exchange': 'CURRENT',
-                            'sources': ['current'],
-                            'aliases': aliases
+                            "symbol": symbol,
+                            "name": name,
+                            "exchange": "CURRENT",
+                            "sources": ["current"],
+                            "aliases": aliases,
                         }
 
             logger.info(f"Loaded {len(tickers)} current tickers")
@@ -292,29 +316,34 @@ class TickerCollector:
                     existing = merged[symbol]
 
                     # Combine sources
-                    existing['sources'].extend(ticker_data['sources'])
-                    existing['sources'] = list(set(existing['sources']))
+                    existing["sources"].extend(ticker_data["sources"])
+                    existing["sources"] = list(set(existing["sources"]))
 
                     # Use more complete name if available
-                    if len(ticker_data['name']) > len(existing['name']):
-                        existing['name'] = ticker_data['name']
+                    if len(ticker_data["name"]) > len(existing["name"]):
+                        existing["name"] = ticker_data["name"]
 
                     # Combine aliases
-                    existing_aliases = set(existing.get('aliases', []))
-                    new_aliases = set(ticker_data.get('aliases', []))
-                    existing['aliases'] = list(existing_aliases | new_aliases)
+                    existing_aliases = set(existing.get("aliases", []))
+                    new_aliases = set(ticker_data.get("aliases", []))
+                    existing["aliases"] = list(existing_aliases | new_aliases)
 
                     # Preserve special flags
-                    if ticker_data.get('is_sp500'):
-                        existing['is_sp500'] = True
-                    if ticker_data.get('cik'):
-                        existing['cik'] = ticker_data['cik']
+                    if ticker_data.get("is_sp500"):
+                        existing["is_sp500"] = True
+                    if ticker_data.get("cik"):
+                        existing["cik"] = ticker_data["cik"]
 
                     # Use better exchange info
-                    if ticker_data['exchange'] != 'SEC' and existing['exchange'] == 'SEC':
-                        existing['exchange'] = ticker_data['exchange']
-                    elif ticker_data['exchange'] in ['NASDAQ', 'NYSE'] and existing['exchange'] not in ['NASDAQ', 'NYSE']:
-                        existing['exchange'] = ticker_data['exchange']
+                    if (
+                        ticker_data["exchange"] != "SEC"
+                        and existing["exchange"] == "SEC"
+                    ):
+                        existing["exchange"] = ticker_data["exchange"]
+                    elif ticker_data["exchange"] in ["NASDAQ", "NYSE"] and existing[
+                        "exchange"
+                    ] not in ["NASDAQ", "NYSE"]:
+                        existing["exchange"] = ticker_data["exchange"]
 
                 else:
                     # New ticker
@@ -327,8 +356,16 @@ class TickerCollector:
         """Save merged ticker data to CSV."""
         logger.info(f"Saving merged tickers to {output_path}...")
 
-        with open(output_path, 'w', newline='') as f:
-            fieldnames = ['symbol', 'name', 'exchange', 'sources', 'aliases', 'is_sp500', 'cik']
+        with open(output_path, "w", newline="") as f:
+            fieldnames = [
+                "symbol",
+                "name",
+                "exchange",
+                "sources",
+                "aliases",
+                "is_sp500",
+                "cik",
+            ]
             writer = csv.DictWriter(f, fieldnames=fieldnames)
 
             writer.writeheader()
@@ -338,13 +375,13 @@ class TickerCollector:
                 ticker = merged_tickers[symbol]
 
                 row = {
-                    'symbol': ticker['symbol'],
-                    'name': ticker['name'],
-                    'exchange': ticker['exchange'],
-                    'sources': ','.join(ticker['sources']),
-                    'aliases': json.dumps(ticker['aliases']),
-                    'is_sp500': ticker.get('is_sp500', False),
-                    'cik': ticker.get('cik', '')
+                    "symbol": ticker["symbol"],
+                    "name": ticker["name"],
+                    "exchange": ticker["exchange"],
+                    "sources": ",".join(ticker["sources"]),
+                    "aliases": json.dumps(ticker["aliases"]),
+                    "is_sp500": ticker.get("is_sp500", False),
+                    "cik": ticker.get("cik", ""),
                 }
                 writer.writerow(row)
 
@@ -363,11 +400,7 @@ class TickerCollector:
 
         # Merge all data
         merged_tickers = self.merge_ticker_data(
-            current_tickers,
-            nasdaq_tickers,
-            nyse_tickers,
-            sp500_tickers,
-            sec_tickers
+            current_tickers, nasdaq_tickers, nyse_tickers, sp500_tickers, sec_tickers
         )
 
         # Print summary
@@ -403,6 +436,7 @@ def main():
     current_path = Path("data/tickers_core.csv")
     if current_path.exists():
         import shutil
+
         shutil.copy2(current_path, backup_path)
         logger.info(f"Backed up current tickers to {backup_path}")
 

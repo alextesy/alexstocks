@@ -35,9 +35,13 @@ class TickerLinker:
             self.alias_to_ticker[ticker.symbol.lower()] = ticker.symbol
             self.alias_to_ticker[ticker.symbol.upper()] = ticker.symbol
 
-        logger.info(f"Built ticker symbol map with {len(self.alias_to_ticker)} entries (no aliases)")
+        logger.info(
+            f"Built ticker symbol map with {len(self.alias_to_ticker)} entries (no aliases)"
+        )
 
-    def _extract_text_for_matching(self, article: Article, use_title_only: bool = False) -> str:
+    def _extract_text_for_matching(
+        self, article: Article, use_title_only: bool = False
+    ) -> str:
         """Extract text from article for ticker matching.
 
         Args:
@@ -48,10 +52,10 @@ class TickerLinker:
             Combined text for matching
         """
         # Reddit comments: ONLY use the text field (skip title completely)
-        if article.source == 'reddit_comment':
+        if article.source == "reddit_comment":
             text = (article.text or "").lower()
         # Reddit posts: use title + text
-        elif article.source == 'reddit_post':
+        elif article.source == "reddit_post":
             text_parts = []
             if article.title:
                 text_parts.append(article.title)
@@ -80,9 +84,9 @@ class TickerLinker:
         # Limit text length for performance (max 1000 chars for non-Reddit sources)
         if len(text) > 1000:
             # Find the end of the 5th sentence or 1000 chars, whichever comes first
-            sentences = text.split('.')
+            sentences = text.split(".")
             if len(sentences) > 5:
-                text = '.'.join(sentences[:5]) + '.'
+                text = ".".join(sentences[:5]) + "."
             else:
                 text = text[:1000]
 
@@ -98,9 +102,9 @@ class TickerLinker:
         # Limit text to first few sentences for performance (max 500 chars)
         if len(text) > 500:
             # Find the end of the 3rd sentence or 500 chars, whichever comes first
-            sentences = text.split('.')
+            sentences = text.split(".")
             if len(sentences) > 3:
-                text = '.'.join(sentences[:3]) + '.'
+                text = ".".join(sentences[:3]) + "."
             else:
                 text = text[:500]
 
@@ -109,7 +113,8 @@ class TickerLinker:
 
         # Pattern 1: $SYMBOL format (highest confidence)
         import re
-        dollar_matches = re.findall(r'\$([A-Z]{1,5}(?:\.\w)?)', text_upper)
+
+        dollar_matches = re.findall(r"\$([A-Z]{1,5}(?:\.\w)?)", text_upper)
         for match in dollar_matches:
             if match in self.alias_to_ticker:
                 ticker_symbol = self.alias_to_ticker[match]
@@ -117,7 +122,7 @@ class TickerLinker:
                     ticker=ticker_symbol,
                     confidence=0.9,  # High confidence for $SYMBOL
                     matched_terms=[f"${match}"],
-                    reasoning=["dollar_symbol_format"]
+                    reasoning=["dollar_symbol_format"],
                 )
                 ticker_links.append(ticker_link)
 
@@ -128,10 +133,114 @@ class TickerLinker:
         # 3. Other tickers: normal word boundaries
 
         # First, identify common word tickers and single character tickers
-        common_words = {'NOW', 'DAY', 'OUT', 'TIME', 'WEEK', 'GOOD', 'ALL', 'ARE', 'NEW', 'OLD', 'ONE', 'TWO', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'BIG', 'SMALL', 'HIGH', 'LOW', 'HOT', 'COLD', 'FAST', 'SLOW', 'HARD', 'SOFT', 'LONG', 'SHORT', 'WIDE', 'NARROW', 'DEEP', 'SHALLOW', 'THICK', 'THIN', 'HEAVY', 'LIGHT', 'STRONG', 'WEAK', 'RICH', 'POOR', 'YOUNG', 'FRESH', 'STALE', 'CLEAN', 'DIRTY', 'DRY', 'WET', 'FULL', 'EMPTY', 'OPEN', 'CLOSED', 'FREE', 'BUSY', 'QUIET', 'LOUD', 'BRIGHT', 'DARK', 'EASY', 'SIMPLE', 'COMPLEX', 'SAFE', 'DANGEROUS', 'HAPPY', 'SAD', 'BAD', 'BEST', 'WORST', 'BETTER', 'WORSE', 'LARGE', 'TINY', 'HUGE', 'MINI', 'MAXI', 'MEGA', 'MICRO', 'MACRO', 'SUPER', 'ULTRA', 'HYPER', 'MULTI', 'UNI', 'BI', 'TRI', 'QUAD', 'PENTA', 'HEXA', 'HEPTA', 'OCTA', 'NONA', 'DECA', 'CENTI', 'MILLI', 'KILO', 'GIGA', 'TERA', 'PETA', 'EXA', 'ZETTA', 'YOTTA'}
+        common_words = {
+            "NOW",
+            "DAY",
+            "OUT",
+            "TIME",
+            "WEEK",
+            "GOOD",
+            "ALL",
+            "ARE",
+            "NEW",
+            "OLD",
+            "ONE",
+            "TWO",
+            "FOUR",
+            "FIVE",
+            "SIX",
+            "SEVEN",
+            "EIGHT",
+            "NINE",
+            "TEN",
+            "BIG",
+            "SMALL",
+            "HIGH",
+            "LOW",
+            "HOT",
+            "COLD",
+            "FAST",
+            "SLOW",
+            "HARD",
+            "SOFT",
+            "LONG",
+            "SHORT",
+            "WIDE",
+            "NARROW",
+            "DEEP",
+            "SHALLOW",
+            "THICK",
+            "THIN",
+            "HEAVY",
+            "LIGHT",
+            "STRONG",
+            "WEAK",
+            "RICH",
+            "POOR",
+            "YOUNG",
+            "FRESH",
+            "STALE",
+            "CLEAN",
+            "DIRTY",
+            "DRY",
+            "WET",
+            "FULL",
+            "EMPTY",
+            "OPEN",
+            "CLOSED",
+            "FREE",
+            "BUSY",
+            "QUIET",
+            "LOUD",
+            "BRIGHT",
+            "DARK",
+            "EASY",
+            "SIMPLE",
+            "COMPLEX",
+            "SAFE",
+            "DANGEROUS",
+            "HAPPY",
+            "SAD",
+            "BAD",
+            "BEST",
+            "WORST",
+            "BETTER",
+            "WORSE",
+            "LARGE",
+            "TINY",
+            "HUGE",
+            "MINI",
+            "MAXI",
+            "MEGA",
+            "MICRO",
+            "MACRO",
+            "SUPER",
+            "ULTRA",
+            "HYPER",
+            "MULTI",
+            "UNI",
+            "BI",
+            "TRI",
+            "QUAD",
+            "PENTA",
+            "HEXA",
+            "HEPTA",
+            "OCTA",
+            "NONA",
+            "DECA",
+            "CENTI",
+            "MILLI",
+            "KILO",
+            "GIGA",
+            "TERA",
+            "PETA",
+            "EXA",
+            "ZETTA",
+            "YOTTA",
+        }
 
         # Find all potential ticker symbols
-        symbol_pattern = r'(?<![A-Za-z0-9])([A-Z]{1,5}(?:\.\w)?)(?![A-Za-z0-9])'
+        symbol_pattern = r"(?<![A-Za-z0-9])([A-Z]{1,5}(?:\.\w)?)(?![A-Za-z0-9])"
         symbol_matches = re.findall(symbol_pattern, text_upper)
 
         for match in symbol_matches:
@@ -156,7 +265,7 @@ class TickerLinker:
                     ticker=ticker_symbol,
                     confidence=0.7,  # Medium confidence for symbol match
                     matched_terms=[match],
-                    reasoning=["ticker_symbol"]
+                    reasoning=["ticker_symbol"],
                 )
                 ticker_links.append(ticker_link)
 
@@ -211,7 +320,111 @@ class TickerLinker:
         symbol_matches = re.findall(symbol_pattern, text.upper())
 
         # Define common words that should only match with $ prefix
-        common_words = {'NOW', 'DAY', 'OUT', 'TIME', 'WEEK', 'GOOD', 'ALL', 'ARE', 'NEW', 'OLD', 'ONE', 'TWO', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'BIG', 'SMALL', 'HIGH', 'LOW', 'HOT', 'COLD', 'FAST', 'SLOW', 'HARD', 'SOFT', 'LONG', 'SHORT', 'WIDE', 'NARROW', 'DEEP', 'SHALLOW', 'THICK', 'THIN', 'HEAVY', 'LIGHT', 'STRONG', 'WEAK', 'RICH', 'POOR', 'YOUNG', 'FRESH', 'STALE', 'CLEAN', 'DIRTY', 'DRY', 'WET', 'FULL', 'EMPTY', 'OPEN', 'CLOSED', 'FREE', 'BUSY', 'QUIET', 'LOUD', 'BRIGHT', 'DARK', 'EASY', 'SIMPLE', 'COMPLEX', 'SAFE', 'DANGEROUS', 'HAPPY', 'SAD', 'BAD', 'BEST', 'WORST', 'BETTER', 'WORSE', 'LARGE', 'TINY', 'HUGE', 'MINI', 'MAXI', 'MEGA', 'MICRO', 'MACRO', 'SUPER', 'ULTRA', 'HYPER', 'MULTI', 'UNI', 'BI', 'TRI', 'QUAD', 'PENTA', 'HEXA', 'HEPTA', 'OCTA', 'NONA', 'DECA', 'CENTI', 'MILLI', 'KILO', 'GIGA', 'TERA', 'PETA', 'EXA', 'ZETTA', 'YOTTA'}
+        common_words = {
+            "NOW",
+            "DAY",
+            "OUT",
+            "TIME",
+            "WEEK",
+            "GOOD",
+            "ALL",
+            "ARE",
+            "NEW",
+            "OLD",
+            "ONE",
+            "TWO",
+            "FOUR",
+            "FIVE",
+            "SIX",
+            "SEVEN",
+            "EIGHT",
+            "NINE",
+            "TEN",
+            "BIG",
+            "SMALL",
+            "HIGH",
+            "LOW",
+            "HOT",
+            "COLD",
+            "FAST",
+            "SLOW",
+            "HARD",
+            "SOFT",
+            "LONG",
+            "SHORT",
+            "WIDE",
+            "NARROW",
+            "DEEP",
+            "SHALLOW",
+            "THICK",
+            "THIN",
+            "HEAVY",
+            "LIGHT",
+            "STRONG",
+            "WEAK",
+            "RICH",
+            "POOR",
+            "YOUNG",
+            "FRESH",
+            "STALE",
+            "CLEAN",
+            "DIRTY",
+            "DRY",
+            "WET",
+            "FULL",
+            "EMPTY",
+            "OPEN",
+            "CLOSED",
+            "FREE",
+            "BUSY",
+            "QUIET",
+            "LOUD",
+            "BRIGHT",
+            "DARK",
+            "EASY",
+            "SIMPLE",
+            "COMPLEX",
+            "SAFE",
+            "DANGEROUS",
+            "HAPPY",
+            "SAD",
+            "BAD",
+            "BEST",
+            "WORST",
+            "BETTER",
+            "WORSE",
+            "LARGE",
+            "TINY",
+            "HUGE",
+            "MINI",
+            "MAXI",
+            "MEGA",
+            "MICRO",
+            "MACRO",
+            "SUPER",
+            "ULTRA",
+            "HYPER",
+            "MULTI",
+            "UNI",
+            "BI",
+            "TRI",
+            "QUAD",
+            "PENTA",
+            "HEXA",
+            "HEPTA",
+            "OCTA",
+            "NONA",
+            "DECA",
+            "CENTI",
+            "MILLI",
+            "KILO",
+            "GIGA",
+            "TERA",
+            "PETA",
+            "EXA",
+            "ZETTA",
+            "YOTTA",
+        }
 
         for match in symbol_matches:
             if match in self.alias_to_ticker:
@@ -243,8 +456,9 @@ class TickerLinker:
 
         return matches
 
-
-    def link_article(self, article: Article, use_title_only: bool = True) -> list[TickerLinkDTO]:
+    def link_article(
+        self, article: Article, use_title_only: bool = True
+    ) -> list[TickerLinkDTO]:
         """Link an article to relevant tickers with context analysis.
 
         Args:
@@ -255,7 +469,7 @@ class TickerLinker:
             List of TickerLinkDTO with confidence and reasoning
         """
         # Fast path for Reddit comments - skip complex analysis
-        if article.source == 'reddit_comment':
+        if article.source == "reddit_comment":
             return self._fast_reddit_comment_linking(article)
 
         # Extract text for matching
@@ -286,7 +500,7 @@ class TickerLinker:
                     ticker=ticker_symbol,
                     confidence=confidence,
                     matched_terms=matched_terms,
-                    reasoning=reasoning
+                    reasoning=reasoning,
                 )
                 ticker_links.append(ticker_link)
 
@@ -311,7 +525,7 @@ class TickerLinker:
             article_ticker = ArticleTicker(
                 ticker=link.ticker,
                 confidence=link.confidence,
-                matched_terms=link.matched_terms
+                matched_terms=link.matched_terms,
             )
             article_tickers.append(article_ticker)
 
@@ -390,7 +604,9 @@ class TickerLinker:
             List of tuples (article, ticker_links)
         """
         # First pass: Link articles with existing content to find potential matches
-        logger.info(f"First pass: Linking {len(articles)} articles with existing content")
+        logger.info(
+            f"First pass: Linking {len(articles)} articles with existing content"
+        )
         initial_results = []
         articles_needing_scraping = []
 
@@ -406,18 +622,28 @@ class TickerLinker:
         # Pre-filter articles that need scraping based on title content
         if articles_needing_scraping:
             potential_matches = self._quick_title_filter(articles_needing_scraping)
-            logger.info(f"Title filter: {len(potential_matches)}/{len(articles_needing_scraping)} articles have potential matches in title")
+            logger.info(
+                f"Title filter: {len(potential_matches)}/{len(articles_needing_scraping)} articles have potential matches in title"
+            )
             articles_needing_scraping = potential_matches
 
         # Only scrape articles that might have ticker matches but no content
         if articles_needing_scraping:
-            logger.info(f"Second pass: Scraping content for {len(articles_needing_scraping)} articles with potential matches")
+            logger.info(
+                f"Second pass: Scraping content for {len(articles_needing_scraping)} articles with potential matches"
+            )
             urls_to_scrape = [article.url for article in articles_needing_scraping]
-            scraped_content = self.content_scraper.scrape_articles_multithreaded(urls_to_scrape)
+            scraped_content = self.content_scraper.scrape_articles_multithreaded(
+                urls_to_scrape
+            )
 
             # Re-link articles with scraped content
             for i, (article, ticker_links) in enumerate(initial_results):
-                if article in articles_needing_scraping and article.url in scraped_content and scraped_content[article.url]:
+                if (
+                    article in articles_needing_scraping
+                    and article.url in scraped_content
+                    and scraped_content[article.url]
+                ):
                     # Temporarily set the text content for linking
                     original_text = article.text
                     article.text = scraped_content[article.url]
@@ -481,8 +707,7 @@ class TickerLinker:
             article_tickers = []
             for link in ticker_links:
                 article_ticker = ArticleTicker(
-                    ticker=link.ticker,
-                    confidence=link.confidence
+                    ticker=link.ticker, confidence=link.confidence
                 )
                 article_tickers.append(article_ticker)
 

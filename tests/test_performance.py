@@ -78,10 +78,15 @@ class TestPerformance:
             articles.append(article)
 
         # Test ticker linking performance
-        with patch('ingest.linker.get_content_scraper'), \
-             patch('ingest.linker.get_context_analyzer') as mock_context:
+        with (
+            patch("ingest.linker.get_content_scraper"),
+            patch("ingest.linker.get_context_analyzer") as mock_context,
+        ):
 
-            mock_context.return_value.analyze_ticker_relevance.return_value = (0.8, ["Strong context"])
+            mock_context.return_value.analyze_ticker_relevance.return_value = (
+                0.8,
+                ["Strong context"],
+            )
 
             linker = TickerLinker(sample_tickers)
 
@@ -112,13 +117,15 @@ class TestPerformance:
             test_texts.append(text)
 
         # Test VADER sentiment performance
-        with patch('app.services.sentiment.SentimentIntensityAnalyzer') as mock_analyzer_class:
+        with patch(
+            "app.services.sentiment.SentimentIntensityAnalyzer"
+        ) as mock_analyzer_class:
             mock_analyzer = Mock()
             mock_analyzer.polarity_scores.return_value = {
-                'pos': 0.6,
-                'neu': 0.3,
-                'neg': 0.1,
-                'compound': 0.5
+                "pos": 0.6,
+                "neu": 0.3,
+                "neg": 0.1,
+                "compound": 0.5,
             }
             mock_analyzer_class.return_value = mock_analyzer
 
@@ -151,8 +158,12 @@ class TestPerformance:
             test_texts.append(text)
 
         # Test hybrid sentiment performance
-        with patch('app.services.hybrid_sentiment.get_llm_sentiment_service') as mock_llm, \
-             patch('app.services.hybrid_sentiment.get_sentiment_service') as mock_vader:
+        with (
+            patch(
+                "app.services.hybrid_sentiment.get_llm_sentiment_service"
+            ) as mock_llm,
+            patch("app.services.hybrid_sentiment.get_sentiment_service") as mock_vader,
+        ):
 
             mock_llm_service = Mock()
             mock_llm_service.analyze_sentiment.return_value = 0.7
@@ -176,10 +187,14 @@ class TestPerformance:
 
             # Verify results
             assert len(results) == 20
-            assert all(score == 0.7 for score in results)  # Should use LLM since it's stronger
+            assert all(
+                score == 0.7 for score in results
+            )  # Should use LLM since it's stronger
             assert analysis_time < 30.0  # Should analyze 20 texts in under 30 seconds
 
-            print(f"Analyzed {len(results)} texts with hybrid service in {analysis_time:.2f} seconds")
+            print(
+                f"Analyzed {len(results)} texts with hybrid service in {analysis_time:.2f} seconds"
+            )
             print(f"Average time per text: {analysis_time/len(results)*1000:.2f} ms")
 
     def test_database_operations_performance(self, db_session, sample_tickers):
@@ -233,7 +248,9 @@ class TestPerformance:
         db_time = end_time - start_time
 
         # Verify results
-        assert db_time < 5.0  # Should insert 100 articles + 300 ticker links in under 5 seconds
+        assert (
+            db_time < 5.0
+        )  # Should insert 100 articles + 300 ticker links in under 5 seconds
 
         # Verify data in database
         article_count = db_session.query(Article).count()
@@ -242,7 +259,9 @@ class TestPerformance:
         assert article_count == 100
         assert ticker_link_count == 300
 
-        print(f"Inserted {article_count} articles and {ticker_link_count} ticker links in {db_time:.2f} seconds")
+        print(
+            f"Inserted {article_count} articles and {ticker_link_count} ticker links in {db_time:.2f} seconds"
+        )
         print(f"Average time per article: {db_time/article_count*1000:.2f} ms")
 
     def test_memory_usage_performance(self, sample_tickers):
@@ -278,10 +297,15 @@ class TestPerformance:
         after_articles_memory = process.memory_info().rss / 1024 / 1024  # MB
 
         # Test ticker linking
-        with patch('ingest.linker.get_content_scraper'), \
-             patch('ingest.linker.get_context_analyzer') as mock_context:
+        with (
+            patch("ingest.linker.get_content_scraper"),
+            patch("ingest.linker.get_context_analyzer") as mock_context,
+        ):
 
-            mock_context.return_value.analyze_ticker_relevance.return_value = (0.8, ["Strong context"])
+            mock_context.return_value.analyze_ticker_relevance.return_value = (
+                0.8,
+                ["Strong context"],
+            )
 
             linker = TickerLinker(sample_tickers)
 
@@ -303,8 +327,12 @@ class TestPerformance:
 
             print("Memory usage:")
             print(f"  Initial: {initial_memory:.2f} MB")
-            print(f"  After articles: {after_articles_memory:.2f} MB (+{articles_memory:.2f} MB)")
-            print(f"  After linking: {after_linking_memory:.2f} MB (+{linking_memory:.2f} MB)")
+            print(
+                f"  After articles: {after_articles_memory:.2f} MB (+{articles_memory:.2f} MB)"
+            )
+            print(
+                f"  After linking: {after_linking_memory:.2f} MB (+{linking_memory:.2f} MB)"
+            )
             print(f"  Total increase: {total_memory:.2f} MB")
             print(f"  Memory per article: {total_memory/len(articles)*1024:.2f} KB")
 
@@ -332,10 +360,15 @@ class TestPerformance:
             articles.append(article)
 
         # Test sequential processing
-        with patch('ingest.linker.get_content_scraper'), \
-             patch('ingest.linker.get_context_analyzer') as mock_context:
+        with (
+            patch("ingest.linker.get_content_scraper"),
+            patch("ingest.linker.get_context_analyzer") as mock_context,
+        ):
 
-            mock_context.return_value.analyze_ticker_relevance.return_value = (0.8, ["Strong context"])
+            mock_context.return_value.analyze_ticker_relevance.return_value = (
+                0.8,
+                ["Strong context"],
+            )
 
             linker = TickerLinker(sample_tickers)
 
@@ -356,7 +389,10 @@ class TestPerformance:
                 return linker.link_article(article, use_title_only=True)
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                future_to_article = {executor.submit(process_article, article): article for article in articles}
+                future_to_article = {
+                    executor.submit(process_article, article): article
+                    for article in articles
+                }
 
                 for future in concurrent.futures.as_completed(future_to_article):
                     links = future.result()
@@ -373,21 +409,28 @@ class TestPerformance:
 
             # Concurrent processing should be faster (though not always due to GIL)
             # Just verify it completes successfully
-            assert concurrent_time < sequential_time * 2  # Should not be more than 2x slower
+            assert (
+                concurrent_time < sequential_time * 2
+            )  # Should not be more than 2x slower
 
     def test_large_text_processing_performance(self):
         """Test performance with large text inputs."""
         # Create large text
-        large_text = "This is a test about $AAPL, $TSLA, $NVDA, $GME, $AMC, $SPY, $QQQ, $MSFT, $GOOGL, $AMZN. " * 100
+        large_text = (
+            "This is a test about $AAPL, $TSLA, $NVDA, $GME, $AMC, $SPY, $QQQ, $MSFT, $GOOGL, $AMZN. "
+            * 100
+        )
 
         # Test sentiment analysis with large text
-        with patch('app.services.sentiment.SentimentIntensityAnalyzer') as mock_analyzer_class:
+        with patch(
+            "app.services.sentiment.SentimentIntensityAnalyzer"
+        ) as mock_analyzer_class:
             mock_analyzer = Mock()
             mock_analyzer.polarity_scores.return_value = {
-                'pos': 0.6,
-                'neu': 0.3,
-                'neg': 0.1,
-                'compound': 0.5
+                "pos": 0.6,
+                "neu": 0.3,
+                "neg": 0.1,
+                "compound": 0.5,
             }
             mock_analyzer_class.return_value = mock_analyzer
 
@@ -403,8 +446,12 @@ class TestPerformance:
             assert result == 0.5
             assert analysis_time < 1.0  # Should analyze large text in under 1 second
 
-            print(f"Analyzed large text ({len(large_text)} chars) in {analysis_time:.2f} seconds")
-            print(f"Processing rate: {len(large_text)/analysis_time/1000:.2f} Kchars/sec")
+            print(
+                f"Analyzed large text ({len(large_text)} chars) in {analysis_time:.2f} seconds"
+            )
+            print(
+                f"Processing rate: {len(large_text)/analysis_time/1000:.2f} Kchars/sec"
+            )
 
     def test_batch_processing_performance(self, db_session, sample_tickers):
         """Test batch processing performance."""
@@ -433,10 +480,15 @@ class TestPerformance:
             articles.append(article)
 
         # Test batch processing
-        with patch('ingest.linker.get_content_scraper'), \
-             patch('ingest.linker.get_context_analyzer') as mock_context:
+        with (
+            patch("ingest.linker.get_content_scraper"),
+            patch("ingest.linker.get_context_analyzer") as mock_context,
+        ):
 
-            mock_context.return_value.analyze_ticker_relevance.return_value = (0.8, ["Strong context"])
+            mock_context.return_value.analyze_ticker_relevance.return_value = (
+                0.8,
+                ["Strong context"],
+            )
 
             linker = TickerLinker(sample_tickers)
 
@@ -447,7 +499,7 @@ class TestPerformance:
             total_links = 0
 
             for i in range(0, len(articles), batch_size):
-                batch = articles[i:i + batch_size]
+                batch = articles[i : i + batch_size]
                 batch_links = linker.link_articles_to_db(batch)
                 total_links += sum(len(links) for _, links in batch_links)
 
@@ -458,7 +510,8 @@ class TestPerformance:
             assert total_links > 0
             assert batch_time < 15.0  # Should process 200 articles in under 15 seconds
 
-            print(f"Processed {len(articles)} articles in batches of {batch_size} in {batch_time:.2f} seconds")
+            print(
+                f"Processed {len(articles)} articles in batches of {batch_size} in {batch_time:.2f} seconds"
+            )
             print(f"Average time per article: {batch_time/len(articles)*1000:.2f} ms")
             print(f"Total ticker links: {total_links}")
-

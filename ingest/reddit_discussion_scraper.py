@@ -56,7 +56,9 @@ class RedditDiscussionScraper:
             List of daily discussion thread submissions
         """
         if not self.reddit:
-            raise RuntimeError("Reddit instance not initialized. Call initialize_reddit first.")
+            raise RuntimeError(
+                "Reddit instance not initialized. Call initialize_reddit first."
+            )
 
         try:
             subreddit = self.reddit.subreddit(subreddit_name)
@@ -75,10 +77,19 @@ class RedditDiscussionScraper:
             daily_discussions = []
             for post in posts:
                 title_lower = post.title.lower()
-                if any(keyword in title_lower for keyword in ["daily discussion", "weekend discussion", "moves tomorrow"]):
+                if any(
+                    keyword in title_lower
+                    for keyword in [
+                        "daily discussion",
+                        "weekend discussion",
+                        "moves tomorrow",
+                    ]
+                ):
                     daily_discussions.append(post)
 
-            logger.info(f"Found {len(daily_discussions)} discussion threads in r/{subreddit_name}")
+            logger.info(
+                f"Found {len(daily_discussions)} discussion threads in r/{subreddit_name}"
+            )
             return daily_discussions
 
         except Exception as e:
@@ -102,7 +113,9 @@ class RedditDiscussionScraper:
 
         try:
             # Expand comments with limit for testing
-            submission.comments.replace_more(limit=2)  # Limit to 2 "more comments" expansions
+            submission.comments.replace_more(
+                limit=2
+            )  # Limit to 2 "more comments" expansions
 
             comments = []
             comment_count = 0
@@ -119,14 +132,18 @@ class RedditDiscussionScraper:
                 comments.append(comment)
                 comment_count += 1
 
-            logger.info(f"Extracted {len(comments)} comments from thread: {submission.title}")
+            logger.info(
+                f"Extracted {len(comments)} comments from thread: {submission.title}"
+            )
             return comments
 
         except Exception as e:
             logger.error(f"Error extracting comments: {e}")
             return []
 
-    def parse_comment_to_article(self, comment: Comment, parent_submission: Submission) -> Article:
+    def parse_comment_to_article(
+        self, comment: Comment, parent_submission: Submission
+    ) -> Article:
         """Parse a Reddit comment into an Article object.
 
         Args:
@@ -199,10 +216,14 @@ class RedditDiscussionScraper:
             all_articles = []
 
             for i, thread in enumerate(processed_threads, 1):
-                logger.info(f"Processing thread {i}/{len(processed_threads)}: {thread.title}")
+                logger.info(
+                    f"Processing thread {i}/{len(processed_threads)}: {thread.title}"
+                )
 
                 # Extract comments from thread
-                comments = self.extract_comments_from_thread(thread, max_comments_per_thread)
+                comments = self.extract_comments_from_thread(
+                    thread, max_comments_per_thread
+                )
 
                 # Convert comments to articles
                 thread_articles = []
@@ -215,7 +236,9 @@ class RedditDiscussionScraper:
                         continue
 
                 all_articles.extend(thread_articles)
-                logger.info(f"Processed {len(thread_articles)} comments from thread: {thread.title}")
+                logger.info(
+                    f"Processed {len(thread_articles)} comments from thread: {thread.title}"
+                )
 
             logger.info(f"Total articles created from comments: {len(all_articles)}")
             return all_articles
@@ -224,7 +247,9 @@ class RedditDiscussionScraper:
             logger.error(f"Error scraping discussion comments: {e}")
             return []
 
-    def get_discussion_thread_info(self, subreddit_name: str = "wallstreetbets") -> list[dict]:
+    def get_discussion_thread_info(
+        self, subreddit_name: str = "wallstreetbets"
+    ) -> list[dict]:
         """Get information about available discussion threads.
 
         Args:
@@ -237,7 +262,9 @@ class RedditDiscussionScraper:
             raise RuntimeError("Reddit instance not initialized.")
 
         try:
-            discussion_threads = self.find_daily_discussion_threads(subreddit_name, limit=20)
+            discussion_threads = self.find_daily_discussion_threads(
+                subreddit_name, limit=20
+            )
 
             thread_info = []
             for thread in discussion_threads:
@@ -276,7 +303,10 @@ class RedditDiscussionScraper:
             threads = self.find_daily_discussion_threads(subreddit_name, limit=10)
 
             if not threads:
-                return {"status": "no_threads", "message": f"No discussion threads found in r/{subreddit_name}"}
+                return {
+                    "status": "no_threads",
+                    "message": f"No discussion threads found in r/{subreddit_name}",
+                }
 
             # Test with the first thread
             test_thread = threads[0]
@@ -303,10 +333,14 @@ class RedditDiscussionScraper:
                     {
                         "author": article.author,
                         "upvotes": article.upvotes,
-                        "text_preview": article.text[:100] + "..." if len(article.text) > 100 else article.text
+                        "text_preview": (
+                            article.text[:100] + "..."
+                            if len(article.text) > 100
+                            else article.text
+                        ),
                     }
                     for article in articles[:3]
-                ]
+                ],
             }
 
         except Exception as e:

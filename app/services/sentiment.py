@@ -109,6 +109,7 @@ def get_sentiment_service_hybrid():
     """
     # Import here to avoid circular imports
     from app.services.hybrid_sentiment import get_hybrid_sentiment_service
+
     return get_hybrid_sentiment_service()
 
 

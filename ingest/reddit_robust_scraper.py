@@ -68,11 +68,15 @@ class RedditRobustScraper:
         if len(self.request_times) >= self.requests_per_minute:
             sleep_time = 60 - (current_time - self.request_times[0]) + 1
             if sleep_time > 0:
-                logger.info(f"Rate limit approaching, sleeping for {sleep_time:.1f} seconds...")
+                logger.info(
+                    f"Rate limit approaching, sleeping for {sleep_time:.1f} seconds..."
+                )
                 time.sleep(sleep_time)
                 # Clean up old requests after sleep
                 current_time = time.time()
-                self.request_times = [t for t in self.request_times if current_time - t < 60]
+                self.request_times = [
+                    t for t in self.request_times if current_time - t < 60
+                ]
 
         # Record this request
         self.request_times.append(current_time)
@@ -124,7 +128,9 @@ class RedditRobustScraper:
                     # For large threads, we'll expand in smaller chunks
                     submission.comments.replace_more(limit=None)
                 else:
-                    logger.info(f"Expanding up to {max_replace_more} 'more comments'...")
+                    logger.info(
+                        f"Expanding up to {max_replace_more} 'more comments'..."
+                    )
                     submission.comments.replace_more(limit=max_replace_more)
 
                 # Get flattened list of ALL comments
@@ -137,16 +143,22 @@ class RedditRobustScraper:
                         valid_comments.append(comment)
 
                 elapsed_time = time.time() - start_time
-                logger.info(f"Extracted {len(valid_comments)} valid comments out of {len(all_comments)} total in {elapsed_time:.2f}s")
+                logger.info(
+                    f"Extracted {len(valid_comments)} valid comments out of {len(all_comments)} total in {elapsed_time:.2f}s"
+                )
 
                 return valid_comments
 
             except Exception as e:
                 if self._handle_rate_limit_error(e) and attempt < max_retries:
-                    logger.info(f"Retrying comment extraction (attempt {attempt + 2}/{max_retries + 1})...")
+                    logger.info(
+                        f"Retrying comment extraction (attempt {attempt + 2}/{max_retries + 1})..."
+                    )
                     continue
                 else:
-                    logger.error(f"Error extracting comments after {attempt + 1} attempts: {e}")
+                    logger.error(
+                        f"Error extracting comments after {attempt + 1} attempts: {e}"
+                    )
                     return []
 
         return []
@@ -155,7 +167,7 @@ class RedditRobustScraper:
         self,
         submission: Submission,
         skip_existing: bool = True,
-        max_replace_more: int = None
+        max_replace_more: int = None,
     ) -> dict[str, int]:
         """Scrape a thread with robust error handling and incremental saving.
 
@@ -186,25 +198,38 @@ class RedditRobustScraper:
                     total_comments=submission.num_comments,
                     scraped_comments=0,
                     is_complete=False,
-                    created_at=datetime.now(UTC)
+                    created_at=datetime.now(UTC),
                 )
                 db.add(thread_record)
                 db.commit()
                 logger.info("Created new thread record")
 
             # Extract comments with rate limit handling
-            all_comments = self.extract_comments_with_retry(submission, max_replace_more)
+            all_comments = self.extract_comments_with_retry(
+                submission, max_replace_more
+            )
 
             if not all_comments:
                 logger.warning("No comments extracted from thread")
-                return {"total_comments": 0, "new_comments": 0, "processed_articles": 0, "ticker_links": 0}
+                return {
+                    "total_comments": 0,
+                    "new_comments": 0,
+                    "processed_articles": 0,
+                    "ticker_links": 0,
+                }
 
             # Get existing comment IDs if skipping existing
             existing_comment_ids = set()
             if skip_existing:
-                existing_articles = db.execute(
-                    select(Article.reddit_id).where(Article.source == "reddit_comment")
-                ).scalars().all()
+                existing_articles = (
+                    db.execute(
+                        select(Article.reddit_id).where(
+                            Article.source == "reddit_comment"
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
                 existing_comment_ids = set(existing_articles)
 
             # Filter new comments
@@ -213,7 +238,9 @@ class RedditRobustScraper:
                 if comment.id not in existing_comment_ids:
                     new_comments.append(comment)
 
-            logger.info(f"Found {len(new_comments)} new comments out of {len(all_comments)} total")
+            logger.info(
+                f"Found {len(new_comments)} new comments out of {len(all_comments)} total"
+            )
 
             if not new_comments:
                 logger.info("No new comments to process")
@@ -221,11 +248,18 @@ class RedditRobustScraper:
                 thread_record.scraped_comments = len(all_comments)
                 thread_record.is_complete = True
                 db.commit()
-                return {"total_comments": len(all_comments), "new_comments": 0, "processed_articles": 0, "ticker_links": 0}
+                return {
+                    "total_comments": len(all_comments),
+                    "new_comments": 0,
+                    "processed_articles": 0,
+                    "ticker_links": 0,
+                }
 
             # Get tickers for linking
             tickers = db.execute(select(Ticker)).scalars().all()
-            linker = TickerLinker(tickers, max_scraping_workers=self.max_scraping_workers)
+            linker = TickerLinker(
+                tickers, max_scraping_workers=self.max_scraping_workers
+            )
 
             # Process comments with incremental saving
             processed_articles = 0
@@ -233,12 +267,16 @@ class RedditRobustScraper:
             processed_count = 0
             batch_count = 0
 
-            logger.info(f"Processing {len(new_comments)} comments with incremental saving every {self.batch_save_interval} comments")
+            logger.info(
+                f"Processing {len(new_comments)} comments with incremental saving every {self.batch_save_interval} comments"
+            )
 
             for _i, comment in enumerate(new_comments):
                 try:
                     # Parse comment to article
-                    article = self.discussion_scraper.parse_comment_to_article(comment, submission)
+                    article = self.discussion_scraper.parse_comment_to_article(
+                        comment, submission
+                    )
 
                     # Add article to database
                     db.add(article)
@@ -266,10 +304,14 @@ class RedditRobustScraper:
                         try:
                             db.commit()
                             batch_count += 1
-                            logger.info(f"💾 Saved batch {batch_count}: {processed_count}/{len(new_comments)} comments processed")
+                            logger.info(
+                                f"💾 Saved batch {batch_count}: {processed_count}/{len(new_comments)} comments processed"
+                            )
 
                             # Update thread progress
-                            thread_record.scraped_comments = max(thread_record.scraped_comments, processed_count)
+                            thread_record.scraped_comments = max(
+                                thread_record.scraped_comments, processed_count
+                            )
                             thread_record.last_scraped_at = datetime.now(UTC)
                             db.commit()
 
@@ -279,7 +321,9 @@ class RedditRobustScraper:
 
                     # Log progress every 50 comments
                     if processed_count % 50 == 0:
-                        logger.info(f"Processed {processed_count}/{len(new_comments)} comments...")
+                        logger.info(
+                            f"Processed {processed_count}/{len(new_comments)} comments..."
+                        )
 
                 except IntegrityError as e:
                     logger.warning(f"Integrity error for comment {comment.id}: {e}")
@@ -316,13 +360,18 @@ class RedditRobustScraper:
                 "new_comments": len(new_comments),
                 "processed_articles": processed_articles,
                 "ticker_links": total_ticker_links,
-                "batches_saved": batch_count
+                "batches_saved": batch_count,
             }
 
         except Exception as e:
             logger.error(f"Error in robust thread scraping: {e}")
             db.rollback()
-            return {"total_comments": 0, "new_comments": 0, "processed_articles": 0, "ticker_links": 0}
+            return {
+                "total_comments": 0,
+                "new_comments": 0,
+                "processed_articles": 0,
+                "ticker_links": 0,
+            }
         finally:
             db.close()
 
@@ -330,7 +379,7 @@ class RedditRobustScraper:
         self,
         subreddit_name: str = "wallstreetbets",
         max_threads: int = 1,
-        max_replace_more: int = None
+        max_replace_more: int = None,
     ) -> dict[str, Any]:
         """Scrape latest daily discussion threads with robust error handling.
 
@@ -345,7 +394,9 @@ class RedditRobustScraper:
         if not self.reddit:
             raise RuntimeError("Reddit instance not initialized.")
 
-        logger.info(f"Starting robust scraping of latest {max_threads} daily threads from r/{subreddit_name}")
+        logger.info(
+            f"Starting robust scraping of latest {max_threads} daily threads from r/{subreddit_name}"
+        )
 
         # Find daily discussion threads
         discussion_threads = self.discussion_scraper.find_daily_discussion_threads(
@@ -354,7 +405,13 @@ class RedditRobustScraper:
 
         if not discussion_threads:
             logger.warning("No daily discussion threads found")
-            return {"threads_processed": 0, "total_comments": 0, "new_comments": 0, "articles": 0, "ticker_links": 0}
+            return {
+                "threads_processed": 0,
+                "total_comments": 0,
+                "new_comments": 0,
+                "articles": 0,
+                "ticker_links": 0,
+            }
 
         logger.info(f"Found {len(discussion_threads)} daily discussion threads")
 
@@ -364,14 +421,18 @@ class RedditRobustScraper:
             "new_comments": 0,
             "articles": 0,
             "ticker_links": 0,
-            "batches_saved": 0
+            "batches_saved": 0,
         }
 
         for i, thread in enumerate(discussion_threads, 1):
-            logger.info(f"Processing thread {i}/{len(discussion_threads)}: {thread.title}")
+            logger.info(
+                f"Processing thread {i}/{len(discussion_threads)}: {thread.title}"
+            )
 
             try:
-                stats = self.scrape_thread_robust(thread, skip_existing=True, max_replace_more=max_replace_more)
+                stats = self.scrape_thread_robust(
+                    thread, skip_existing=True, max_replace_more=max_replace_more
+                )
 
                 total_stats["threads_processed"] += 1
                 total_stats["total_comments"] += stats["total_comments"]
@@ -380,7 +441,9 @@ class RedditRobustScraper:
                 total_stats["ticker_links"] += stats["ticker_links"]
                 total_stats["batches_saved"] += stats.get("batches_saved", 0)
 
-                logger.info(f"✅ Thread {i} completed: {stats['new_comments']} new comments, {stats['processed_articles']} articles")
+                logger.info(
+                    f"✅ Thread {i} completed: {stats['new_comments']} new comments, {stats['processed_articles']} articles"
+                )
 
             except Exception as e:
                 logger.error(f"❌ Error processing thread {i}: {e}")
@@ -392,7 +455,9 @@ class RedditRobustScraper:
 
 def main():
     """Main function for robust Reddit scraping."""
-    parser = argparse.ArgumentParser(description="Robust Reddit thread scraper with rate limit handling")
+    parser = argparse.ArgumentParser(
+        description="Robust Reddit thread scraper with rate limit handling"
+    )
     parser.add_argument(
         "--max-threads",
         type=int,
@@ -441,7 +506,7 @@ def main():
         results = scraper.scrape_latest_daily_threads_robust(
             subreddit_name=args.subreddit,
             max_threads=args.max_threads,
-            max_replace_more=args.max_replace_more
+            max_replace_more=args.max_replace_more,
         )
 
         logger.info("🎉 Robust scraping completed successfully:")

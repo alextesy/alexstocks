@@ -13,23 +13,27 @@ def clean_sample_data() -> None:
     db = SessionLocal()
     try:
         # Delete sample articles
-        sample_articles = db.query(Article).filter(Article.source == 'sample').all()
+        sample_articles = db.query(Article).filter(Article.source == "sample").all()
         if sample_articles:
             sample_article_ids = [a.id for a in sample_articles]
             # Delete article-ticker links
-            db.query(ArticleTicker).filter(ArticleTicker.article_id.in_(sample_article_ids)).delete()
+            db.query(ArticleTicker).filter(
+                ArticleTicker.article_id.in_(sample_article_ids)
+            ).delete()
             # Delete articles
-            db.query(Article).filter(Article.source == 'sample').delete()
+            db.query(Article).filter(Article.source == "sample").delete()
             logger.info(f"Deleted {len(sample_articles)} sample articles")
 
         # Delete test articles
-        test_articles = db.query(Article).filter(Article.source == 'test').all()
+        test_articles = db.query(Article).filter(Article.source == "test").all()
         if test_articles:
             test_article_ids = [a.id for a in test_articles]
             # Delete article-ticker links
-            db.query(ArticleTicker).filter(ArticleTicker.article_id.in_(test_article_ids)).delete()
+            db.query(ArticleTicker).filter(
+                ArticleTicker.article_id.in_(test_article_ids)
+            ).delete()
             # Delete articles
-            db.query(Article).filter(Article.source == 'test').delete()
+            db.query(Article).filter(Article.source == "test").delete()
             logger.info(f"Deleted {len(test_articles)} test articles")
 
         db.commit()

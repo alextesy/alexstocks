@@ -30,13 +30,11 @@ class TestRedditParser:
         client_secret = "test_client_secret"
         user_agent = "test_user_agent"
 
-        with patch('praw.Reddit') as mock_praw:
+        with patch("praw.Reddit") as mock_praw:
             self.parser.initialize_reddit(client_id, client_secret, user_agent)
 
             mock_praw.assert_called_once_with(
-                client_id=client_id,
-                client_secret=client_secret,
-                user_agent=user_agent
+                client_id=client_id, client_secret=client_secret, user_agent=user_agent
             )
 
     def test_parse_submission(self):
@@ -68,7 +66,10 @@ class TestRedditParser:
         assert article.upvotes == 100
         assert article.num_comments == 50
         assert article.url == "https://reddit.com/r/wallstreetbets/comments/test123/"
-        assert article.reddit_url == "https://reddit.com/r/wallstreetbets/comments/test123/"
+        assert (
+            article.reddit_url
+            == "https://reddit.com/r/wallstreetbets/comments/test123/"
+        )
         assert article.published_at == datetime(2022, 1, 1, 0, 0, 0, tzinfo=UTC)
 
     def test_parse_submission_no_selftext(self):
@@ -115,7 +116,9 @@ class TestRedditParser:
         mock_subreddit.top.return_value = mock_posts
         self.mock_reddit.subreddit.return_value = mock_subreddit
 
-        posts = self.parser.fetch_subreddit_posts("wallstreetbets", limit=50, time_filter="day")
+        posts = self.parser.fetch_subreddit_posts(
+            "wallstreetbets", limit=50, time_filter="day"
+        )
 
         assert len(posts) == 3
         self.mock_reddit.subreddit.assert_called_once_with("wallstreetbets")
@@ -165,7 +168,9 @@ class TestRedditParser:
         mock_subreddit.top.return_value = [mock_submission1, mock_submission2]
         self.mock_reddit.subreddit.return_value = mock_subreddit
 
-        articles = self.parser.parse_subreddit_posts("test", limit=10, time_filter="week")
+        articles = self.parser.parse_subreddit_posts(
+            "test", limit=10, time_filter="week"
+        )
 
         assert len(articles) == 2
         assert articles[0].title == "Post 1"
@@ -216,9 +221,7 @@ class TestRedditParser:
         self.mock_reddit.subreddit.side_effect = [mock_subreddit1, mock_subreddit2]
 
         articles = self.parser.parse_multiple_subreddits(
-            ["wallstreetbets", "investing"],
-            limit_per_subreddit=5,
-            time_filter="day"
+            ["wallstreetbets", "investing"], limit_per_subreddit=5, time_filter="day"
         )
 
         assert len(articles) == 3  # 1 + 2
@@ -238,7 +241,7 @@ class TestRedditDiscussionScraper:
         client_secret = "test_client_secret"
         user_agent = "test_user_agent"
 
-        with patch('praw.Reddit') as mock_praw:
+        with patch("praw.Reddit") as mock_praw:
             self.scraper.initialize_reddit(client_id, client_secret, user_agent)
 
             mock_praw.assert_called_once_with(
@@ -249,7 +252,7 @@ class TestRedditDiscussionScraper:
 
     def test_initialize_reddit_error(self):
         """Test error handling during Reddit initialization."""
-        with patch('praw.Reddit', side_effect=Exception("Connection failed")):
+        with patch("praw.Reddit", side_effect=Exception("Connection failed")):
             with pytest.raises(Exception, match="Connection failed"):
                 self.scraper.initialize_reddit("id", "secret", "agent")
 
@@ -325,7 +328,9 @@ class TestRedditFullScraper:
         client_secret = "test_client_secret"
         user_agent = "test_user_agent"
 
-        with patch.object(self.scraper.discussion_scraper, 'initialize_reddit') as mock_init:
+        with patch.object(
+            self.scraper.discussion_scraper, "initialize_reddit"
+        ) as mock_init:
             self.scraper.initialize_reddit(client_id, client_secret, user_agent)
             mock_init.assert_called_once_with(client_id, client_secret, user_agent)
 
@@ -368,7 +373,9 @@ class TestRedditIncrementalScraper:
         client_secret = "test_client_secret"
         user_agent = "test_user_agent"
 
-        with patch.object(self.scraper.discussion_scraper, 'initialize_reddit') as mock_init:
+        with patch.object(
+            self.scraper.discussion_scraper, "initialize_reddit"
+        ) as mock_init:
             self.scraper.initialize_reddit(client_id, client_secret, user_agent)
             mock_init.assert_called_once_with(client_id, client_secret, user_agent)
 
@@ -376,12 +383,13 @@ class TestRedditIncrementalScraper:
 class TestRedditIngestion:
     """Test Reddit data ingestion pipeline."""
 
-    @patch('ingest.reddit.SessionLocal')
-    @patch('ingest.reddit.get_reddit_credentials')
-    @patch('ingest.reddit.RedditParser')
-    @patch('ingest.reddit.TickerLinker')
-    def test_ingest_reddit_data_success(self, mock_linker_class, mock_parser_class,
-                                      mock_credentials, mock_session_local):
+    @patch("ingest.reddit.SessionLocal")
+    @patch("ingest.reddit.get_reddit_credentials")
+    @patch("ingest.reddit.RedditParser")
+    @patch("ingest.reddit.TickerLinker")
+    def test_ingest_reddit_data_success(
+        self, mock_linker_class, mock_parser_class, mock_credentials, mock_session_local
+    ):
         """Test successful Reddit data ingestion."""
         # Mock credentials
         mock_credentials.return_value = ("client_id", "client_secret", "user_agent")
@@ -393,7 +401,9 @@ class TestRedditIngestion:
         # Mock tickers
         mock_ticker = Mock()
         mock_ticker.symbol = "AAPL"
-        mock_db.execute.return_value.scalars.return_value.all.return_value = [mock_ticker]
+        mock_db.execute.return_value.scalars.return_value.all.return_value = [
+            mock_ticker
+        ]
 
         # Mock parser
         mock_parser = Mock()
@@ -408,16 +418,20 @@ class TestRedditIngestion:
         mock_linker.link_articles_to_db.return_value = [(mock_article, [])]
 
         # Mock upsert function
-        with patch('ingest.reddit.upsert_reddit_article', return_value=mock_article):
+        with patch("ingest.reddit.upsert_reddit_article", return_value=mock_article):
             ingest_reddit_data(subreddits=["wallstreetbets"], limit_per_subreddit=10)
 
         # Verify calls
         mock_credentials.assert_called_once()
-        mock_parser.initialize_reddit.assert_called_once_with("client_id", "client_secret", "user_agent")
-        mock_parser.parse_multiple_subreddits.assert_called_once_with(["wallstreetbets"], 10, "day")
+        mock_parser.initialize_reddit.assert_called_once_with(
+            "client_id", "client_secret", "user_agent"
+        )
+        mock_parser.parse_multiple_subreddits.assert_called_once_with(
+            ["wallstreetbets"], 10, "day"
+        )
         mock_linker.link_articles_to_db.assert_called_once_with([mock_article])
 
-    @patch('ingest.reddit.get_reddit_credentials')
+    @patch("ingest.reddit.get_reddit_credentials")
     def test_ingest_reddit_data_credentials_error(self, mock_credentials):
         """Test ingestion with invalid credentials."""
         mock_credentials.side_effect = ValueError("Invalid credentials")
@@ -425,8 +439,8 @@ class TestRedditIngestion:
         # Should not raise exception, just log error
         ingest_reddit_data()
 
-    @patch('ingest.reddit.SessionLocal')
-    @patch('ingest.reddit.get_reddit_credentials')
+    @patch("ingest.reddit.SessionLocal")
+    @patch("ingest.reddit.get_reddit_credentials")
     def test_ingest_reddit_data_no_tickers(self, mock_credentials, mock_session_local):
         """Test ingestion when no tickers are found."""
         mock_credentials.return_value = ("client_id", "client_secret", "user_agent")
@@ -437,10 +451,14 @@ class TestRedditIngestion:
         # Should not raise exception, just log error
         ingest_reddit_data()
 
-    @patch('ingest.reddit.get_reddit_credentials')
+    @patch("ingest.reddit.get_reddit_credentials")
     def test_get_reddit_credentials(self, mock_credentials):
         """Test getting Reddit credentials from environment."""
-        mock_credentials.return_value = ("test_client_id", "test_client_secret", "test_user_agent")
+        mock_credentials.return_value = (
+            "test_client_id",
+            "test_client_secret",
+            "test_user_agent",
+        )
 
         client_id, client_secret, user_agent = get_reddit_credentials()
 
@@ -460,7 +478,9 @@ class TestRedditScrapingIntegration:
         mock_submission = Mock()
         mock_submission.id = "abc123"
         mock_submission.title = "🚀 $GME to the moon! Diamond hands! 💎🙌"
-        mock_submission.selftext = "Just bought more shares. This is not financial advice."
+        mock_submission.selftext = (
+            "Just bought more shares. This is not financial advice."
+        )
         mock_submission.permalink = "/r/wallstreetbets/comments/abc123/gme_to_the_moon/"
         mock_submission.created_utc = 1640995200
         mock_submission.author = Mock()
@@ -485,7 +505,9 @@ class TestRedditScrapingIntegration:
         # Mock comment with various ticker formats
         mock_comment = Mock()
         mock_comment.id = "comment456"
-        mock_comment.body = "I'm bullish on $AAPL, $TSLA, and NVDA. Also watching SPY and QQQ."
+        mock_comment.body = (
+            "I'm bullish on $AAPL, $TSLA, and NVDA. Also watching SPY and QQQ."
+        )
         mock_comment.created_utc = 1640995200
         mock_comment.author = Mock()
         mock_comment.author.name = "trader_pro"

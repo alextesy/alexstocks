@@ -28,7 +28,11 @@ def query_articles_by_source() -> None:
     """Query articles grouped by source."""
     db = SessionLocal()
     try:
-        sources = db.query(Article.source, func.count(Article.id)).group_by(Article.source).all()
+        sources = (
+            db.query(Article.source, func.count(Article.id))
+            .group_by(Article.source)
+            .all()
+        )
         print("\n=== ARTICLES BY SOURCE ===")
         for source, count in sources:
             print(f"{source}: {count} articles")
@@ -44,11 +48,11 @@ def query_top_tickers(limit: int = 10) -> None:
             db.query(
                 Ticker.symbol,
                 Ticker.name,
-                func.count(ArticleTicker.article_id).label('article_count')
+                func.count(ArticleTicker.article_id).label("article_count"),
             )
             .outerjoin(ArticleTicker)
             .group_by(Ticker.symbol, Ticker.name)
-            .order_by(desc('article_count'))
+            .order_by(desc("article_count"))
             .limit(limit)
             .all()
         )
@@ -65,15 +69,14 @@ def query_recent_articles(limit: int = 10) -> None:
     db = SessionLocal()
     try:
         recent = (
-            db.query(Article)
-            .order_by(desc(Article.published_at))
-            .limit(limit)
-            .all()
+            db.query(Article).order_by(desc(Article.published_at)).limit(limit).all()
         )
 
         print(f"\n=== RECENT {limit} ARTICLES ===")
         for article in recent:
-            print(f"{article.published_at.strftime('%Y-%m-%d %H:%M')} | {article.source} | {article.title[:80]}...")
+            print(
+                f"{article.published_at.strftime('%Y-%m-%d %H:%M')} | {article.source} | {article.title[:80]}..."
+            )
     finally:
         db.close()
 
@@ -91,9 +94,13 @@ def query_ticker_articles(ticker_symbol: str, limit: int = 10) -> None:
             .all()
         )
 
-        print(f"\n=== ARTICLES FOR {ticker_symbol.upper()} (showing {len(articles)}) ===")
+        print(
+            f"\n=== ARTICLES FOR {ticker_symbol.upper()} (showing {len(articles)}) ==="
+        )
         for article, confidence in articles:
-            print(f"{article.published_at.strftime('%Y-%m-%d %H:%M')} | {confidence:.2f} | {article.title[:80]}...")
+            print(
+                f"{article.published_at.strftime('%Y-%m-%d %H:%M')} | {confidence:.2f} | {article.title[:80]}..."
+            )
     finally:
         db.close()
 
@@ -112,9 +119,13 @@ def query_articles_by_date_range(days_back: int = 7) -> None:
             .all()
         )
 
-        print(f"\n=== ARTICLES FROM LAST {days_back} DAYS (showing {len(articles)}) ===")
+        print(
+            f"\n=== ARTICLES FROM LAST {days_back} DAYS (showing {len(articles)}) ==="
+        )
         for article in articles:
-            print(f"{article.published_at.strftime('%Y-%m-%d %H:%M')} | {article.source} | {article.title[:80]}...")
+            print(
+                f"{article.published_at.strftime('%Y-%m-%d %H:%M')} | {article.source} | {article.title[:80]}..."
+            )
     finally:
         db.close()
 
@@ -135,7 +146,11 @@ def query_database_stats() -> None:
         print(f"Total Article-Ticker Links: {link_count}")
 
         # Articles by source
-        sources = db.query(Article.source, func.count(Article.id)).group_by(Article.source).all()
+        sources = (
+            db.query(Article.source, func.count(Article.id))
+            .group_by(Article.source)
+            .all()
+        )
         print("\nArticles by Source:")
         for source, count in sources:
             print(f"  {source}: {count}")
@@ -155,11 +170,24 @@ def main() -> None:
     """Main function for database queries."""
     parser = argparse.ArgumentParser(description="Query Market Pulse database")
     parser.add_argument("--tickers", action="store_true", help="Show all tickers")
-    parser.add_argument("--sources", action="store_true", help="Show articles by source")
-    parser.add_argument("--top-tickers", type=int, metavar="N", help="Show top N tickers by article count")
-    parser.add_argument("--recent", type=int, metavar="N", help="Show N recent articles")
-    parser.add_argument("--ticker", type=str, metavar="SYMBOL", help="Show articles for specific ticker")
-    parser.add_argument("--days", type=int, metavar="N", help="Show articles from last N days")
+    parser.add_argument(
+        "--sources", action="store_true", help="Show articles by source"
+    )
+    parser.add_argument(
+        "--top-tickers",
+        type=int,
+        metavar="N",
+        help="Show top N tickers by article count",
+    )
+    parser.add_argument(
+        "--recent", type=int, metavar="N", help="Show N recent articles"
+    )
+    parser.add_argument(
+        "--ticker", type=str, metavar="SYMBOL", help="Show articles for specific ticker"
+    )
+    parser.add_argument(
+        "--days", type=int, metavar="N", help="Show articles from last N days"
+    )
     parser.add_argument("--stats", action="store_true", help="Show database statistics")
     parser.add_argument("--all", action="store_true", help="Show all queries")
 

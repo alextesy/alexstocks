@@ -30,7 +30,7 @@ def run_monthly_scraping(
     max_replace_more: int = 10,
     max_workers: int = 5,
     skip_existing: bool = True,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> bool:
     """Run monthly Reddit discussion scraping.
 
@@ -51,12 +51,20 @@ def run_monthly_scraping(
     try:
         # Build command
         cmd = [
-            "uv", "run", "python", "app/jobs/scrape_monthly_discussions.py",
-            "--subreddit", subreddit,
-            "--days-back", str(days_back),
-            "--max-threads", str(max_threads),
-            "--max-replace-more", str(max_replace_more),
-            "--workers", str(max_workers)
+            "uv",
+            "run",
+            "python",
+            "app/jobs/scrape_monthly_discussions.py",
+            "--subreddit",
+            subreddit,
+            "--days-back",
+            str(days_back),
+            "--max-threads",
+            str(max_threads),
+            "--max-replace-more",
+            str(max_replace_more),
+            "--workers",
+            str(max_workers),
         ]
 
         if not skip_existing:
@@ -74,7 +82,9 @@ def run_monthly_scraping(
                 logger.debug(f"Scraping output: {result.stdout}")
             return True
         else:
-            logger.error(f"Monthly Reddit scraping failed with return code {result.returncode}")
+            logger.error(
+                f"Monthly Reddit scraping failed with return code {result.returncode}"
+            )
             logger.error(f"Error output: {result.stderr}")
             return False
 
@@ -88,7 +98,7 @@ def run_sentiment_analysis(
     source_filter: str = "reddit",
     hours_back: int = 720,  # 30 days in hours
     max_workers: int = 6,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> bool:
     """Run sentiment analysis on newly scraped data.
 
@@ -102,15 +112,23 @@ def run_sentiment_analysis(
     Returns:
         True if successful, False otherwise
     """
-    logger.info(f"Starting sentiment analysis for {source_filter} articles from last {hours_back} hours...")
+    logger.info(
+        f"Starting sentiment analysis for {source_filter} articles from last {hours_back} hours..."
+    )
 
     try:
         # Build command
         cmd = [
-            "uv", "run", "python", "app/jobs/analyze_sentiment.py",
-            "--source", source_filter,
-            "--hours-back", str(hours_back),
-            "--max-workers", str(max_workers)
+            "uv",
+            "run",
+            "python",
+            "app/jobs/analyze_sentiment.py",
+            "--source",
+            source_filter,
+            "--hours-back",
+            str(hours_back),
+            "--max-workers",
+            str(max_workers),
         ]
 
         if max_articles:
@@ -128,7 +146,9 @@ def run_sentiment_analysis(
                 logger.debug(f"Sentiment output: {result.stdout}")
             return True
         else:
-            logger.error(f"Sentiment analysis failed with return code {result.returncode}")
+            logger.error(
+                f"Sentiment analysis failed with return code {result.returncode}"
+            )
             logger.error(f"Error output: {result.stderr}")
             return False
 
@@ -146,7 +166,7 @@ def run_combined_monthly_job(
     sentiment_workers: int = 6,
     hours_back: int = 720,  # 30 days in hours
     skip_existing: bool = True,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> None:
     """Run combined monthly scraping and sentiment analysis job.
 
@@ -163,8 +183,12 @@ def run_combined_monthly_job(
     """
     setup_logging(verbose)
 
-    logger.info(f"Starting combined monthly scraping and sentiment analysis job for r/{subreddit}")
-    logger.info(f"Looking back {days_back} days, processing up to {max_threads} threads")
+    logger.info(
+        f"Starting combined monthly scraping and sentiment analysis job for r/{subreddit}"
+    )
+    logger.info(
+        f"Looking back {days_back} days, processing up to {max_threads} threads"
+    )
 
     # Step 1: Run monthly scraping
     scraping_success = run_monthly_scraping(
@@ -174,7 +198,7 @@ def run_combined_monthly_job(
         max_replace_more=max_replace_more,
         max_workers=scraping_workers,
         skip_existing=skip_existing,
-        verbose=verbose
+        verbose=verbose,
     )
 
     if not scraping_success:
@@ -186,20 +210,24 @@ def run_combined_monthly_job(
         source_filter="reddit",
         hours_back=hours_back,
         max_workers=sentiment_workers,
-        verbose=verbose
+        verbose=verbose,
     )
 
     if sentiment_success:
         logger.info("✅ Combined monthly job completed successfully!")
         logger.info(f"📊 Processed {days_back} days of r/{subreddit} daily discussions")
-        logger.info(f"🧠 Analyzed sentiment for articles from the last {hours_back} hours")
+        logger.info(
+            f"🧠 Analyzed sentiment for articles from the last {hours_back} hours"
+        )
     else:
         logger.error("❌ Sentiment analysis failed")
 
 
 def main() -> None:
     """Main CLI entry point."""
-    parser = argparse.ArgumentParser(description="Combined monthly Reddit scraping and sentiment analysis job")
+    parser = argparse.ArgumentParser(
+        description="Combined monthly Reddit scraping and sentiment analysis job"
+    )
 
     parser.add_argument(
         "--subreddit",
@@ -266,7 +294,7 @@ def main() -> None:
             sentiment_workers=args.sentiment_workers,
             hours_back=args.hours_back,
             skip_existing=not args.include_existing,
-            verbose=args.verbose
+            verbose=args.verbose,
         )
     except KeyboardInterrupt:
         logger.info("Job interrupted by user")

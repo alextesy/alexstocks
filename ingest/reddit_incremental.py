@@ -117,12 +117,14 @@ def show_status(subreddit: str = "wallstreetbets") -> None:
         print(f"Total threads tracked: {status['total_threads']}")
         print(f"Total comments scraped: {status['total_comments_scraped']:,}")
 
-        if status['recent_threads']:
+        if status["recent_threads"]:
             print("\n📋 Recent Threads:")
-            for i, thread in enumerate(status['recent_threads'][:5], 1):
+            for i, thread in enumerate(status["recent_threads"][:5], 1):
                 print(f"\n{i}. {thread['title']}")
                 print(f"   Type: {thread['type']}")
-                print(f"   Comments: {thread['scraped_comments']:,}/{thread['total_comments']:,} ({thread['completion_rate']})")
+                print(
+                    f"   Comments: {thread['scraped_comments']:,}/{thread['total_comments']:,} ({thread['completion_rate']})"
+                )
                 print(f"   Last scraped: {thread['last_scraped'] or 'Never'}")
                 print(f"   Complete: {'✅' if thread['is_complete'] else '⏳'}")
 
@@ -132,7 +134,9 @@ def show_status(subreddit: str = "wallstreetbets") -> None:
 
 def main() -> None:
     """Main CLI entry point."""
-    parser = argparse.ArgumentParser(description="Incremental Reddit discussion scraping CLI")
+    parser = argparse.ArgumentParser(
+        description="Incremental Reddit discussion scraping CLI"
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 

@@ -40,9 +40,10 @@ class VelocityService:
             .join(ArticleTicker, Article.id == ArticleTicker.article_id)
             .filter(
                 ArticleTicker.ticker == ticker.upper(),
-                Article.published_at >= recent_window
+                Article.published_at >= recent_window,
             )
-            .scalar() or 0
+            .scalar()
+            or 0
         )
 
         # Get baseline average (daily average over baseline period)
@@ -52,9 +53,10 @@ class VelocityService:
             .filter(
                 ArticleTicker.ticker == ticker.upper(),
                 Article.published_at >= baseline_start,
-                Article.published_at < recent_window
+                Article.published_at < recent_window,
             )
-            .scalar() or 0
+            .scalar()
+            or 0
         )
 
         # Calculate daily baseline average
@@ -63,7 +65,9 @@ class VelocityService:
 
         # Calculate velocity score (simplified z-score)
         if baseline_avg > 0:
-            velocity_score = (recent_count - baseline_avg) / (baseline_avg + 1)  # +1 to avoid division issues
+            velocity_score = (recent_count - baseline_avg) / (
+                baseline_avg + 1
+            )  # +1 to avoid division issues
         else:
             velocity_score = 1.0 if recent_count > 0 else 0.0
 
@@ -74,10 +78,12 @@ class VelocityService:
             "recent_count": recent_count,
             "baseline_avg": round(baseline_avg, 2),
             "velocity_score": round(velocity_score, 2),
-            "level": level
+            "level": level,
         }
 
-    def _get_velocity_level(self, recent_count: int, baseline_avg: float, velocity_score: float) -> VelocityLevel:
+    def _get_velocity_level(
+        self, recent_count: int, baseline_avg: float, velocity_score: float
+    ) -> VelocityLevel:
         """Determine velocity level based on counts and score."""
         # High: Significant increase from baseline OR high absolute count
         if recent_count >= 10 or (baseline_avg > 0 and velocity_score > 1.0):
@@ -102,7 +108,7 @@ class VelocityService:
                 "color": "red",
                 "bg_color": "bg-red-100",
                 "text_color": "text-red-800",
-                "icon": "🔥"
+                "icon": "🔥",
             }
         elif level == "medium":
             return {
@@ -110,7 +116,7 @@ class VelocityService:
                 "color": "yellow",
                 "bg_color": "bg-yellow-100",
                 "text_color": "text-yellow-800",
-                "icon": "📊"
+                "icon": "📊",
             }
         else:
             return {
@@ -118,11 +124,10 @@ class VelocityService:
                 "color": "gray",
                 "bg_color": "bg-gray-100",
                 "text_color": "text-gray-800",
-                "icon": "📉"
+                "icon": "📉",
             }
 
 
 def get_velocity_service(session: Session) -> VelocityService:
     """Factory function to get velocity service instance."""
     return VelocityService(session)
-

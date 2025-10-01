@@ -34,8 +34,16 @@ class TestTickerLinker:
         self.mock_content_scraper = Mock()
         self.mock_context_analyzer = Mock()
 
-        with patch('ingest.linker.get_content_scraper', return_value=self.mock_content_scraper), \
-             patch('ingest.linker.get_context_analyzer', return_value=self.mock_context_analyzer):
+        with (
+            patch(
+                "ingest.linker.get_content_scraper",
+                return_value=self.mock_content_scraper,
+            ),
+            patch(
+                "ingest.linker.get_context_analyzer",
+                return_value=self.mock_context_analyzer,
+            ),
+        ):
             self.linker = TickerLinker(self.mock_tickers, max_scraping_workers=5)
 
     def test_initialization(self):
@@ -60,7 +68,9 @@ class TestTickerLinker:
         article = Mock()
         article.source = "reddit"  # Set source to reddit
         article.title = "Apple stock is going to the moon! $AAPL"
-        article.text = "This is the full article text with more details about Apple Inc."
+        article.text = (
+            "This is the full article text with more details about Apple Inc."
+        )
         article.url = "https://example.com/article"
 
         text = self.linker._extract_text_for_matching(article, use_title_only=True)
@@ -161,9 +171,14 @@ class TestTickerLinker:
         article.text = "I'm bullish on $AAPL and $TSLA"
 
         # Mock the fast path method
-        with patch.object(self.linker, '_fast_reddit_comment_linking') as mock_fast:
+        with patch.object(self.linker, "_fast_reddit_comment_linking") as mock_fast:
             mock_fast.return_value = [
-                TickerLinkDTO(ticker="AAPL", confidence=0.8, matched_terms=["$AAPL"], reasoning=["Direct mention"])
+                TickerLinkDTO(
+                    ticker="AAPL",
+                    confidence=0.8,
+                    matched_terms=["$AAPL"],
+                    reasoning=["Direct mention"],
+                )
             ]
 
             result = self.linker.link_article(article, use_title_only=True)
@@ -181,7 +196,10 @@ class TestTickerLinker:
         article.url = "https://example.com/apple-news"
 
         # Mock context analyzer
-        self.mock_context_analyzer.analyze_ticker_relevance.return_value = (0.9, ["Strong financial context"])
+        self.mock_context_analyzer.analyze_ticker_relevance.return_value = (
+            0.9,
+            ["Strong financial context"],
+        )
 
         result = self.linker.link_article(article, use_title_only=False)
 
@@ -202,7 +220,10 @@ class TestTickerLinker:
         article.url = "https://example.com/random"
 
         # Mock context analyzer to return low confidence
-        self.mock_context_analyzer.analyze_ticker_relevance.return_value = (0.3, ["Weak context"])
+        self.mock_context_analyzer.analyze_ticker_relevance.return_value = (
+            0.3,
+            ["Weak context"],
+        )
 
         result = self.linker.link_article(article, use_title_only=False)
 
@@ -214,7 +235,9 @@ class TestTickerLinker:
         article = Mock()
         article.source = "reddit"
         article.title = "Tech stocks analysis"
-        article.text = "I'm bullish on $AAPL, $TSLA, and $NVDA. All three are great investments."
+        article.text = (
+            "I'm bullish on $AAPL, $TSLA, and $NVDA. All three are great investments."
+        )
         article.url = "https://example.com/tech-analysis"
 
         # Mock context analyzer for different confidences
@@ -256,11 +279,21 @@ class TestTickerLinker:
         article.id = 123
 
         ticker_links = [
-            TickerLinkDTO(ticker="AAPL", confidence=0.9, matched_terms=["$AAPL"], reasoning=["Strong context"]),
-            TickerLinkDTO(ticker="TSLA", confidence=0.8, matched_terms=["$TSLA"], reasoning=["Good context"])
+            TickerLinkDTO(
+                ticker="AAPL",
+                confidence=0.9,
+                matched_terms=["$AAPL"],
+                reasoning=["Strong context"],
+            ),
+            TickerLinkDTO(
+                ticker="TSLA",
+                confidence=0.8,
+                matched_terms=["$TSLA"],
+                reasoning=["Good context"],
+            ),
         ]
 
-        with patch.object(self.linker, 'link_article', return_value=ticker_links):
+        with patch.object(self.linker, "link_article", return_value=ticker_links):
             result = self.linker.link_article_to_db(article)
 
         assert len(result) == 2
@@ -281,10 +314,10 @@ class TestTickerLinker:
         articles[1].id = 2
 
         # Mock link_article_to_db for each article
-        with patch.object(self.linker, 'link_article_to_db') as mock_link:
+        with patch.object(self.linker, "link_article_to_db") as mock_link:
             mock_link.side_effect = [
                 [Mock(ticker="AAPL")],  # First article
-                [Mock(ticker="TSLA"), Mock(ticker="NVDA")]  # Second article
+                [Mock(ticker="TSLA"), Mock(ticker="NVDA")],  # Second article
             ]
 
             result = self.linker.link_articles_to_db(articles)
@@ -303,7 +336,7 @@ class TestTickerLinkDTO:
             ticker="AAPL",
             confidence=0.8,
             matched_terms=["$AAPL", "Apple"],
-            reasoning=["Direct mention", "Strong context"]
+            reasoning=["Direct mention", "Strong context"],
         )
 
         assert dto.ticker == "AAPL"
@@ -318,7 +351,7 @@ class TestTickerLinkDTO:
                 ticker="AAPL",
                 confidence=1.5,
                 matched_terms=["$AAPL"],
-                reasoning=["Test"]
+                reasoning=["Test"],
             )
 
     def test_invalid_confidence_too_low(self):
@@ -328,17 +361,14 @@ class TestTickerLinkDTO:
                 ticker="AAPL",
                 confidence=-0.1,
                 matched_terms=["$AAPL"],
-                reasoning=["Test"]
+                reasoning=["Test"],
             )
 
     def test_empty_ticker(self):
         """Test DTO validation with empty ticker."""
         with pytest.raises(ValueError, match="Ticker symbol cannot be empty"):
             TickerLinkDTO(
-                ticker="",
-                confidence=0.8,
-                matched_terms=["$AAPL"],
-                reasoning=["Test"]
+                ticker="", confidence=0.8, matched_terms=["$AAPL"], reasoning=["Test"]
             )
 
     def test_invalid_matched_terms_type(self):
@@ -348,7 +378,7 @@ class TestTickerLinkDTO:
                 ticker="AAPL",
                 confidence=0.8,
                 matched_terms="not a list",
-                reasoning=["Test"]
+                reasoning=["Test"],
             )
 
     def test_invalid_reasoning_type(self):
@@ -358,7 +388,7 @@ class TestTickerLinkDTO:
                 ticker="AAPL",
                 confidence=0.8,
                 matched_terms=["$AAPL"],
-                reasoning="not a list"
+                reasoning="not a list",
             )
 
 
@@ -383,8 +413,16 @@ class TestTickerLinkingRealWorldExamples:
         self.mock_content_scraper = Mock()
         self.mock_context_analyzer = Mock()
 
-        with patch('ingest.linker.get_content_scraper', return_value=self.mock_content_scraper), \
-             patch('ingest.linker.get_context_analyzer', return_value=self.mock_context_analyzer):
+        with (
+            patch(
+                "ingest.linker.get_content_scraper",
+                return_value=self.mock_content_scraper,
+            ),
+            patch(
+                "ingest.linker.get_context_analyzer",
+                return_value=self.mock_context_analyzer,
+            ),
+        ):
             self.linker = TickerLinker(self.mock_tickers, max_scraping_workers=5)
 
     def test_wallstreetbets_meme_stock_mentions(self):
@@ -396,10 +434,20 @@ class TestTickerLinkingRealWorldExamples:
         article.url = "https://reddit.com/comment"
 
         # Mock fast path for Reddit comments
-        with patch.object(self.linker, '_fast_reddit_comment_linking') as mock_fast:
+        with patch.object(self.linker, "_fast_reddit_comment_linking") as mock_fast:
             mock_fast.return_value = [
-                TickerLinkDTO(ticker="GME", confidence=0.95, matched_terms=["$GME"], reasoning=["Direct mention with rocket emoji"]),
-                TickerLinkDTO(ticker="AMC", confidence=0.9, matched_terms=["$AMC"], reasoning=["Direct mention"])
+                TickerLinkDTO(
+                    ticker="GME",
+                    confidence=0.95,
+                    matched_terms=["$GME"],
+                    reasoning=["Direct mention with rocket emoji"],
+                ),
+                TickerLinkDTO(
+                    ticker="AMC",
+                    confidence=0.9,
+                    matched_terms=["$AMC"],
+                    reasoning=["Direct mention"],
+                ),
             ]
 
             result = self.linker.link_article(article, use_title_only=True)
@@ -438,7 +486,10 @@ class TestTickerLinkingRealWorldExamples:
         article.text = "Microsoft $MSFT reported strong Q4 earnings. The stock is up 5% in after-hours trading."
         article.url = "https://reddit.com/msft-earnings"
 
-        self.mock_context_analyzer.analyze_ticker_relevance.return_value = (0.95, ["Earnings context"])
+        self.mock_context_analyzer.analyze_ticker_relevance.return_value = (
+            0.95,
+            ["Earnings context"],
+        )
 
         result = self.linker.link_article(article, use_title_only=False)
 
@@ -451,7 +502,9 @@ class TestTickerLinkingRealWorldExamples:
         article = Mock()
         article.source = "reddit"
         article.title = "SPY vs QQQ comparison"
-        article.text = "I'm comparing $SPY and $QQQ for my portfolio. Both are solid ETF choices."
+        article.text = (
+            "I'm comparing $SPY and $QQQ for my portfolio. Both are solid ETF choices."
+        )
         article.url = "https://reddit.com/etf-comparison"
 
         def mock_analyze(ticker, text, terms):
@@ -471,7 +524,9 @@ class TestTickerLinkingRealWorldExamples:
         article = Mock()
         article.source = "reddit"
         article.title = "Stock picks for 2024"
-        article.text = "I'm bullish on $aapl, $TSLA, nvda, and $GooGl. All are great tech stocks."
+        article.text = (
+            "I'm bullish on $aapl, $TSLA, nvda, and $GooGl. All are great tech stocks."
+        )
         article.url = "https://reddit.com/stock-picks"
 
         def mock_analyze(ticker, text, terms):
@@ -493,11 +548,16 @@ class TestTickerLinkingRealWorldExamples:
         article = Mock()
         article.source = "reddit"
         article.title = "I love apples and tesla cars"
-        article.text = "I bought some apples at the store and saw a Tesla car on the way home."
+        article.text = (
+            "I bought some apples at the store and saw a Tesla car on the way home."
+        )
         article.url = "https://reddit.com/random"
 
         # Mock context analyzer to return low confidence for false positives
-        self.mock_context_analyzer.analyze_ticker_relevance.return_value = (0.2, ["Weak context - likely false positive"])
+        self.mock_context_analyzer.analyze_ticker_relevance.return_value = (
+            0.2,
+            ["Weak context - likely false positive"],
+        )
 
         result = self.linker.link_article(article, use_title_only=False)
 
@@ -509,13 +569,25 @@ class TestTickerLinkingRealWorldExamples:
         article = Mock()
         article.source = "reddit_comment"
         article.title = "Comment"
-        article.text = "YOLO into $GME! 🚀💎🙌 This is the way! HODL! $AMC to the moon! 🌙"
+        article.text = (
+            "YOLO into $GME! 🚀💎🙌 This is the way! HODL! $AMC to the moon! 🌙"
+        )
         article.url = "https://reddit.com/comment"
 
-        with patch.object(self.linker, '_fast_reddit_comment_linking') as mock_fast:
+        with patch.object(self.linker, "_fast_reddit_comment_linking") as mock_fast:
             mock_fast.return_value = [
-                TickerLinkDTO(ticker="GME", confidence=0.9, matched_terms=["$GME"], reasoning=["YOLO mention with emojis"]),
-                TickerLinkDTO(ticker="AMC", confidence=0.85, matched_terms=["$AMC"], reasoning=["To the moon mention"])
+                TickerLinkDTO(
+                    ticker="GME",
+                    confidence=0.9,
+                    matched_terms=["$GME"],
+                    reasoning=["YOLO mention with emojis"],
+                ),
+                TickerLinkDTO(
+                    ticker="AMC",
+                    confidence=0.85,
+                    matched_terms=["$AMC"],
+                    reasoning=["To the moon mention"],
+                ),
             ]
 
             result = self.linker.link_article(article, use_title_only=True)

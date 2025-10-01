@@ -26,7 +26,7 @@ def migrate_ticker_table():
             "ALTER TABLE ticker ADD COLUMN IF NOT EXISTS exchange VARCHAR(50)",
             "ALTER TABLE ticker ADD COLUMN IF NOT EXISTS sources JSONB DEFAULT '[]'::jsonb",
             "ALTER TABLE ticker ADD COLUMN IF NOT EXISTS is_sp500 BOOLEAN DEFAULT FALSE",
-            "ALTER TABLE ticker ADD COLUMN IF NOT EXISTS cik VARCHAR(20)"
+            "ALTER TABLE ticker ADD COLUMN IF NOT EXISTS cik VARCHAR(20)",
         ]
 
         for command in alter_commands:
@@ -35,7 +35,9 @@ def migrate_ticker_table():
                 db.commit()
                 logger.info(f"Executed: {command}")
             except Exception as e:
-                logger.warning(f"Command may have already been executed: {command} - {e}")
+                logger.warning(
+                    f"Command may have already been executed: {command} - {e}"
+                )
                 db.rollback()
 
         # Create indexes
@@ -44,7 +46,7 @@ def migrate_ticker_table():
         index_commands = [
             "CREATE INDEX IF NOT EXISTS ticker_exchange_idx ON ticker(exchange)",
             "CREATE INDEX IF NOT EXISTS ticker_is_sp500_idx ON ticker(is_sp500)",
-            "CREATE INDEX IF NOT EXISTS ticker_cik_idx ON ticker(cik)"
+            "CREATE INDEX IF NOT EXISTS ticker_cik_idx ON ticker(cik)",
         ]
 
         for command in index_commands:
@@ -77,44 +79,48 @@ def migrate_ticker_table():
             for row in reader:
                 # Parse sources
                 sources = []
-                if row.get('sources'):
-                    sources = row['sources'].split(',')
+                if row.get("sources"):
+                    sources = row["sources"].split(",")
 
                 # Parse aliases
                 aliases = []
-                if row.get('aliases'):
+                if row.get("aliases"):
                     try:
-                        aliases = json.loads(row['aliases'])
+                        aliases = json.loads(row["aliases"])
                     except json.JSONDecodeError:
-                        logger.warning(f"Invalid aliases for {row['symbol']}: {row['aliases']}")
+                        logger.warning(
+                            f"Invalid aliases for {row['symbol']}: {row['aliases']}"
+                        )
 
                 # Parse boolean
-                is_sp500 = row.get('is_sp500', '').lower() in ('true', '1', 'yes')
+                is_sp500 = row.get("is_sp500", "").lower() in ("true", "1", "yes")
 
-                symbol = row['symbol']
+                symbol = row["symbol"]
 
                 # Check if ticker exists
-                existing_ticker = db.query(Ticker).filter(Ticker.symbol == symbol).first()
+                existing_ticker = (
+                    db.query(Ticker).filter(Ticker.symbol == symbol).first()
+                )
 
                 if existing_ticker:
                     # Update existing ticker
-                    existing_ticker.name = row['name']
-                    existing_ticker.exchange = row.get('exchange') or None
+                    existing_ticker.name = row["name"]
+                    existing_ticker.exchange = row.get("exchange") or None
                     existing_ticker.sources = sources
                     existing_ticker.aliases = aliases
                     existing_ticker.is_sp500 = is_sp500
-                    existing_ticker.cik = row.get('cik') or None
+                    existing_ticker.cik = row.get("cik") or None
                     tickers_updated += 1
                 else:
                     # Insert new ticker
                     ticker_data = {
-                        'symbol': symbol,
-                        'name': row['name'],
-                        'exchange': row.get('exchange') or None,
-                        'sources': sources,
-                        'aliases': aliases,
-                        'is_sp500': is_sp500,
-                        'cik': row.get('cik') or None
+                        "symbol": symbol,
+                        "name": row["name"],
+                        "exchange": row.get("exchange") or None,
+                        "sources": sources,
+                        "aliases": aliases,
+                        "is_sp500": is_sp500,
+                        "cik": row.get("cik") or None,
                     }
 
                     ticker = Ticker(**ticker_data)
@@ -124,18 +130,26 @@ def migrate_ticker_table():
                 # Commit in batches
                 if (tickers_updated + tickers_inserted) % batch_size == 0:
                     db.commit()
-                    logger.info(f"Processed {tickers_updated + tickers_inserted} tickers (updated: {tickers_updated}, inserted: {tickers_inserted})...")
+                    logger.info(
+                        f"Processed {tickers_updated + tickers_inserted} tickers (updated: {tickers_updated}, inserted: {tickers_inserted})..."
+                    )
 
             # Final commit
             db.commit()
 
-        logger.info(f"Successfully updated {tickers_updated} tickers and inserted {tickers_inserted} new tickers")
+        logger.info(
+            f"Successfully updated {tickers_updated} tickers and inserted {tickers_inserted} new tickers"
+        )
 
         # Verify data
         ticker_count = db.execute(text("SELECT COUNT(*) FROM ticker")).scalar()
-        sp500_count = db.execute(text("SELECT COUNT(*) FROM ticker WHERE is_sp500 = true")).scalar()
+        sp500_count = db.execute(
+            text("SELECT COUNT(*) FROM ticker WHERE is_sp500 = true")
+        ).scalar()
 
-        logger.info(f"Verification - Total tickers: {ticker_count}, S&P 500: {sp500_count}")
+        logger.info(
+            f"Verification - Total tickers: {ticker_count}, S&P 500: {sp500_count}"
+        )
 
         return True
 
@@ -145,8 +159,6 @@ def migrate_ticker_table():
         return False
     finally:
         db.close()
-
-
 
 
 def main():
