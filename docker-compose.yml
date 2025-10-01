@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: market_pulse
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
@@ -22,7 +22,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - POSTGRES_URL=postgresql+psycopg://postgres:postgres@postgres:5432/market_pulse
+      - POSTGRES_URL=postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/market_pulse
     depends_on:
       postgres:
         condition: service_healthy

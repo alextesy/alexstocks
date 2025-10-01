@@ -110,6 +110,6 @@ The app uses:
 
 ## Next Steps
 
-- Add GDELT data ingestion: `make ingest-24h`
 - Implement sentiment analysis
 - Add real-time data to the web interface
+- Add additional data sources beyond Reddit

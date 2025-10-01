@@ -1,0 +1,57 @@
+# Market Pulse 15-Minute Pipeline - Simple Setup
+# ==============================================
+# 
+# CORE PIPELINE: Scrape -> Link -> Sentiment Analysis
+# Runs every 15 minutes for real-time market sentiment
+#
+# Add these lines to your crontab (run: crontab -e):
+
+# Set PATH for cron environment
+PATH=/Users/alex/miniconda3/bin:/usr/local/bin:/usr/bin:/bin
+
+# Create log directory (run this once manually first)
+# mkdir -p /Users/alex/logs/market-pulse
+
+# ==============================================================================
+# 15-MINUTE PIPELINE
+# ==============================================================================
+
+# Every 15 minutes: Scrape Reddit comments with robust rate limiting
+*/15 * * * * cd /Users/alex/market-pulse-v2 && make reddit-robust-scrape >> /Users/alex/logs/market-pulse/15min-scraping.log 2>&1
+
+# Every 15 minutes: Analyze sentiment for new articles
+*/15 * * * * cd /Users/alex/market-pulse-v2 && make analyze-sentiment-recent >> /Users/alex/logs/market-pulse/15min-sentiment.log 2>&1
+
+# ==============================================================================
+# STOCK PRICES (Market Hours Only)
+# ==============================================================================
+
+# Stock prices every 15 minutes during market hours (6:30 AM - 1:00 PM PT, Mon-Fri)
+*/15 6-13 * * 1-5 cd /Users/alex/market-pulse-v2 && make collect-stock-prices >> /Users/alex/logs/market-pulse/15min-stock-prices.log 2>&1
+
+# ==============================================================================
+# DAILY MAINTENANCE
+# ==============================================================================
+
+# Daily status check at 9 AM PT
+0 9 * * * cd /Users/alex/market-pulse-v2 && make reddit-status >> /Users/alex/logs/market-pulse/daily-status.log 2>&1
+
+# ==============================================================================
+# WEEKEND MODE (Reduced Frequency)
+# ==============================================================================
+
+# Weekend: Scrape every hour instead of every 15 minutes
+0 * * * 0,6 cd /Users/alex/market-pulse-v2 && make reddit-robust-scrape >> /Users/alex/logs/market-pulse/weekend-scraping.log 2>&1
+
+# Weekend: Sentiment analysis every 2 hours
+0 */2 * * 0,6 cd /Users/alex/market-pulse-v2 && make analyze-sentiment-recent >> /Users/alex/logs/market-pulse/weekend-sentiment.log 2>&1
+
+# ==============================================================================
+# INSTALLATION STEPS:
+# ==============================================================================
+# 1. mkdir -p /Users/alex/logs/market-pulse
+# 2. crontab -e
+# 3. Paste the lines above
+# 4. Save and exit
+# 5. Verify: crontab -l
+# 6. Monitor: tail -f /Users/alex/logs/market-pulse/15min-scraping.log

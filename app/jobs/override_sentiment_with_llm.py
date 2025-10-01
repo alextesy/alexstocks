@@ -41,14 +41,14 @@ def get_articles_for_llm_override(
     force_all: bool = False
 ) -> List[Article]:
     """Get articles to override with LLM sentiment.
-    
+
     Args:
         db: Database session
         limit: Maximum number of articles to retrieve
-        source_filter: Filter by source (e.g., 'reddit', 'gdelt')
+        source_filter: Filter by source (e.g., 'reddit')
         hours_back: Only get articles from the last N hours
         force_all: If True, override all articles. If False, only override non-LLM sentiment
-        
+
     Returns:
         List of Article objects to process
     """
@@ -211,10 +211,10 @@ def run_llm_sentiment_override(
     verbose: bool = False
 ) -> None:
     """Override existing sentiment analysis with LLM sentiment.
-    
+
     Args:
         max_articles: Maximum number of articles to process
-        source_filter: Filter by source (e.g., 'reddit', 'gdelt')
+        source_filter: Filter by source (e.g., 'reddit')
         hours_back: Only process articles from the last N hours
         force_all: Override ALL articles, not just those without sentiment
         max_workers: Maximum number of parallel workers
@@ -294,9 +294,8 @@ def main() -> None:
     parser.add_argument(
         "--source",
         type=str,
-        choices=["reddit", "gdelt"],
         default=None,
-        help="Filter by source type",
+        help="Filter by source type (e.g., 'reddit')",
     )
     parser.add_argument(
         "--hours-back",

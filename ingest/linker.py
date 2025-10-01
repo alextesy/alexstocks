@@ -59,7 +59,7 @@ class TickerLinker:
             if article.text:
                 text_parts.append(article.text)
             text = " ".join(text_parts).lower()
-        # GDELT and other sources: use title + text + scraping if needed
+        # Other sources: use title + text + scraping if needed
         else:
             text_parts = []
 

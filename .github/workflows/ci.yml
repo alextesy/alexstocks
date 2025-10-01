@@ -1,0 +1,333 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master, develop ]
+
+env:
+  PYTHON_VERSION: "3.11"
+  UV_VERSION: "0.4.0"
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: market_pulse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: ${{ env.UV_VERSION }}
+
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-uv-
+
+    - name: Install dependencies
+      run: |
+        uv sync --dev
+
+    - name: Set up test environment
+      run: |
+        echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/market_pulse_test" >> $GITHUB_ENV
+        echo "REDDIT_CLIENT_ID=test_client_id" >> $GITHUB_ENV
+        echo "REDDIT_CLIENT_SECRET=test_client_secret" >> $GITHUB_ENV
+        echo "REDDIT_USER_AGENT=test_user_agent" >> $GITHUB_ENV
+        echo "SENTIMENT_USE_LLM=false" >> $GITHUB_ENV
+        echo "SENTIMENT_FALLBACK_VADER=true" >> $GITHUB_ENV
+
+    - name: Run tests
+      run: |
+        uv run pytest tests/ -v --cov=app --cov=ingest --cov-report=xml --cov-report=html
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  lint:
+    name: Linting and Formatting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: ${{ env.UV_VERSION }}
+
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-uv-
+
+    - name: Install dependencies
+      run: |
+        uv sync --dev
+
+    - name: Run ruff linter
+      run: |
+        uv run ruff check .
+
+    - name: Run black formatter check
+      run: |
+        uv run black --check .
+
+    - name: Run mypy type checker
+      run: |
+        uv run mypy .
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: ${{ env.UV_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        uv sync --dev
+
+    - name: Run bandit security linter
+      run: |
+        uv run bandit -r app/ ingest/ -f json -o bandit-report.json || true
+
+    - name: Upload security scan results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: bandit-report
+        path: bandit-report.json
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: market_pulse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: ${{ env.UV_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        uv sync --dev
+
+    - name: Set up integration test environment
+      run: |
+        echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/market_pulse_test" >> $GITHUB_ENV
+        echo "REDDIT_CLIENT_ID=test_client_id" >> $GITHUB_ENV
+        echo "REDDIT_CLIENT_SECRET=test_client_secret" >> $GITHUB_ENV
+        echo "REDDIT_USER_AGENT=test_user_agent" >> $GITHUB_ENV
+        echo "SENTIMENT_USE_LLM=false" >> $GITHUB_ENV
+        echo "SENTIMENT_FALLBACK_VADER=true" >> $GITHUB_ENV
+
+    - name: Run integration tests
+      run: |
+        uv run pytest tests/ -v -m "integration" --tb=short
+
+  build:
+    name: Build and Package
+    runs-on: ubuntu-latest
+    needs: [test, lint, security]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: ${{ env.UV_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        uv sync
+
+    - name: Build package
+      run: |
+        uv build
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: dist
+        path: dist/
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: market-pulse:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test Docker image
+      run: |
+        docker run --rm market-pulse:latest python -c "import app; print('Docker image works!')"
+
+  performance-test:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: market_pulse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: ${{ env.UV_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        uv sync --dev
+
+    - name: Set up performance test environment
+      run: |
+        echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/market_pulse_test" >> $GITHUB_ENV
+        echo "REDDIT_CLIENT_ID=test_client_id" >> $GITHUB_ENV
+        echo "REDDIT_CLIENT_SECRET=test_client_secret" >> $GITHUB_ENV
+        echo "REDDIT_USER_AGENT=test_user_agent" >> $GITHUB_ENV
+        echo "SENTIMENT_USE_LLM=false" >> $GITHUB_ENV
+        echo "SENTIMENT_FALLBACK_VADER=true" >> $GITHUB_ENV
+
+    - name: Run performance tests
+      run: |
+        uv run pytest tests/ -v -m "performance" --tb=short
+
+  notify:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    needs: [test, lint, security, integration-test, build, docker]
+    if: always()
+    
+    steps:
+    - name: Notify success
+      if: ${{ needs.test.result == 'success' && needs.lint.result == 'success' && needs.security.result == 'success' }}
+      run: |
+        echo "✅ All CI checks passed successfully!"
+
+    - name: Notify failure
+      if: ${{ needs.test.result == 'failure' || needs.lint.result == 'failure' || needs.security.result == 'failure' }}
+      run: |
+        echo "❌ CI checks failed. Please review the logs."
+        exit 1
+

@@ -41,13 +41,13 @@ def get_articles_without_sentiment(
     hours_back: Optional[int] = None
 ) -> List[Article]:
     """Get articles that don't have sentiment analysis yet.
-    
+
     Args:
         db: Database session
         limit: Maximum number of articles to retrieve
-        source_filter: Filter by source (e.g., 'reddit', 'gdelt')
+        source_filter: Filter by source (e.g., 'reddit')
         hours_back: Only get articles from the last N hours
-        
+
     Returns:
         List of Article objects without sentiment
     """
@@ -205,10 +205,10 @@ def run_sentiment_analysis(
     verbose: bool = False
 ) -> None:
     """Run sentiment analysis on articles without sentiment data.
-    
+
     Args:
         max_articles: Maximum number of articles to process
-        source_filter: Filter by source (e.g., 'reddit', 'gdelt')
+        source_filter: Filter by source (e.g., 'reddit')
         hours_back: Only process articles from the last N hours
         max_workers: Maximum number of parallel workers
         batch_size: Batch size for database updates
@@ -271,9 +271,8 @@ def main() -> None:
     parser.add_argument(
         "--source",
         type=str,
-        choices=["reddit", "gdelt"],
         default=None,
-        help="Filter by source type",
+        help="Filter by source type (e.g., 'reddit')",
     )
     parser.add_argument(
         "--hours-back",

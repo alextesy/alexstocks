@@ -48,7 +48,7 @@ class Article(Base):
     __tablename__ = "article"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    source: Mapped[str] = mapped_column(String, nullable=False)  # 'gdelt'
+    source: Mapped[str] = mapped_column(String, nullable=False)  # e.g., 'reddit_comment', 'reddit_post', 'news', etc.
     url: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     published_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False

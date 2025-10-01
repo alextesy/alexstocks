@@ -1,0 +1,160 @@
+# Market Pulse 15-Minute Incremental Pipeline
+# ===========================================
+# 
+# COMPLETE PIPELINE: Scrape -> Link -> Sentiment Analysis
+# Runs every 15 minutes for real-time market sentiment tracking
+#
+# This setup provides:
+# - Real-time Reddit financial discussion scraping
+# - Automatic ticker linking and sentiment analysis
+# - Rate limit handling and incremental saving
+# - Comprehensive logging and monitoring
+#
+# Add these lines to your crontab (run: crontab -e):
+
+# Set PATH for cron environment
+PATH=/Users/alex/miniconda3/bin:/usr/local/bin:/usr/bin:/bin
+
+# ==============================================================================
+# 15-MINUTE INCREMENTAL PIPELINE
+# ==============================================================================
+
+# Every 15 minutes: Scrape Reddit comments with robust rate limiting
+*/15 * * * * cd /Users/alex/market-pulse-v2 && make reddit-robust-scrape >> /Users/alex/logs/market-pulse/15min-scraping.log 2>&1
+
+# Every 15 minutes: Analyze sentiment for new articles (runs after scraping)
+*/15 * * * * cd /Users/alex/market-pulse-v2 && make analyze-sentiment-recent >> /Users/alex/logs/market-pulse/15min-sentiment.log 2>&1
+
+# ==============================================================================
+# STOCK PRICE COLLECTION (Market Hours)
+# ==============================================================================
+
+# Collect stock prices every 15 minutes during market hours (9:30 AM - 4:00 PM ET = 6:30 AM - 1:00 PM PT)
+*/15 6-13 * * 1-5 cd /Users/alex/market-pulse-v2 && make collect-stock-prices >> /Users/alex/logs/market-pulse/15min-stock-prices.log 2>&1
+
+# ==============================================================================
+# DAILY MAINTENANCE
+# ==============================================================================
+
+# Daily status check at 9 AM PT
+0 9 * * * cd /Users/alex/market-pulse-v2 && make reddit-status >> /Users/alex/logs/market-pulse/daily-status.log 2>&1
+
+# Daily historical data collection at 2 PM PT (after market close)
+0 14 * * 1-5 cd /Users/alex/market-pulse-v2 && make collect-historical-data >> /Users/alex/logs/market-pulse/daily-historical.log 2>&1
+
+# ==============================================================================
+# WEEKEND MODE (Reduced Frequency)
+# ==============================================================================
+
+# Weekend: Scrape every hour instead of every 15 minutes
+0 * * * 0,6 cd /Users/alex/market-pulse-v2 && make reddit-robust-scrape >> /Users/alex/logs/market-pulse/weekend-scraping.log 2>&1
+
+# Weekend: Sentiment analysis every 2 hours
+0 */2 * * 0,6 cd /Users/alex/market-pulse-v2 && make analyze-sentiment-recent >> /Users/alex/logs/market-pulse/weekend-sentiment.log 2>&1
+
+# ==============================================================================
+# ALTERNATIVE: DECOUPLED PIPELINE (if you prefer separate jobs)
+# ==============================================================================
+
+# Uncomment these if you want to run scraping and sentiment analysis separately:
+
+# Scraping only (every 15 minutes)
+# */15 * * * * cd /Users/alex/market-pulse-v2 && make reddit-robust-scrape >> /Users/alex/logs/market-pulse/scraping-only.log 2>&1
+
+# Sentiment analysis only (every 15 minutes, offset by 2 minutes to run after scraping)
+# 2,17,32,47 * * * * cd /Users/alex/market-pulse-v2 && make analyze-sentiment-recent >> /Users/alex/logs/market-pulse/sentiment-only.log 2>&1
+
+# ==============================================================================
+# HIGH-FREQUENCY MODE (for high volatility periods)
+# ==============================================================================
+
+# Uncomment for 5-minute updates during market hours (use with caution - may hit rate limits):
+# */5 6-13 * * 1-5 cd /Users/alex/market-pulse-v2 && make reddit-robust-scrape >> /Users/alex/logs/market-pulse/5min-scraping.log 2>&1
+# */5 6-13 * * 1-5 cd /Users/alex/market-pulse-v2 && make analyze-sentiment-recent >> /Users/alex/logs/market-pulse/5min-sentiment.log 2>&1
+
+# ==============================================================================
+# MONITORING AND ALERTS
+# ==============================================================================
+
+# Check for failed jobs every hour
+0 * * * * cd /Users/alex/market-pulse-v2 && tail -n 50 /Users/alex/logs/market-pulse/15min-scraping.log | grep -i error >> /Users/alex/logs/market-pulse/error-monitor.log 2>&1
+
+# ==============================================================================
+# LOG DIRECTORY SETUP
+# ==============================================================================
+
+# Create log directory if it doesn't exist:
+# mkdir -p /Users/alex/logs/market-pulse
+
+# ==============================================================================
+# INSTALLATION INSTRUCTIONS
+# ==============================================================================
+
+# 1. Create log directory:
+#    mkdir -p /Users/alex/logs/market-pulse
+
+# 2. Edit your crontab:
+#    crontab -e
+
+# 3. Paste the desired configuration above
+
+# 4. Save and exit
+
+# 5. Verify installation:
+#    crontab -l
+
+# 6. Monitor logs:
+#    tail -f /Users/alex/logs/market-pulse/15min-scraping.log
+#    tail -f /Users/alex/logs/market-pulse/15min-sentiment.log
+
+# ==============================================================================
+# PIPELINE EXPLANATION
+# ==============================================================================
+
+# The 15-minute pipeline works as follows:
+#
+# 1. SCRAPING (every 15 minutes):
+#    - Uses robust scraper with rate limit handling
+#    - Saves data incrementally every 200 comments
+#    - Handles Reddit API rate limits gracefully
+#    - Focuses on latest daily/weekend discussion threads
+#
+# 2. TICKER LINKING (automatic during scraping):
+#    - Links Reddit comments to stock tickers automatically
+#    - Uses comprehensive ticker database with aliases
+#    - Provides confidence scores for matches
+#
+# 3. SENTIMENT ANALYSIS (every 15 minutes):
+#    - Analyzes sentiment for all new articles from last 24 hours
+#    - Uses VADER sentiment analysis (fast and reliable)
+#    - Can be configured to use LLM sentiment for higher accuracy
+#
+# 4. STOCK PRICES (market hours only):
+#    - Collects current stock prices every 15 minutes during market hours
+#    - Historical data collected once daily after market close
+#
+# 5. MONITORING:
+#    - Daily status checks
+#    - Error monitoring and logging
+#    - Comprehensive log files for debugging
+
+# ==============================================================================
+# PERFORMANCE CONSIDERATIONS
+# ==============================================================================
+
+# - Reddit API limit: 100 requests/minute (we use 90 to be safe)
+# - Each 15-minute run processes ~200-500 new comments
+# - Incremental saving prevents data loss
+# - Weekend mode reduces frequency to conserve API quota
+# - Log rotation prevents disk space issues
+
+# ==============================================================================
+# TROUBLESHOOTING
+# ==============================================================================
+
+# If you encounter issues:
+# 1. Check logs: tail -f /Users/alex/logs/market-pulse/15min-scraping.log
+# 2. Verify Reddit credentials are set in .env file
+# 3. Check database connection: make query-db
+# 4. Test manually: make reddit-robust-scrape
+# 5. Check cron service: sudo systemctl status cron (Linux) or launchctl list | grep cron (macOS)

@@ -38,12 +38,6 @@ add-reddit-columns: ## Add Reddit-specific columns to article table
 add-reddit-thread-table: ## Add RedditThread table for tracking scraping progress
 	uv run python -m app.scripts.add_reddit_thread_table
 
-ingest-hour: ## Ingest last hour of GDELT data
-	uv run python -m ingest.gdelt --hours 1
-
-ingest-24h: ## Ingest last 24 hours of GDELT data
-	uv run python -m ingest.gdelt --hours 24
-
 reddit-ingest: ## Ingest Reddit data from all target subreddits (last 24h)
 	uv run python -m ingest.reddit
 
@@ -70,6 +64,12 @@ reddit-full-scrape-latest: ## Scrape ALL comments from latest daily thread
 
 reddit-full-scrape-multi: ## Scrape ALL comments from latest 3 daily threads  
 	uv run python -m ingest.reddit_full_scraper --max-threads 3 --verbose
+
+reddit-robust-scrape: ## Robust scraper with rate limit handling and incremental saving
+	uv run python -m ingest.reddit_robust_scraper --max-threads 1 --verbose
+
+reddit-robust-scrape-multi: ## Robust scraper for multiple threads with rate limit handling
+	uv run python -m ingest.reddit_robust_scraper --max-threads 3 --verbose
 
 # Sentiment Analysis Jobs (LLM by default)
 analyze-sentiment: ## Run sentiment analysis on articles without sentiment
@@ -124,17 +124,51 @@ scrape-and-analyze-comments: ## Scrape Reddit comments and analyze sentiment
 scrape-and-analyze-full: ## FULL scrape latest daily thread + sentiment analysis
 	make reddit-full-scrape-latest && make analyze-sentiment-recent
 
-test: ## Run tests
-	uv run pytest -v
+test: ## Run all tests
+	uv run pytest tests/ -v
+
+test-unit: ## Run unit tests only
+	uv run pytest tests/ -v -m "not integration and not performance"
+
+test-integration: ## Run integration tests only
+	uv run pytest tests/ -v -m "integration"
+
+test-real-world: ## Run real-world integration tests (requires database with data)
+	uv run pytest tests/test_real_world_integration.py -v --tb=short
+
+test-performance: ## Run performance tests only
+	uv run pytest tests/ -v -m "performance"
+
+test-reddit: ## Run Reddit-related tests
+	uv run pytest tests/ -v -k "reddit"
+
+test-sentiment: ## Run sentiment analysis tests
+	uv run pytest tests/ -v -k "sentiment"
+
+test-linking: ## Run ticker linking tests
+	uv run pytest tests/ -v -k "linking"
+
+test-coverage: ## Run tests with coverage report
+	uv run pytest tests/ -v --cov=app --cov=ingest --cov-report=html --cov-report=term
+
+test-fast: ## Run fast tests only (exclude slow tests)
+	uv run pytest tests/ -v -m "not slow"
 
 lint: ## Run linting
 	uv run ruff check .
 	uv run black --check .
 	uv run mypy .
 
+lint-fix: ## Run linting and fix issues
+	uv run ruff check --fix .
+	uv run black .
+
 format: ## Format code
 	uv run black .
 	uv run ruff check --fix .
+
+security: ## Run security checks
+	uv run bandit -r app/ ingest/ -f json -o bandit-report.json || true
 
 clean: ## Clean up containers and volumes
 	docker compose down -v

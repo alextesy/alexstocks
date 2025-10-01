@@ -41,14 +41,14 @@ def get_articles_for_dual_model_override(
     force_all: bool = False
 ) -> List[Article]:
     """Get articles to override with dual model sentiment.
-    
+
     Args:
         db: Database session
         limit: Maximum number of articles to retrieve
-        source_filter: Filter by source (e.g., 'reddit', 'gdelt')
+        source_filter: Filter by source (e.g., 'reddit')
         hours_back: Only get articles from the last N hours
         force_all: If True, override all articles. If False, only override articles with sentiment
-        
+
     Returns:
         List of Article objects to process
     """
@@ -213,9 +213,9 @@ def main():
         help="Maximum number of articles to process"
     )
     parser.add_argument(
-        "--source", 
-        type=str, 
-        help="Filter by source (e.g., 'reddit', 'gdelt')"
+        "--source",
+        type=str,
+        help="Filter by source (e.g., 'reddit')"
     )
     parser.add_argument(
         "--hours-back", 
