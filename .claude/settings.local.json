@@ -8,7 +8,10 @@
       "Bash(uv run ruff:*)",
       "Bash(uv run:*)",
       "Bash(uv sync:*)",
-      "Bash(gh:*)"
+      "Bash(gh:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(uv:*)"
     ],
     "deny": [],
     "ask": []
