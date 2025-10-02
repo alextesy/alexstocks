@@ -38,38 +38,23 @@ add-reddit-columns: ## Add Reddit-specific columns to article table
 add-reddit-thread-table: ## Add RedditThread table for tracking scraping progress
 	uv run python -m app.scripts.add_reddit_thread_table
 
-reddit-ingest: ## Ingest Reddit data from all target subreddits (last 24h)
-	uv run python -m ingest.reddit
+# Production Reddit Scraper (unified, comprehensive)
+# NOTE: Legacy targets (reddit-ingest, reddit-wsb, reddit-stocks, reddit-investing)
+# have been removed. They used the deprecated ingest/reddit.py general post scraper.
+# Use the production scraper below for discussion thread scraping.
+reddit-scrape-incremental: ## Production incremental scraper (for 15-min cron)
+	uv run python -m ingest.reddit_scraper_cli --mode incremental
 
-reddit-wsb: ## Ingest Reddit data from r/wallstreetbets only
-	uv run python -m ingest.reddit --subreddits wallstreetbets
+reddit-scrape-backfill: ## Production backfill scraper (requires START and END dates)
+	@if [ -z "$(START)" ] || [ -z "$(END)" ]; then \
+		echo "❌ Error: START and END dates required"; \
+		echo "Usage: make reddit-scrape-backfill START=2025-09-01 END=2025-09-30"; \
+		exit 1; \
+	fi
+	uv run python -m ingest.reddit_scraper_cli --mode backfill --start $(START) --end $(END)
 
-reddit-stocks: ## Ingest Reddit data from r/stocks only
-	uv run python -m ingest.reddit --subreddits stocks
-
-reddit-investing: ## Ingest Reddit data from r/investing only
-	uv run python -m ingest.reddit --subreddits investing
-
-reddit-incremental: ## Run incremental Reddit scraping (for cron jobs)
-	uv run python -m ingest.reddit_incremental scrape
-
-reddit-status: ## Show Reddit scraping status
-	uv run python -m ingest.reddit_incremental status
-
-reddit-full-scrape: ## Run FULL Reddit thread scraping (all comments including replies)
-	uv run python -m ingest.reddit_full_scraper
-
-reddit-full-scrape-latest: ## Scrape ALL comments from latest daily thread
-	uv run python -m ingest.reddit_full_scraper --max-threads 1 --verbose
-
-reddit-full-scrape-multi: ## Scrape ALL comments from latest 3 daily threads  
-	uv run python -m ingest.reddit_full_scraper --max-threads 3 --verbose
-
-reddit-robust-scrape: ## Robust scraper with rate limit handling and incremental saving
-	uv run python -m ingest.reddit_robust_scraper --max-threads 1 --verbose
-
-reddit-robust-scrape-multi: ## Robust scraper for multiple threads with rate limit handling
-	uv run python -m ingest.reddit_robust_scraper --max-threads 3 --verbose
+reddit-scrape-status: ## Show production scraper status
+	uv run python -m ingest.reddit_scraper_cli --mode status
 
 # Sentiment Analysis Jobs (LLM by default)
 analyze-sentiment: ## Run sentiment analysis on articles without sentiment

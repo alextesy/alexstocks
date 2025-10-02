@@ -9,7 +9,7 @@ from app.db.models import Article, ArticleTicker
 from app.services.hybrid_sentiment import HybridSentimentService
 from app.services.sentiment import SentimentService
 from ingest.linker import TickerLinker
-from ingest.reddit_parser import RedditParser
+from ingest.reddit_discussion_scraper import RedditDiscussionScraper
 
 
 @pytest.mark.skip(
@@ -29,7 +29,7 @@ class TestRedditScrapingPipeline:
         db_session.commit()
 
         # Mock Reddit parser
-        parser = RedditParser()
+        parser = RedditDiscussionScraper()
         parser.reddit = Mock()
 
         # Mock subreddit and posts
@@ -245,6 +245,9 @@ class TestRedditScrapingPipeline:
             for article in sample_articles:
                 assert article.sentiment == 0.8
 
+    @pytest.mark.skip(
+        reason="test_complete_reddit_ingestion_flow uses deprecated reddit.py - use test_reddit_scraper_new.py instead"
+    )
     def test_complete_reddit_ingestion_flow(self, db_session, sample_tickers):
         """Test the complete Reddit ingestion flow."""
         # Add tickers to database
