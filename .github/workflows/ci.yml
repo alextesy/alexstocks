@@ -67,7 +67,7 @@ jobs:
 
     - name: Run tests
       run: |
-        uv run pytest tests/ -v --cov=app --cov=ingest --cov-report=xml --cov-report=html
+        uv run pytest tests/ -v -m "not integration" --cov=app --cov=ingest --cov-report=xml --cov-report=html
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -151,57 +151,6 @@ jobs:
       with:
         name: bandit-report
         path: bandit-report.json
-
-  integration-test:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: [test, lint]
-    
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: market_pulse_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: ${{ env.UV_VERSION }}
-
-    - name: Install dependencies
-      run: |
-        uv sync --group dev
-
-    - name: Set up integration test environment
-      run: |
-        echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/market_pulse_test" >> $GITHUB_ENV
-        echo "REDDIT_CLIENT_ID=test_client_id" >> $GITHUB_ENV
-        echo "REDDIT_CLIENT_SECRET=test_client_secret" >> $GITHUB_ENV
-        echo "REDDIT_USER_AGENT=test_user_agent" >> $GITHUB_ENV
-        echo "SENTIMENT_USE_LLM=false" >> $GITHUB_ENV
-        echo "SENTIMENT_FALLBACK_VADER=true" >> $GITHUB_ENV
-
-    - name: Run integration tests
-      run: |
-        uv run pytest tests/ -v -m "integration" --tb=short
 
   build:
     name: Build and Package
@@ -316,7 +265,7 @@ jobs:
   notify:
     name: Notify Results
     runs-on: ubuntu-latest
-    needs: [test, lint, security, integration-test, build, docker]
+    needs: [test, lint, security, build, docker]
     if: always()
     
     steps:

@@ -15,6 +15,33 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.types import TypeDecorator
+
+
+class JSONBCompat(TypeDecorator):
+    """A type that uses JSONB for PostgreSQL and JSON for other databases."""
+
+    impl = JSON
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(JSONB())
+        else:
+            return dialect.type_descriptor(JSON())
+
+
+class BigIntegerCompat(TypeDecorator):
+    """A type that uses BigInteger for PostgreSQL and Integer for SQLite (for autoincrement support)."""
+
+    impl = Integer
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(BigInteger())
+        else:
+            return dialect.type_descriptor(Integer())
 
 
 class Base(DeclarativeBase):
@@ -30,9 +57,13 @@ class Ticker(Base):
 
     symbol: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    aliases: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    aliases: Mapped[list[str]] = mapped_column(
+        JSONBCompat, nullable=False, default=list
+    )
     exchange: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    sources: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    sources: Mapped[list[str]] = mapped_column(
+        JSONBCompat, nullable=False, default=list
+    )
     is_sp500: Mapped[bool] = mapped_column(default=False)
     cik: Mapped[str | None] = mapped_column(
         String(20), nullable=True
@@ -49,7 +80,9 @@ class Article(Base):
 
     __tablename__ = "article"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(
+        BigIntegerCompat, primary_key=True, autoincrement=True
+    )
     source: Mapped[str] = mapped_column(
         String, nullable=False
     )  # e.g., 'reddit_comment', 'reddit_post', 'news', etc.
@@ -154,7 +187,9 @@ class StockPriceHistory(Base):
 
     __tablename__ = "stock_price_history"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(
+        BigIntegerCompat, primary_key=True, autoincrement=True
+    )
     symbol: Mapped[str] = mapped_column(
         String, ForeignKey("ticker.symbol"), nullable=False
     )
@@ -177,7 +212,7 @@ class StockDataCollection(Base):
 
     __tablename__ = "stock_data_collection"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     collection_type: Mapped[str] = mapped_column(
         String(20), nullable=False
     )  # 'current', 'historical'

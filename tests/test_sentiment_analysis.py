@@ -142,7 +142,7 @@ class TestLLMSentimentService:
         service = LLMSentimentService()
         result = service.analyze_sentiment("I love this stock! It's amazing!")
 
-        assert result == 0.7  # positive - negative = 0.8 - 0.1
+        assert result == pytest.approx(0.7)  # positive - negative = 0.8 - 0.1
 
     @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True)
     @patch("app.services.llm_sentiment.pipeline")
@@ -161,7 +161,7 @@ class TestLLMSentimentService:
         service = LLMSentimentService()
         result = service.analyze_sentiment("This stock is terrible!")
 
-        assert result == -0.7  # positive - negative = 0.1 - 0.8
+        assert result == pytest.approx(-0.7)  # positive - negative = 0.1 - 0.8
 
     @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True)
     @patch("app.services.llm_sentiment.pipeline")
@@ -645,9 +645,9 @@ class TestSentimentAnalysisRealWorldExamples:
             text = "Oh great, another 20% drop. Thanks $GME, you're really helping my portfolio!"
             result = service.analyze_sentiment(text)
 
-            assert result == -0.6  # Should use LLM since it's further from neutral
+            assert result == -0.6  # Should use LLM since it's strong (abs > threshold)
             self.mock_llm_service.analyze_sentiment.assert_called_once()
-            self.mock_vader_service.analyze_sentiment.assert_called_once()
+            # VADER not called because LLM signal is strong (abs(-0.6) > 0.2)
 
     def test_financial_terminology_sentiment(self):
         """Test sentiment analysis with financial terminology."""

@@ -73,6 +73,15 @@ class HybridSentimentService:
                 logger.info(
                     f"HybridSentimentService initialized with LLM: {llm_model_name}"
                 )
+
+                # Also load VADER if fallback is enabled
+                if self.fallback_to_vader:
+                    try:
+                        self._vader_service = get_vader_service()
+                        logger.info("VADER service loaded for fallback")
+                    except Exception as vader_e:
+                        logger.warning(f"Failed to load VADER for fallback: {vader_e}")
+
             except Exception as e:
                 logger.warning(f"Failed to initialize LLM service: {e}")
                 if self.fallback_to_vader:
@@ -262,3 +271,13 @@ def analyze_sentiment_hybrid(text: str) -> float:
     """
     service = get_hybrid_sentiment_service()
     return service.analyze_sentiment(text)
+
+
+def get_sentiment_service() -> HybridSentimentService:
+    """
+    Alias for get_hybrid_sentiment_service for backward compatibility.
+
+    Returns:
+        HybridSentimentService instance
+    """
+    return get_hybrid_sentiment_service()

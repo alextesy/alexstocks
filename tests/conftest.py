@@ -5,7 +5,7 @@ import tempfile
 from unittest.mock import Mock, patch
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -37,13 +37,43 @@ def test_db_session(test_engine):
 
 
 @pytest.fixture
-def db_session(test_db_session):
+def db_session(test_engine, test_db_session):
     """Create a fresh database session for each test."""
-    # Start a transaction
-    transaction = test_db_session.begin()
-    yield test_db_session
-    # Rollback the transaction after each test
-    transaction.rollback()
+    # Create a new session for each test (tables already created by test_db_session fixture)
+    TestingSessionLocal = sessionmaker(
+        autocommit=False, autoflush=False, bind=test_engine
+    )
+    session = TestingSessionLocal()
+
+    yield session
+
+    # Rollback any uncommitted changes and close session
+    try:
+        if session.in_transaction():
+            session.rollback()
+    finally:
+        session.close()
+
+    # Clean up all data from tables for test isolation
+    # Since it's in-memory SQLite, data persists across sessions
+    try:
+        with test_engine.begin() as conn:
+            # Try to delete data - ignore errors if tables don't exist
+            for table in [
+                "article_ticker",
+                "article",
+                "ticker",
+                "reddit_thread",
+                "stock_price",
+                "stock_price_history",
+                "stock_data_collection",
+            ]:
+                try:
+                    conn.execute(text(f"DELETE FROM {table}"))
+                except Exception:
+                    pass  # Table might not exist yet
+    except Exception:
+        pass  # Ignore cleanup errors
 
 
 @pytest.fixture
