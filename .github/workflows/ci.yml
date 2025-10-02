@@ -258,6 +258,10 @@ jobs:
         echo "SENTIMENT_USE_LLM=false" >> $GITHUB_ENV
         echo "SENTIMENT_FALLBACK_VADER=true" >> $GITHUB_ENV
 
+    - name: Initialize database schema
+      run: |
+        uv run python app/scripts/init_db.py
+
     - name: Run performance tests
       run: |
         uv run pytest tests/ -v -m "performance" --tb=short
