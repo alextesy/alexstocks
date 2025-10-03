@@ -47,7 +47,7 @@ class TestPerformance:
 
         # Measure parsing time
         start_time = time.time()
-        articles = parser.parse_subreddit_posts("test", limit=100, time_filter="day")
+        articles = parser.parse_subreddit_posts("test", limit=100, time_filter="day")  # type: ignore[attr-defined]
         end_time = time.time()
 
         parsing_time = end_time - start_time

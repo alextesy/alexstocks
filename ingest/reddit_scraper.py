@@ -54,7 +54,7 @@ class RateLimiter:
     """Advanced rate limiter with exponential backoff."""
 
     requests_per_minute: int = 90  # Stay under 100 QPM limit
-    request_times: list[float] = None  # Track request times
+    request_times: list[float] | None = None  # Track request times
 
     def __post_init__(self):
         if self.request_times is None:
@@ -65,7 +65,10 @@ class RateLimiter:
         current_time = time.time()
 
         # Remove requests older than 1 minute
-        self.request_times = [t for t in self.request_times if current_time - t < 60]
+        if self.request_times is not None:
+            self.request_times = [t for t in self.request_times if current_time - t < 60]
+        else:
+            self.request_times = []
 
         # If approaching limit, wait
         if len(self.request_times) >= self.requests_per_minute:

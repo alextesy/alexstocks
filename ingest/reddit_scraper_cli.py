@@ -40,7 +40,7 @@ def setup_logging(verbose: bool = False) -> None:
 def run_incremental(
     subreddit: str = "wallstreetbets",
     max_threads: int = 3,
-    max_replace_more: int = 32,
+    max_replace_more: int | None = 32,
     verbose: bool = False,
 ) -> None:
     """
@@ -98,7 +98,7 @@ def run_backfill(
     subreddit: str,
     start_date: str,
     end_date: str,
-    max_replace_more: int = 32,
+    max_replace_more: int | None = 32,
     verbose: bool = False,
 ) -> None:
     """

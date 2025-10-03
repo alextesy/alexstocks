@@ -38,7 +38,7 @@ class TestRedditScrapingPipeline:
         parser.reddit.subreddit.return_value = mock_subreddit
 
         # Parse Reddit posts
-        articles = parser.parse_subreddit_posts(
+        articles = parser.parse_subreddit_posts(  # type: ignore[attr-defined]
             "wallstreetbets", limit=1, time_filter="day"
         )
 

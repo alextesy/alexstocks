@@ -21,7 +21,7 @@ class TestRateLimiter:
         """Test rate limiter with no previous requests."""
         limiter = RateLimiter()
         limiter.check_and_wait()  # Should not raise or block
-        assert len(limiter.request_times) == 1
+        assert limiter.request_times is not None and len(limiter.request_times) == 1
 
     def test_rate_limiter_handle_429_error(self):
         """Test handling of 429 errors."""
@@ -110,13 +110,15 @@ class TestRedditScraper:
         thread3.title = "Daily Discussion - Oct 3"
         thread3.created_utc = datetime(2025, 10, 3, 12, 0, tzinfo=UTC).timestamp()
 
-        self.scraper.discussion_scraper.find_daily_discussion_threads = Mock(
-            return_value=[thread1, thread2, thread3]
-        )
-
-        # Find threads for Oct 2
-        target_date = datetime(2025, 10, 2, tzinfo=UTC)
-        threads = self.scraper.find_threads_by_date("wallstreetbets", target_date)
+        # Use proper mocking instead of assignment
+        with patch.object(
+            self.scraper.discussion_scraper,
+            "find_daily_discussion_threads",
+            return_value=[thread1, thread2, thread3],
+        ):
+            # Find threads for Oct 2
+            target_date = datetime(2025, 10, 2, tzinfo=UTC)
+            threads = self.scraper.find_threads_by_date("wallstreetbets", target_date)
 
         # Should only return thread2
         assert len(threads) == 1
