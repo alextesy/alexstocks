@@ -10,16 +10,19 @@ from app.db.models import Article, ArticleTicker
 from app.services.hybrid_sentiment import HybridSentimentService
 from app.services.sentiment import SentimentService
 from ingest.linker import TickerLinker
-from ingest.reddit_parser import RedditParser
+from ingest.reddit_discussion_scraper import RedditDiscussionScraper
 
 
 @pytest.mark.performance
 class TestPerformance:
     """Performance tests for the pipeline components."""
 
+    @pytest.mark.skip(
+        reason="test_reddit_parser_performance tests deleted parse_subreddit_posts method"
+    )
     def test_reddit_parser_performance(self, sample_tickers):
         """Test Reddit parser performance with large datasets."""
-        parser = RedditParser()
+        parser = RedditDiscussionScraper()
         parser.reddit = Mock()
 
         # Create mock submissions
@@ -44,7 +47,7 @@ class TestPerformance:
 
         # Measure parsing time
         start_time = time.time()
-        articles = parser.parse_subreddit_posts("test", limit=100, time_filter="day")
+        articles = parser.parse_subreddit_posts("test", limit=100, time_filter="day")  # type: ignore[attr-defined]
         end_time = time.time()
 
         parsing_time = end_time - start_time

@@ -14,7 +14,9 @@
       "Bash(uv:*)",
       "Bash(DATABASE_URL=\"postgresql://test:test@localhost:5432/test\" python -c \"from app.config import settings; print(''Success:'', settings.postgres_url)\")",
       "Bash(DATABASE_URL=\"postgresql://test:test@localhost:5432/test\" uv run python -c \"from app.config import settings; print(''Success:'', settings.postgres_url)\")",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(psql:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

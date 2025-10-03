@@ -10,6 +10,292 @@ from app.services.context_analyzer import get_context_analyzer
 
 logger = logging.getLogger(__name__)
 
+# Common English words that are also tickers - these require $ prefix to match
+COMMON_WORD_TICKERS = {
+    # Single letters
+    "A",
+    "I",
+    "T",
+    "V",
+    "M",
+    "F",
+    "C",
+    "D",
+    "E",
+    "G",
+    "H",
+    "J",
+    "K",
+    "L",
+    "N",
+    "O",
+    "P",
+    "Q",
+    "R",
+    "S",
+    "U",
+    "W",
+    "X",
+    "Y",
+    "Z",
+    # Two letter words
+    "AM",
+    "AN",
+    "AS",
+    "AT",
+    "BE",
+    "BY",
+    "DO",
+    "GO",
+    "HE",
+    "IF",
+    "IN",
+    "IS",
+    "IT",
+    "ME",
+    "NO",
+    "OF",
+    "ON",
+    "OR",
+    "SO",
+    "TO",
+    "UP",
+    "WE",
+    # Pronouns
+    "YOU",
+    "SHE",
+    "HIM",
+    "HER",
+    "US",
+    "THEM",
+    # Common verbs and actions
+    "BACK",
+    "BEAT",
+    "CAN",
+    "CARE",
+    "COME",
+    "DON",
+    "FALL",
+    "FARM",
+    "FIND",
+    "FOLD",
+    "GAIN",
+    "GET",
+    "GIVE",
+    "GROW",
+    "HAS",
+    "HEAR",
+    "HIT",
+    "HOLD",
+    "HOPE",
+    "KNOW",
+    "LAND",
+    "LIVE",
+    "LOVE",
+    "MADE",
+    "MAKE",
+    "MIND",
+    "MOVE",
+    "NEED",
+    "OPEN",
+    "PAY",
+    "PLAY",
+    "PLUG",
+    "POST",
+    "PUMP",
+    "RAIL",
+    "RAIN",
+    "RARE",
+    "REAL",
+    "RISE",
+    "RUN",
+    "SAVE",
+    "SAY",
+    "SEE",
+    "SHIP",
+    "SNOW",
+    "SPOT",
+    "STAY",
+    "TELL",
+    "TREE",
+    "TRUE",
+    "TURN",
+    "USE",
+    "WANT",
+    "WELL",
+    "WORK",
+    # Common adjectives
+    "ANY",
+    "AWAY",
+    "BEST",
+    "CALM",
+    "COOL",
+    "DARK",
+    "DEAD",
+    "EDGE",
+    "ELSE",
+    "EVER",
+    "FAST",
+    "FINE",
+    "FREE",
+    "FULL",
+    "GOOD",
+    "HALF",
+    "HIGH",
+    "JUST",
+    "LAST",
+    "LESS",
+    "LOW",
+    "MAIN",
+    "MANY",
+    "MORE",
+    "MOST",
+    "MUCH",
+    "NEAR",
+    "NEXT",
+    "NICE",
+    "OVER",
+    "PURE",
+    "SAFE",
+    "SAME",
+    "SLOW",
+    "SOME",
+    "SURE",
+    "TOP",
+    "VERY",
+    "WARM",
+    # Common nouns
+    "AI",
+    "BULL",
+    "CASH",
+    "ELON",
+    "FOOD",
+    "FORM",
+    "GAME",
+    "HAND",
+    "HOME",
+    "HOUR",
+    "JOB",
+    "KIDS",
+    "LIFE",
+    "LINE",
+    "MAN",
+    "PEAK",
+    "PLUS",
+    "PORT",
+    "WAY",
+    "WIND",
+    # Modal verbs, conjunctions, and internet/slang
+    "AGO",
+    "COM",
+    "EOD",
+    "FOR",
+    "MUST",
+    "WHEN",
+    "WTF",
+    "WWW",
+    # Numbers and quantifiers
+    "ONE",
+    "TWO",
+    "FOUR",
+    "FIVE",
+    "SIX",
+    "SEVEN",
+    "EIGHT",
+    "NINE",
+    "TEN",
+    "BOTH",
+    # Size/scale
+    "BIG",
+    "SMALL",
+    "LARGE",
+    "TINY",
+    "HUGE",
+    "MINI",
+    "MAXI",
+    "MEGA",
+    "MICRO",
+    "MACRO",
+    "SUPER",
+    "ULTRA",
+    "HYPER",
+    # Prefixes
+    "UNI",
+    "BI",
+    "TRI",
+    "QUAD",
+    "PENTA",
+    "HEXA",
+    "HEPTA",
+    "OCTA",
+    "NONA",
+    "DECA",
+    "CENTI",
+    "MILLI",
+    "KILO",
+    "GIGA",
+    "TERA",
+    "PETA",
+    "EXA",
+    "ZETTA",
+    "YOTTA",
+    # Position/location
+    "OUT",
+    "FAR",
+    # Time
+    "NOW",
+    "DAY",
+    "TIME",
+    "WEEK",
+    "YEAR",
+    # Quality
+    "HOT",
+    "COLD",
+    "HARD",
+    "SOFT",
+    "LONG",
+    "SHORT",
+    "WIDE",
+    "NARROW",
+    "DEEP",
+    "SHALLOW",
+    "THICK",
+    "THIN",
+    "HEAVY",
+    "LIGHT",
+    "STRONG",
+    "WEAK",
+    "RICH",
+    "POOR",
+    "YOUNG",
+    "OLD",
+    "FRESH",
+    "STALE",
+    "CLEAN",
+    "DIRTY",
+    "DRY",
+    "WET",
+    "EMPTY",
+    "CLOSED",
+    "BUSY",
+    "QUIET",
+    "LOUD",
+    "BRIGHT",
+    "EASY",
+    "SIMPLE",
+    "COMPLEX",
+    "DANGEROUS",
+    "HAPPY",
+    "SAD",
+    "BAD",
+    "WORST",
+    "BETTER",
+    "WORSE",
+    "NEW",
+    "ALL",
+    "ARE",
+}
+
 
 class TickerLinker:
     """Links articles to tickers using alias matching and context analysis."""
@@ -49,11 +335,11 @@ class TickerLinker:
             use_title_only: If True, only use title and description, don't scrape
 
         Returns:
-            Combined text for matching
+            Combined text for matching (PRESERVES ORIGINAL CASE for ticker matching)
         """
         # Reddit comments: ONLY use the text field (skip title completely)
         if article.source == "reddit_comment":
-            text = (article.text or "").lower()
+            text = article.text or ""
         # Reddit posts: use title + text
         elif article.source == "reddit_post":
             text_parts = []
@@ -61,7 +347,7 @@ class TickerLinker:
                 text_parts.append(article.title)
             if article.text:
                 text_parts.append(article.text)
-            text = " ".join(text_parts).lower()
+            text = " ".join(text_parts)
         # Other sources: use title + text + scraping if needed
         else:
             text_parts = []
@@ -79,7 +365,7 @@ class TickerLinker:
                 if scraped_content:
                     text_parts.append(scraped_content)
 
-            text = " ".join(text_parts).lower()
+            text = " ".join(text_parts)
 
         # Limit text length for performance (max 1000 chars for non-Reddit sources)
         if len(text) > 1000:
@@ -94,7 +380,7 @@ class TickerLinker:
 
     def _fast_reddit_comment_linking(self, article: Article) -> list[TickerLinkDTO]:
         """Ultra-fast linking for Reddit comments - check all tickers but skip context analysis."""
-        text = (article.text or "").lower()
+        text = article.text or ""
 
         if not text:
             return []
@@ -132,113 +418,6 @@ class TickerLinker:
         # 2. Common word tickers: ONLY with $ prefix
         # 3. Other tickers: normal word boundaries
 
-        # First, identify common word tickers and single character tickers
-        common_words = {
-            "NOW",
-            "DAY",
-            "OUT",
-            "TIME",
-            "WEEK",
-            "GOOD",
-            "ALL",
-            "ARE",
-            "NEW",
-            "OLD",
-            "ONE",
-            "TWO",
-            "FOUR",
-            "FIVE",
-            "SIX",
-            "SEVEN",
-            "EIGHT",
-            "NINE",
-            "TEN",
-            "BIG",
-            "SMALL",
-            "HIGH",
-            "LOW",
-            "HOT",
-            "COLD",
-            "FAST",
-            "SLOW",
-            "HARD",
-            "SOFT",
-            "LONG",
-            "SHORT",
-            "WIDE",
-            "NARROW",
-            "DEEP",
-            "SHALLOW",
-            "THICK",
-            "THIN",
-            "HEAVY",
-            "LIGHT",
-            "STRONG",
-            "WEAK",
-            "RICH",
-            "POOR",
-            "YOUNG",
-            "FRESH",
-            "STALE",
-            "CLEAN",
-            "DIRTY",
-            "DRY",
-            "WET",
-            "FULL",
-            "EMPTY",
-            "OPEN",
-            "CLOSED",
-            "FREE",
-            "BUSY",
-            "QUIET",
-            "LOUD",
-            "BRIGHT",
-            "DARK",
-            "EASY",
-            "SIMPLE",
-            "COMPLEX",
-            "SAFE",
-            "DANGEROUS",
-            "HAPPY",
-            "SAD",
-            "BAD",
-            "BEST",
-            "WORST",
-            "BETTER",
-            "WORSE",
-            "LARGE",
-            "TINY",
-            "HUGE",
-            "MINI",
-            "MAXI",
-            "MEGA",
-            "MICRO",
-            "MACRO",
-            "SUPER",
-            "ULTRA",
-            "HYPER",
-            "MULTI",
-            "UNI",
-            "BI",
-            "TRI",
-            "QUAD",
-            "PENTA",
-            "HEXA",
-            "HEPTA",
-            "OCTA",
-            "NONA",
-            "DECA",
-            "CENTI",
-            "MILLI",
-            "KILO",
-            "GIGA",
-            "TERA",
-            "PETA",
-            "EXA",
-            "ZETTA",
-            "YOTTA",
-        }
-
         # Find all potential ticker symbols
         symbol_pattern = r"(?<![A-Za-z0-9])([A-Z]{1,5}(?:\.\w)?)(?![A-Za-z0-9])"
         symbol_matches = re.findall(symbol_pattern, text_upper)
@@ -257,7 +436,7 @@ class TickerLinker:
                     continue  # Skip single character tickers without $
 
                 # 2. Common word tickers: ONLY with $ prefix
-                if match in common_words:
+                if match in COMMON_WORD_TICKERS:
                     continue  # Skip common word tickers without $
 
                 # 3. Other tickers: allow normal matching
@@ -295,7 +474,7 @@ class TickerLinker:
             text: Text to search for ticker mentions
 
         Returns:
-            Dictionary mapping ticker symbols to lists of matched terms
+            Dictionary mapping ticker symbols to lists of matched terms and match types
         """
         matches: dict[str, list[str]] = {}
 
@@ -319,112 +498,28 @@ class TickerLinker:
         symbol_pattern = r"(?<![A-Za-z0-9])([A-Z]{1,5}(?:\.[A-Z])?)(?![A-Za-z0-9])"
         symbol_matches = re.findall(symbol_pattern, text.upper())
 
-        # Define common words that should only match with $ prefix
-        common_words = {
-            "NOW",
-            "DAY",
-            "OUT",
-            "TIME",
-            "WEEK",
-            "GOOD",
-            "ALL",
-            "ARE",
-            "NEW",
-            "OLD",
-            "ONE",
-            "TWO",
-            "FOUR",
-            "FIVE",
-            "SIX",
-            "SEVEN",
-            "EIGHT",
-            "NINE",
-            "TEN",
-            "BIG",
-            "SMALL",
-            "HIGH",
-            "LOW",
-            "HOT",
-            "COLD",
-            "FAST",
-            "SLOW",
-            "HARD",
-            "SOFT",
-            "LONG",
-            "SHORT",
-            "WIDE",
-            "NARROW",
-            "DEEP",
-            "SHALLOW",
-            "THICK",
-            "THIN",
-            "HEAVY",
-            "LIGHT",
-            "STRONG",
-            "WEAK",
-            "RICH",
-            "POOR",
-            "YOUNG",
-            "FRESH",
-            "STALE",
-            "CLEAN",
-            "DIRTY",
-            "DRY",
-            "WET",
-            "FULL",
-            "EMPTY",
-            "OPEN",
-            "CLOSED",
-            "FREE",
-            "BUSY",
-            "QUIET",
-            "LOUD",
-            "BRIGHT",
-            "DARK",
-            "EASY",
-            "SIMPLE",
-            "COMPLEX",
-            "SAFE",
-            "DANGEROUS",
-            "HAPPY",
-            "SAD",
-            "BAD",
-            "BEST",
-            "WORST",
-            "BETTER",
-            "WORSE",
-            "LARGE",
-            "TINY",
-            "HUGE",
-            "MINI",
-            "MAXI",
-            "MEGA",
-            "MICRO",
-            "MACRO",
-            "SUPER",
-            "ULTRA",
-            "HYPER",
-            "MULTI",
-            "UNI",
-            "BI",
-            "TRI",
-            "QUAD",
-            "PENTA",
-            "HEXA",
-            "HEPTA",
-            "OCTA",
-            "NONA",
-            "DECA",
-            "CENTI",
-            "MILLI",
-            "KILO",
-            "GIGA",
-            "TERA",
-            "PETA",
-            "EXA",
-            "ZETTA",
-            "YOTTA",
-        }
+        # Check if text has financial context keywords to allow common word tickers
+        has_financial_context = any(
+            keyword in text.lower()
+            for keyword in [
+                "stock",
+                "share",
+                "earnings",
+                "revenue",
+                "trading",
+                "market",
+                "investor",
+                "price",
+                "dividend",
+                "rally",
+                "surge",
+                "earnings",
+                "financials",
+                "quarterly",
+                "profit",
+                "loss",
+            ]
+        )
 
         for match in symbol_matches:
             if match in self.alias_to_ticker:
@@ -435,9 +530,18 @@ class TickerLinker:
                 if len(match) == 1:
                     continue  # Skip single character tickers without $
 
-                # 2. Common word tickers: ONLY with $ prefix
-                if match in common_words:
-                    continue  # Skip common word tickers without $
+                # 2. Common word tickers: require $ prefix OR (ALL CAPS in original text AND financial context)
+                if match in COMMON_WORD_TICKERS:
+                    # Check if it appears in ALL CAPS in the original text
+                    appears_uppercase = match in text
+
+                    # Allow if: appears in ALL CAPS AND has financial context nearby
+                    if appears_uppercase and has_financial_context:
+                        # Allow through to context analyzer
+                        pass
+                    else:
+                        # Skip - must use $ prefix
+                        continue
 
                 # 3. Other tickers: allow normal matching
                 if ticker_symbol not in matches:
