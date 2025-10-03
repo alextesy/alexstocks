@@ -17,7 +17,9 @@ from ingest.reddit_discussion_scraper import RedditDiscussionScraper
 class TestPerformance:
     """Performance tests for the pipeline components."""
 
-    @pytest.mark.skip(reason="test_reddit_parser_performance tests deleted parse_subreddit_posts method")
+    @pytest.mark.skip(
+        reason="test_reddit_parser_performance tests deleted parse_subreddit_posts method"
+    )
     def test_reddit_parser_performance(self, sample_tickers):
         """Test Reddit parser performance with large datasets."""
         parser = RedditDiscussionScraper()

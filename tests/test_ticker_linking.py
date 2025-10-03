@@ -79,8 +79,8 @@ class TestTickerLinker:
 
         text = self.linker._extract_text_for_matching(article, use_title_only=True)
 
-        # The implementation converts to lowercase and combines title + text for reddit posts
-        expected = "apple stock is going to the moon! $aapl this is the full article text with more details about apple inc."
+        # The implementation preserves case and combines title + text for reddit posts
+        expected = "Apple stock is going to the moon! $AAPL This is the full article text with more details about Apple Inc."
         assert text == expected
 
     def test_extract_text_for_matching_full_content(self):
@@ -93,8 +93,8 @@ class TestTickerLinker:
 
         text = self.linker._extract_text_for_matching(article, use_title_only=False)
 
-        # The implementation converts to lowercase and combines title + text for reddit posts
-        expected = "tesla news tesla stock $tsla is performing well. the company reported strong earnings."
+        # The implementation preserves case and combines title + text for reddit posts
+        expected = "Tesla News Tesla stock $TSLA is performing well. The company reported strong earnings."
         assert text == expected
 
     def test_extract_text_for_matching_reddit_comment(self):
@@ -107,10 +107,10 @@ class TestTickerLinker:
 
         text = self.linker._extract_text_for_matching(article, use_title_only=False)
 
-        # For Reddit comments, should use text only and convert to lowercase
-        expected = "i'm bullish on $nvda and $amd. both are great picks!"
+        # For Reddit comments, should use text only and preserve case
+        expected = "I'm bullish on $NVDA and $AMD. Both are great picks!"
         assert text == expected
-        assert "comment title" not in text
+        assert "Comment Title" not in text  # Title should not be included
 
     def test_find_ticker_matches_basic(self):
         """Test basic ticker matching functionality."""

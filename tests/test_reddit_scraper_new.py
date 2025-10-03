@@ -195,9 +195,7 @@ class TestRedditScraper:
 
         # Should retry and eventually succeed
         with patch("time.sleep"):  # Don't actually sleep in tests
-            _ = self.scraper.extract_comments_with_retry(
-                mock_submission, max_retries=3
-            )
+            _ = self.scraper.extract_comments_with_retry(mock_submission, max_retries=3)
 
         # Should have retried once
         assert call_count == 2
@@ -251,7 +249,9 @@ class TestRedditScraperIntegration:
             client_id, client_secret, user_agent = get_reddit_credentials()
             scraper.initialize_reddit(client_id, client_secret, user_agent)
 
-            status = scraper.get_scraping_status("wallstreetbets", check_live_counts=False)
+            status = scraper.get_scraping_status(
+                "wallstreetbets", check_live_counts=False
+            )
 
             assert "subreddit" in status
             assert status["subreddit"] == "wallstreetbets"

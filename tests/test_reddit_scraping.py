@@ -106,7 +106,9 @@ class TestRedditDiscussionScraper:
 
         # Assertions
         assert article.source == "reddit_comment"
-        assert article.title == "Comment in: Daily Discussion"  # Note: has "Comment in: " prefix
+        assert (
+            article.title == "Comment in: Daily Discussion"
+        )  # Note: has "Comment in: " prefix
         assert article.text == "This is a test comment about $AAPL"
         assert article.reddit_id == "comment123"
         assert article.subreddit == "wallstreetbets"
