@@ -66,7 +66,9 @@ class RateLimiter:
 
         # Remove requests older than 1 minute
         if self.request_times is not None:
-            self.request_times = [t for t in self.request_times if current_time - t < 60]
+            self.request_times = [
+                t for t in self.request_times if current_time - t < 60
+            ]
         else:
             self.request_times = []
 
