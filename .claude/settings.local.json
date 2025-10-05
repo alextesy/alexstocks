@@ -1,23 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir:*)",
-      "Bash(git mv:*)",
-      "Bash(mv:*)",
-      "Bash(git add:*)",
+      "Bash(TZ=America/Los_Angeles date +\"%H:%M %Z\")",
+      "Read(//Users/alex/logs/market-pulse/**)",
+      "Bash(crontab:*)",
+      "Bash(black:*)",
+      "Bash(ruff check:*)",
       "Bash(uv run ruff:*)",
-      "Bash(uv run:*)",
-      "Bash(uv sync:*)",
-      "Bash(gh:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "Bash(uv:*)",
-      "Bash(DATABASE_URL=\"postgresql://test:test@localhost:5432/test\" python -c \"from app.config import settings; print(''Success:'', settings.postgres_url)\")",
-      "Bash(DATABASE_URL=\"postgresql://test:test@localhost:5432/test\" uv run python -c \"from app.config import settings; print(''Success:'', settings.postgres_url)\")",
-      "Bash(git checkout:*)",
-      "Bash(psql:*)",
-      "Bash(python:*)",
-      "Bash(tree:*)"
+      "Bash(uv run:*)"
     ],
     "deny": [],
     "ask": []

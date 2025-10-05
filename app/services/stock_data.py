@@ -1,269 +1,207 @@
-"""Stock data service for fetching real-time and historical stock prices using Finnhub API."""
+"""Stock data service for fetching real-time and historical stock prices using yfinance."""
 
+import asyncio
 import logging
-from datetime import datetime, timedelta
+import time
+from datetime import datetime
 
-import httpx
 import pandas as pd
 import yfinance as yf
-
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class StockDataService:
-    """Service for fetching stock price data using Finnhub API."""
+    """Service for fetching stock price data using Yahoo Finance (yfinance)."""
 
     def __init__(self):
-        # Primary: Finnhub (with API key), Backup: Twelve Data free tier
-        self.finnhub_url = "https://finnhub.io/api/v1"
-        self.finnhub_token = settings.finnhub_secret
-        self.twelve_data_url = "https://api.twelvedata.com"
         self.timeout = 10.0
+        self.max_retries = 3
+        self.base_delay = 1.0  # Base delay for exponential backoff
+        # Track rate limiting
+        self._last_request_time = 0.0
+        self._min_request_interval = 0.5  # Minimum 500ms between requests
+
+    async def _rate_limit(self):
+        """Implement rate limiting between requests."""
+        current_time = time.time()
+        time_since_last_request = current_time - self._last_request_time
+
+        if time_since_last_request < self._min_request_interval:
+            wait_time = self._min_request_interval - time_since_last_request
+            await asyncio.sleep(wait_time)
+
+        self._last_request_time = time.time()
+
+    def _normalize_symbol(self, symbol: str) -> str:
+        """Normalize symbol for Yahoo Finance format."""
+        # Symbol mappings for special cases
+        symbol_map = {
+            "BRK.B": "BRK-B",
+            "BRK.A": "BRK-A",
+        }
+        return symbol_map.get(symbol.upper(), symbol.upper())
 
     async def get_stock_price(self, symbol: str) -> dict | None:
         """
-        Get current stock price and basic info for a symbol.
-        Uses Finnhub as primary source with API key.
+        Get current stock price and basic info for a symbol using Yahoo Finance.
+        Returns None if data unavailable (no mock data fallback).
         """
-        # Method 1: Try Finnhub first (most reliable with API key)
-        if self.finnhub_token:
+        normalized_symbol = self._normalize_symbol(symbol)
+
+        for attempt in range(self.max_retries):
             try:
-                data = await self._fetch_from_finnhub(symbol)
+                await self._rate_limit()
+
+                # Fetch data using yfinance
+                data = await self._fetch_from_yahoo(normalized_symbol)
                 if data:
                     return data
+
+                # If no data on first attempt, retry with exponential backoff
+                if attempt < self.max_retries - 1:
+                    delay = self.base_delay * (2**attempt)
+                    logger.warning(
+                        f"Attempt {attempt + 1} failed for {symbol}, retrying in {delay}s"
+                    )
+                    await asyncio.sleep(delay)
+
             except Exception as e:
-                logger.error(f"Finnhub error for {symbol}: {e}")
-        else:
-            logger.warning("No Finnhub API key configured")
+                logger.error(
+                    f"Error fetching {symbol} (attempt {attempt + 1}/{self.max_retries}): {e}"
+                )
+                if attempt < self.max_retries - 1:
+                    delay = self.base_delay * (2**attempt)
+                    await asyncio.sleep(delay)
 
-        # Method 2: Try Twelve Data as backup
+        logger.error(
+            f"Failed to fetch data for {symbol} after {self.max_retries} attempts"
+        )
+        return None
+
+    async def _fetch_from_yahoo(self, symbol: str) -> dict | None:
+        """Fetch current price data from Yahoo Finance using yfinance."""
         try:
-            data = await self._fetch_from_twelve_data_simple(symbol)
-            if data:
-                return data
-        except Exception as e:
-            logger.error(f"Twelve Data error for {symbol}: {e}")
+            # Run yfinance in executor to avoid blocking event loop
+            loop = asyncio.get_event_loop()
+            ticker = await loop.run_in_executor(None, lambda: yf.Ticker(symbol))
 
-        # Method 3: Fallback to realistic mock data as last resort
-        logger.warning(f"All APIs failed for {symbol}, using fallback data")
-        return self._get_mock_stock_data(symbol)
+            # Get current info
+            info = await loop.run_in_executor(None, lambda: ticker.info)
 
-    async def _fetch_from_finnhub(self, symbol: str) -> dict | None:
-        """Fetch current price from Finnhub API using quote endpoint."""
-        try:
-            url = f"{self.finnhub_url}/quote"
-            params = {"symbol": symbol, "token": self.finnhub_token}
+            if not info or "currentPrice" not in info:
+                # Try fast_info as fallback
+                try:
+                    fast_info = await loop.run_in_executor(
+                        None, lambda: ticker.fast_info
+                    )
+                    if not fast_info or "lastPrice" not in fast_info:
+                        logger.warning(f"No price data available for {symbol}")
+                        return None
 
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(url, params=params)
-                response.raise_for_status()
-                data = response.json()
+                    last_price = fast_info.get("lastPrice")
+                    if last_price is None or last_price == 0:
+                        logger.warning(
+                            f"No valid price for {symbol} (possibly delisted)"
+                        )
+                        return None
 
-                # Finnhub quote response format:
-                # {
-                #   "c": current_price,
-                #   "h": high_price,
-                #   "l": low_price,
-                #   "o": open_price,
-                #   "pc": previous_close,
-                #   "t": timestamp
-                # }
-
-                if "c" not in data or data["c"] == 0:
-                    logger.warning(f"No price data for {symbol} from Finnhub")
+                    current_price = float(last_price)
+                    previous_close = float(
+                        fast_info.get("previousClose", current_price)
+                    )
+                except Exception as e:
+                    # Don't retry for clearly invalid tickers (delisted, warrants, etc.)
+                    if "delisted" in str(e).lower() or "not found" in str(e).lower():
+                        logger.warning(f"Skipping {symbol}: likely delisted or invalid")
+                        return None
+                    logger.error(f"Error fetching fast_info for {symbol}: {e}")
                     return None
-
-                current_price = float(data["c"])
-                previous_close = float(data.get("pc", current_price))
-                change = current_price - previous_close
-                change_percent = (
-                    (change / previous_close * 100) if previous_close > 0 else 0
+            else:
+                current_price = float(info.get("currentPrice", 0))
+                previous_close = float(
+                    info.get(
+                        "previousClose",
+                        info.get("regularMarketPreviousClose", current_price),
+                    )
                 )
 
-                # Determine market state based on timestamp
-                current_time = datetime.now()
-                market_state = "REGULAR" if 9 <= current_time.hour <= 16 else "CLOSED"
+            if current_price <= 0:
+                logger.warning(f"Invalid price ({current_price}) for {symbol}")
+                return None
 
-                return {
-                    "symbol": symbol,
-                    "price": round(current_price, 2),
-                    "previous_close": round(previous_close, 2),
-                    "change": round(change, 2),
-                    "change_percent": round(change_percent, 2),
-                    "currency": "USD",
-                    "market_state": market_state,
-                    "exchange": "NASDAQ",  # Default, could be enhanced with company endpoint
-                    "last_updated": datetime.now().isoformat(),
-                }
+            # Calculate change
+            change = current_price - previous_close
+            change_percent = (
+                (change / previous_close * 100) if previous_close > 0 else 0
+            )
 
-        except Exception as e:
-            logger.error(f"Finnhub API error for {symbol}: {e}")
-            return None
+            # Determine market state
+            market_state = info.get("marketState", "CLOSED") if info else "CLOSED"
 
-    async def _fetch_from_twelve_data_simple(self, symbol: str) -> dict | None:
-        """Fetch current price from Twelve Data with simple API call (backup)."""
-        try:
-            # Use simple price endpoint first
-            url = f"{self.twelve_data_url}/price"
-            params = {"symbol": symbol, "apikey": "demo"}
+            # Get exchange and currency
+            exchange = (
+                info.get("exchange", info.get("fullExchangeName", "")) if info else ""
+            )
+            currency = info.get("currency", "USD") if info else "USD"
 
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(url, params=params)
-                response.raise_for_status()
-                data = response.json()
-
-                if "price" not in data:
-                    return None
-
-                current_price = float(data["price"])
-
-                # Estimate previous close (real API would provide this)
-                # For demo purposes, we'll use a small variation
-                prev_close = current_price * 0.999  # Assume small change
-                change = current_price - prev_close
-                change_percent = (change / prev_close * 100) if prev_close > 0 else 0
-
-                return {
-                    "symbol": symbol,
-                    "price": round(current_price, 2),
-                    "previous_close": round(prev_close, 2),
-                    "change": round(change, 2),
-                    "change_percent": round(change_percent, 2),
-                    "currency": "USD",
-                    "market_state": "REGULAR",
-                    "exchange": "NASDAQ",
-                    "last_updated": datetime.now().isoformat(),
-                }
+            return {
+                "symbol": symbol,
+                "price": round(current_price, 2),
+                "previous_close": round(previous_close, 2),
+                "change": round(change, 2),
+                "change_percent": round(change_percent, 2),
+                "currency": currency,
+                "market_state": market_state.upper(),
+                "exchange": exchange,
+                "last_updated": datetime.now().isoformat(),
+            }
 
         except Exception as e:
-            logger.error(f"Twelve Data simple API error: {e}")
+            logger.error(f"Yahoo Finance API error for {symbol}: {e}")
             return None
 
     async def get_stock_chart_data(
         self, symbol: str, period: str = "1mo"
     ) -> dict | None:
         """
-        Get historical stock data for charting.
-        Uses Yahoo Finance as primary source (free), Finnhub as backup.
+        Get historical stock data for charting using Yahoo Finance.
+        Returns None if data unavailable (no mock data fallback).
         """
-        # Try Yahoo Finance first (reliable and free)
-        try:
-            data = await self._fetch_historical_yahoo(symbol, period)
-            if data:
-                return data
-        except Exception as e:
-            logger.error(f"Yahoo Finance historical error for {symbol}: {e}")
+        normalized_symbol = self._normalize_symbol(symbol)
 
-        # Try Finnhub as backup (but historical data requires paid plan)
-        if self.finnhub_token:
+        for attempt in range(self.max_retries):
             try:
-                data = await self._fetch_historical_finnhub(symbol, period)
+                await self._rate_limit()
+
+                data = await self._fetch_historical_yahoo(normalized_symbol, period)
                 if data:
                     return data
-            except Exception as e:
-                logger.error(f"Finnhub historical error for {symbol}: {e}")
 
-        # NO FALLBACK TO MOCK DATA FOR DATABASE OPERATIONS
-        # Only return None if real data is not available
-        logger.warning(f"No real historical data available for {symbol}")
+                # Retry with exponential backoff
+                if attempt < self.max_retries - 1:
+                    delay = self.base_delay * (2**attempt)
+                    logger.warning(
+                        f"Historical data attempt {attempt + 1} failed for {symbol}, retrying in {delay}s"
+                    )
+                    await asyncio.sleep(delay)
+
+            except Exception as e:
+                logger.error(
+                    f"Error fetching historical data for {symbol} (attempt {attempt + 1}/{self.max_retries}): {e}"
+                )
+                if attempt < self.max_retries - 1:
+                    delay = self.base_delay * (2**attempt)
+                    await asyncio.sleep(delay)
+
+        logger.error(
+            f"Failed to fetch historical data for {symbol} after {self.max_retries} attempts"
+        )
         return None
 
-    async def _fetch_historical_finnhub(self, symbol: str, period: str) -> dict | None:
-        """Fetch historical data from Finnhub candle endpoint."""
-        try:
-            # Map period to timestamps
-            end_time = int(datetime.now().timestamp())
-            period_days = {
-                "1d": 1,
-                "5d": 5,
-                "1mo": 30,
-                "3mo": 90,
-                "6mo": 180,
-                "1y": 365,
-                "2y": 730,
-                "5y": 1825,
-            }
-            days = period_days.get(period, 30)
-            start_time = int((datetime.now() - timedelta(days=days)).timestamp())
-
-            # Choose appropriate resolution
-            resolution = "D"  # Daily for most periods
-            if period in ["1d", "5d"]:
-                resolution = "60"  # Hourly for short periods
-
-            url = f"{self.finnhub_url}/stock/candle"
-            params: dict[str, str | int] = {
-                "symbol": symbol,
-                "resolution": resolution,
-                "from": start_time,
-                "to": end_time,
-                "token": self.finnhub_token if self.finnhub_token else "",
-            }
-
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(url, params=params)
-                response.raise_for_status()
-                data = response.json()
-
-                # Finnhub candle response format:
-                # {
-                #   "c": [close_prices],
-                #   "h": [high_prices],
-                #   "l": [low_prices],
-                #   "o": [open_prices],
-                #   "s": "ok",
-                #   "t": [timestamps],
-                #   "v": [volumes]
-                # }
-
-                if data.get("s") != "ok" or not data.get("c"):
-                    logger.warning(f"No historical data for {symbol} from Finnhub")
-                    return None
-
-                # Convert to our chart format
-                chart_data = []
-                timestamps = data.get("t", [])
-                closes = data.get("c", [])
-                volumes = data.get("v", [])
-
-                for i, timestamp in enumerate(timestamps):
-                    if i < len(closes):
-                        chart_data.append(
-                            {
-                                "date": datetime.fromtimestamp(timestamp).strftime(
-                                    "%Y-%m-%d"
-                                ),
-                                "price": round(float(closes[i]), 2),
-                                "volume": int(volumes[i]) if i < len(volumes) else 0,
-                            }
-                        )
-
-                if not chart_data:
-                    return None
-
-                return {
-                    "symbol": symbol,
-                    "period": period,
-                    "data": chart_data,
-                    "meta": {"symbol": symbol, "source": "finnhub"},
-                }
-
-        except Exception as e:
-            logger.error(f"Finnhub candle API error for {symbol}: {e}")
-            return None
-
     async def _fetch_historical_yahoo(self, symbol: str, period: str) -> dict | None:
-        """Fetch historical data from Yahoo Finance (free and reliable)."""
+        """Fetch historical data from Yahoo Finance."""
         try:
-            # Map symbol to Yahoo Finance format
-            symbol_map = {
-                "BRK.B": "BRK-B",
-                # Add other symbol mappings as needed
-            }
-            yahoo_symbol = symbol_map.get(symbol, symbol)
-
             # Map period to yfinance period
             period_map = {
                 "1d": "1d",
@@ -278,11 +216,9 @@ class StockDataService:
             yf_period = period_map.get(period, "1mo")
 
             # Create ticker object and fetch data
-            ticker = yf.Ticker(yahoo_symbol)
+            ticker = yf.Ticker(symbol)
 
             # Run in executor to avoid blocking the event loop
-            import asyncio
-
             loop = asyncio.get_event_loop()
             hist = await loop.run_in_executor(
                 None, lambda: ticker.history(period=yf_period)
@@ -292,13 +228,31 @@ class StockDataService:
                 logger.warning(f"No historical data from Yahoo Finance for {symbol}")
                 return None
 
-            # Convert to our format
+            # Convert to our format with OHLCV data
             chart_data = []
             for date, row in hist.iterrows():
                 chart_data.append(
                     {
                         "date": date.strftime("%Y-%m-%d"),
-                        "price": round(float(row["Close"]), 2),
+                        "open": (
+                            round(float(row["Open"]), 2)
+                            if "Open" in row and not pd.isna(row["Open"])
+                            else None
+                        ),
+                        "high": (
+                            round(float(row["High"]), 2)
+                            if "High" in row and not pd.isna(row["High"])
+                            else None
+                        ),
+                        "low": (
+                            round(float(row["Low"]), 2)
+                            if "Low" in row and not pd.isna(row["Low"])
+                            else None
+                        ),
+                        "close": round(float(row["Close"]), 2),
+                        "price": round(
+                            float(row["Close"]), 2
+                        ),  # For backwards compatibility
                         "volume": (
                             int(row["Volume"])
                             if "Volume" in row and not pd.isna(row["Volume"])
@@ -321,106 +275,14 @@ class StockDataService:
             logger.error(f"Yahoo Finance API error for {symbol}: {e}")
             return None
 
-    def _get_mock_stock_data(self, symbol: str) -> dict:
-        """Generate realistic mock stock data as fallback."""
-        # Base prices for common stocks (roughly realistic as of 2024)
-        base_prices = {
-            "AAPL": 175.0,
-            "MSFT": 380.0,
-            "GOOGL": 140.0,
-            "AMZN": 145.0,
-            "TSLA": 240.0,
-            "META": 320.0,
-            "NVDA": 450.0,
-            "JPM": 150.0,
-            "V": 260.0,
-            "JNJ": 160.0,
-            "WMT": 155.0,
-            "PG": 155.0,
-            "UNH": 520.0,
-            "MA": 420.0,
-            "HD": 340.0,
-            "DIS": 90.0,
-        }
-
-        base_price = base_prices.get(symbol, 100.0)
-
-        # Add some realistic variation (±5%)
-        import random
-
-        variation = random.uniform(-0.05, 0.05)
-        current_price = base_price * (1 + variation)
-
-        # Generate previous close and change
-        daily_change = random.uniform(-0.03, 0.03)
-        prev_close = current_price / (1 + daily_change)
-        change = current_price - prev_close
-        change_percent = change / prev_close * 100
-
-        return {
-            "symbol": symbol,
-            "price": round(current_price, 2),
-            "previous_close": round(prev_close, 2),
-            "change": round(change, 2),
-            "change_percent": round(change_percent, 2),
-            "currency": "USD",
-            "market_state": "CLOSED",
-            "exchange": "NASDAQ",
-            "last_updated": datetime.now().isoformat(),
-        }
-
-    def _generate_mock_chart_data(self, symbol: str, period: str) -> dict:
-        """Generate mock historical chart data."""
-        import random
-
-        # Get base price from mock data
-        mock_current = self._get_mock_stock_data(symbol)
-        base_price = mock_current["price"]
-
-        # Generate number of data points based on period
-        period_days = {
-            "1d": 1,
-            "5d": 5,
-            "1mo": 30,
-            "3mo": 90,
-            "6mo": 180,
-            "1y": 365,
-            "2y": 730,
-            "5y": 1825,
-        }
-        days = period_days.get(period, 30)
-
-        chart_data = []
-        current_price = base_price
-
-        # Generate historical data going backwards
-        for i in range(days, 0, -1):
-            date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
-
-            # Small random walk
-            change = random.uniform(-0.02, 0.02)
-            current_price *= 1 + change
-
-            chart_data.append(
-                {
-                    "date": date,
-                    "price": round(current_price, 2),
-                    "volume": random.randint(1000000, 10000000),
-                }
-            )
-
-        return {
-            "symbol": symbol,
-            "period": period,
-            "data": chart_data,
-            "meta": {"symbol": symbol, "source": "mock"},
-        }
-
     async def get_multiple_prices(self, symbols: list[str]) -> dict[str, dict | None]:
-        """Get current prices for multiple symbols."""
+        """
+        Get current prices for multiple symbols.
+        Returns dict mapping symbol to price data (or None if unavailable).
+        """
         results = {}
 
-        # Process symbols one by one for now (could be optimized with batch API calls)
+        # Process symbols with rate limiting
         for symbol in symbols:
             try:
                 data = await self.get_stock_price(symbol)
@@ -434,21 +296,11 @@ class StockDataService:
     async def get_historical_data(
         self, symbol: str, period: str = "1mo"
     ) -> dict | None:
-        """Get historical data for a symbol (database collection - no mock data)."""
+        """
+        Get historical data for a symbol.
+        Returns None if data unavailable (no mock data fallback).
+        """
         return await self.get_stock_chart_data(symbol, period)
-
-    async def get_chart_data_for_ui(
-        self, symbol: str, period: str = "1mo"
-    ) -> dict | None:
-        """Get chart data for UI display (can fall back to mock data)."""
-        # Try to get real data first
-        data = await self.get_stock_chart_data(symbol, period)
-        if data:
-            return data
-
-        # For UI only, fall back to mock data
-        logger.warning(f"Using mock chart data for UI display: {symbol}")
-        return self._generate_mock_chart_data(symbol, period)
 
 
 # Create service instance

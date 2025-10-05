@@ -1,0 +1,16 @@
+[Unit]
+Description=Market Pulse Stock Price Collector
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=your_username
+WorkingDirectory=/path/to/market-pulse-v2
+Environment="PATH=/path/to/market-pulse-v2/.venv/bin:/usr/bin:/bin"
+Environment="DATABASE_URL=postgresql://user:pass@localhost:5432/marketpulse"
+ExecStart=/usr/bin/env uv run python app/scripts/collect_all_stock_data.py --type current
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

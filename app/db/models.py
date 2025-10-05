@@ -1,6 +1,6 @@
 """SQLAlchemy models for Market Pulse."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
@@ -104,7 +104,7 @@ class Article(Base):
     num_comments: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     reddit_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
 
     # Relationships
@@ -152,7 +152,7 @@ class RedditThread(Base):
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
     is_complete: Mapped[bool] = mapped_column(default=False)
 
@@ -175,7 +175,7 @@ class StockPrice(Base):
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="USD")
     exchange: Mapped[str | None] = mapped_column(String(50), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
 
     # Relationships
@@ -200,7 +200,7 @@ class StockPriceHistory(Base):
     close_price: Mapped[float] = mapped_column(Float, nullable=False)
     volume: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
 
     # Relationships
@@ -212,7 +212,9 @@ class StockDataCollection(Base):
 
     __tablename__ = "stock_data_collection"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        BigIntegerCompat, primary_key=True, autoincrement=True
+    )
     collection_type: Mapped[str] = mapped_column(
         String(20), nullable=False
     )  # 'current', 'historical'
@@ -221,7 +223,7 @@ class StockDataCollection(Base):
     symbols_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     errors: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

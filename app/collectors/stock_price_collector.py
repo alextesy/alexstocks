@@ -119,8 +119,14 @@ class StockPriceCollector:
             collection_run.symbols_failed = failed_count
             collection_run.errors = errors[:100]  # Limit errors stored
             collection_run.completed_at = datetime.now(UTC)
+
+            # Ensure started_at is timezone-aware for duration calculation
+            started_at = collection_run.started_at
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=UTC)
+
             collection_run.duration_seconds = (
-                collection_run.completed_at - collection_run.started_at
+                collection_run.completed_at - started_at
             ).total_seconds()
 
             db.commit()
@@ -264,8 +270,14 @@ class StockPriceCollector:
             collection_run.symbols_failed = failed_count
             collection_run.errors = errors[:100]
             collection_run.completed_at = datetime.now(UTC)
+
+            # Ensure started_at is timezone-aware for duration calculation
+            started_at = collection_run.started_at
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=UTC)
+
             collection_run.duration_seconds = (
-                collection_run.completed_at - collection_run.started_at
+                collection_run.completed_at - started_at
             ).total_seconds()
 
             db.commit()

@@ -91,13 +91,35 @@ override-sentiment-dual-recent: ## Override sentiment for articles from last 24 
 
 # Stock Price Collection Jobs
 collect-stock-prices: ## Collect current stock prices for all tickers
-	uv run python app/jobs/collect_stock_prices.py --type current
+	uv run python app/scripts/collect_all_stock_data.py --type current
 
-collect-historical-data: ## Collect historical stock price data
-	uv run python app/jobs/collect_stock_prices.py --type historical
+collect-historical-data: ## Collect historical stock price data (1 month)
+	uv run python app/scripts/collect_all_stock_data.py --type historical --period 1mo
 
 collect-both-stock-data: ## Collect both current and historical stock data
-	uv run python app/jobs/collect_stock_prices.py --type both
+	uv run python app/scripts/collect_all_stock_data.py --type both --period 1mo
+
+test-stock-collection: ## Test stock data collection with 3 sample tickers
+	uv run python app/scripts/test_stock_collection.py
+
+setup-stock-cron: ## Setup cron job to collect stock prices every 15 minutes
+	./scripts/setup-stock-price-cron.sh
+
+test-stock: ## Run stock-related tests
+	uv run pytest tests/test_stock*.py -v
+
+# Smart Stock Collection (filters inactive tickers for faster collection)
+collect-stock-prices-smart: ## Collect current prices (SMART - excludes warrants/units/rights)
+	uv run python app/scripts/collect_stock_data_smart.py --type current
+
+collect-stock-prices-test: ## Test collection with first 10 tickers
+	uv run python app/scripts/collect_stock_data_smart.py --type current --limit 10
+
+analyze-tickers: ## Analyze ticker database and show statistics
+	uv run python app/scripts/filter_active_tickers.py
+
+check-rate-limit: ## Check if Yahoo Finance rate limit has cleared
+	uv run python app/scripts/check_rate_limit.py
 
 # Combined Jobs (Scraping + Sentiment)
 scrape-and-analyze-posts: ## Scrape Reddit posts and analyze sentiment
