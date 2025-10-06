@@ -7,7 +7,15 @@
       "Bash(black:*)",
       "Bash(ruff check:*)",
       "Bash(uv run ruff:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(chmod:*)",
+      "Bash(sudo lsof:*)",
+      "Bash(sudo netstat:*)",
+      "Bash(sed:*)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": []
