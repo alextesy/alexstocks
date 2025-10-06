@@ -7,6 +7,9 @@
 .venv
 venv/
 
+# Security assessment (private)
+SECURITY_ASSESSMENT.md
+
 # Python
 __pycache__/
 *.py[cod]

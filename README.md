@@ -65,27 +65,27 @@ Market Pulse is a comprehensive web application that collects, analyzes, and vis
 ┌─────────────┐         ┌──────────────────┐         ┌─────────────┐
 │   Ticker    │         │  ArticleTicker   │         │   Article   │
 ├─────────────┤         ├──────────────────┤         ├─────────────┤
-│ symbol (PK) │◄───────┤ ticker (FK)      │         │ id (PK)     │
+│ symbol (PK) │◄─────── ┤ ticker (FK)      │         │ id (PK)     │
 │ name        │         │ article_id (FK)  ├────────►│ source      │
 │ aliases     │         │ confidence       │         │ url         │
 │ exchange    │         │ matched_terms    │         │ title       │
 │ is_sp500    │         └──────────────────┘         │ text        │
 └─────────────┘                                      │ sentiment   │
                                                      │ published_at│
-┌──────────────────┐                                │ reddit_id   │
-│   StockPrice     │                                │ subreddit   │
-├──────────────────┤                                │ author      │
-│ symbol (FK)      │                                │ upvotes     │
-│ price            │                                └─────────────┘
+┌──────────────────┐                                 │ reddit_id   │
+│   StockPrice     │                                 │ subreddit   │
+├──────────────────┤                                 │ author      │
+│ symbol (FK)      │                                 │ upvotes     │
+│ price            │                                 └─────────────┘
 │ change           │
 │ change_percent   │         ┌─────────────────────┐
 │ market_state     │         │ StockPriceHistory   │
 │ updated_at       │         ├─────────────────────┤
 └──────────────────┘         │ symbol (FK)         │
-                            │ date                │
-                            │ close_price         │
-                            │ volume              │
-                            └─────────────────────┘
+                             │ date                │
+                             │ close_price         │
+                             │ volume              │
+                             └─────────────────────┘
 ```
 
 ---
@@ -385,6 +385,28 @@ Tests use:
 
 ## 🚀 Deployment
 
+### Production Environment
+
+**Live Site:** [alexstocks.com](https://alexstocks.com)
+
+**Infrastructure:**
+- **Platform**: AWS EC2 (Ubuntu)
+- **Web Server**: Nginx (reverse proxy)
+- **Application**: FastAPI + Uvicorn
+- **Database**: PostgreSQL 16 (Docker)
+- **SSL**: Let's Encrypt (auto-renewal)
+- **Process Manager**: systemd
+- **Scheduler**: cron
+
+**Deployment Process:**
+1. Code pushed to `master` branch
+2. GitHub Actions runs tests, linting, security scan
+3. Automated deployment to EC2 via SSH
+4. Systemd service restarted
+5. Health check verification
+
+See [docs/deployment.md](docs/deployment.md) for detailed deployment instructions and [docs/ci-cd-setup.md](docs/ci-cd-setup.md) for CI/CD pipeline details.
+
 ### Production Considerations
 
 1. **Database:**
@@ -500,6 +522,50 @@ make seed-tickers  # Reseed data
 
 ---
 
+## 🔒 Security
+
+All sensitive credentials are managed through environment variables and **never** committed to the repository. The `.env` file is gitignored and contains all API keys and secrets.
+
+**Required API Keys:**
+- Reddit API credentials (get from https://www.reddit.com/prefs/apps)
+- PostgreSQL password
+- Optional: Finnhub API key
+
+For detailed security information, see [SECURITY_ASSESSMENT.md](SECURITY_ASSESSMENT.md) (private file, not in repo).
+
+---
+
+## 📋 Recent Changes
+
+### Latest Updates (October 2025)
+
+**Features:**
+- Added scraping status tracking table for monitoring Reddit data collection
+- Improved sentiment analytics service with better distribution metrics
+- Enhanced UI with better base template and responsive design
+- Production deployment to EC2 with automated CI/CD pipeline
+
+**Infrastructure:**
+- Deployed to AWS EC2 at alexstocks.com
+- Automated CI/CD via GitHub Actions (test → lint → security → deploy)
+- Nginx reverse proxy with SSL/HTTPS via Let's Encrypt
+- Systemd service for application management
+- Cron jobs for automated hourly data collection
+
+**Performance:**
+- Reddit scraping with intelligent rate limiting and retry logic
+- Stock price collection every 15 minutes during market hours
+- Historical data collection daily at 2 PM PT
+- Efficient database queries with proper indexing
+
+**Security:**
+- All secrets managed via environment variables
+- GitHub Actions deployment using SSH keys from GitHub Secrets
+- EC2 security groups properly configured
+- SSL certificate auto-renewal
+
+---
+
 ## 📚 Documentation
 
 Detailed documentation available in the [docs/](docs/) directory:
@@ -510,6 +576,8 @@ Detailed documentation available in the [docs/](docs/) directory:
 - [LLM Sentiment Setup](docs/LLM_SENTIMENT_SETUP.md) - FinBERT configuration
 - [Ticker Linking](docs/TICKER_LINKING_IMPROVEMENTS.md) - Linking algorithm details
 - [Cron Jobs](docs/CRON_JOBS_SUMMARY.md) - Automated data pipeline
+- [Deployment Guide](docs/deployment.md) - EC2 deployment instructions
+- [CI/CD Setup](docs/ci-cd-setup.md) - GitHub Actions pipeline
 
 ---
 
@@ -554,8 +622,15 @@ This project is available for personal and educational use.
 ## 📬 Support
 
 For issues, questions, or contributions:
-- **Issues**: [GitHub Issues](https://github.com/your-repo/market-pulse/issues)
+- **Security Issues**: Please report security vulnerabilities privately
+- **Bug Reports**: [GitHub Issues](https://github.com/your-repo/market-pulse/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/your-repo/market-pulse/discussions)
+
+---
+
+## 📝 License
+
+This project is available for personal and educational use. Not for commercial redistribution.
 
 ---
 
