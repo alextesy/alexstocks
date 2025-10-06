@@ -425,20 +425,14 @@ async def get_stock_chart_data(symbol: str, period: str = "1mo"):
                     }
                     return chart_data
                 else:
-                    # No data at all, try API for UI (may include mock)
-                    try:
-                        chart_data_ui = await stock_service.get_chart_data_for_ui(
-                            symbol.upper(), period
-                        )
-                        if chart_data_ui:
-                            return chart_data_ui
-                    except Exception as e:
-                        logger.error(f"Error getting chart data for API: {e}")
-
-                return JSONResponse(
-                    status_code=404,
-                    content={"error": f"No chart data found for {symbol}"},
-                )
+                    # No data at all - return 404
+                    return JSONResponse(
+                        status_code=404,
+                        content={
+                            "error": f"No chart data found for {symbol}",
+                            "message": "Historical data not yet collected for this symbol",
+                        },
+                    )
         finally:
             db.close()
 
@@ -903,7 +897,7 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
             else:
                 # No data at all, try to get chart data for UI (may use mock)
                 try:
-                    chart_data = await stock_service.get_chart_data_for_ui(
+                    chart_data = await stock_service.get_stock_chart_data(
                         ticker.upper(), "1mo"
                     )
                 except Exception as e:
