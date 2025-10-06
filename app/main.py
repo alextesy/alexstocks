@@ -552,7 +552,9 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
 
         # Get sentiment analytics service for overall sentiment histogram (current day only)
         sentiment_analytics = get_sentiment_analytics_service()
-        overall_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(db, days=1)
+        overall_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(
+            db, days=1
+        )
 
         tickers = []
         for row in tickers_query.all():
@@ -604,9 +606,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
         from app.db.models import ScrapingStatus
 
         scraping_status = (
-            db.query(ScrapingStatus)
-            .filter(ScrapingStatus.source == "reddit")
-            .first()
+            db.query(ScrapingStatus).filter(ScrapingStatus.source == "reddit").first()
         )
 
         scraping_info = None

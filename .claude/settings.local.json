@@ -18,7 +18,8 @@
       "Bash(awk:*)",
       "Bash(pg_isready:*)",
       "Bash(uv lock:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(mypy:*)"
     ],
     "deny": [],
     "ask": []

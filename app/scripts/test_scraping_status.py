@@ -12,13 +12,11 @@ def add_sample_status():
     try:
         # Check if status exists
         existing = (
-            db.query(ScrapingStatus)
-            .filter(ScrapingStatus.source == "reddit")
-            .first()
+            db.query(ScrapingStatus).filter(ScrapingStatus.source == "reddit").first()
         )
 
         if existing:
-            print(f"Scraping status already exists for reddit")
+            print("Scraping status already exists for reddit")
             print(f"Last scrape: {existing.last_scrape_at}")
             print(f"Items scraped: {existing.items_scraped}")
             print(f"Status: {existing.status}")
