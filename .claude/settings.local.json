@@ -22,7 +22,8 @@
       "Bash(mypy:*)",
       "Bash(git log:*)",
       "Bash(git merge:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(git branch:*)"
     ],
     "deny": [],
     "ask": []
