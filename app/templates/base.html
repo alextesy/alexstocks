@@ -42,6 +42,33 @@
     <!-- JavaScript for search and filtering -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Format last scrape time to relative time
+            const lastScrapeElement = document.getElementById('last-scrape-time');
+            if (lastScrapeElement) {
+                const isoTime = lastScrapeElement.textContent.trim();
+                try {
+                    const date = new Date(isoTime);
+                    lastScrapeElement.textContent = formatRelativeTime(date);
+                    lastScrapeElement.title = date.toLocaleString(); // Show full time on hover
+                } catch (e) {
+                    console.error('Error parsing date:', e);
+                }
+            }
+
+            function formatRelativeTime(date) {
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMs / 3600000);
+                const diffDays = Math.floor(diffMs / 86400000);
+
+                if (diffMins < 1) return 'just now';
+                if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+                if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+                if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+                return date.toLocaleDateString();
+            }
+
             // Home page filtering
             const searchInput = document.getElementById('ticker-search');
             const sentimentFilter = document.getElementById('sentiment-filter');

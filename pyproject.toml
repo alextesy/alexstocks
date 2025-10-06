@@ -29,9 +29,9 @@ dependencies = [
     "prawcore>=2.4.0",
     "python-dotenv>=1.0.0",
     "transformers>=4.30.0,<4.40.0",
-    "torch>=2.2.0",
+    "torch>=2.2.0,<2.3.0",  # 2.2.2 is last version with Intel Mac support
     "numpy>=1.24.0,<2.0.0",
-    "torchvision>=0.17.0",
+    "torchvision>=0.17.0,<0.18.0",  # Match torch version
     "yfinance>=0.2.66",
 ]
 
@@ -89,6 +89,13 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+
+[tool.uv]
+# Support both local macOS (Intel/ARM) and EC2 Linux environments
+environments = [
+    "sys_platform == 'darwin'",  # macOS (both Intel and ARM)
+    "sys_platform == 'linux'",   # EC2 Linux
+]
 
 [dependency-groups]
 dev = [

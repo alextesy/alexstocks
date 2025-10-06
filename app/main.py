@@ -164,6 +164,35 @@ async def health() -> dict[str, bool]:
     return {"ok": True}
 
 
+@app.get("/api/scraping-status")
+async def get_scraping_status():
+    """Get the current scraping status for all sources."""
+    from app.db.models import ScrapingStatus
+    from app.db.session import SessionLocal
+
+    try:
+        db = SessionLocal()
+        try:
+            statuses = db.query(ScrapingStatus).all()
+
+            result = {}
+            for status in statuses:
+                result[status.source] = {
+                    "last_scrape_at": status.last_scrape_at.isoformat(),
+                    "items_scraped": status.items_scraped,
+                    "status": status.status,
+                    "error_message": status.error_message,
+                    "updated_at": status.updated_at.isoformat(),
+                }
+
+            return result
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error in scraping status API: {e}")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
+
+
 @app.get("/api/stock/{symbol}")
 async def get_stock_data(symbol: str):
     """Get current stock price data for a symbol."""
@@ -521,9 +550,11 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
         # Get velocity service for calculating velocity data
         velocity_service = get_velocity_service(db)
 
-        # Get sentiment analytics service for overall sentiment histogram
+        # Get sentiment analytics service for overall sentiment histogram (current day only)
         sentiment_analytics = get_sentiment_analytics_service()
-        overall_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(db)
+        overall_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(
+            db, days=1
+        )
 
         tickers = []
         for row in tickers_query.all():
@@ -571,12 +602,28 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
             }
             tickers.append(ticker_dict)
 
+        # Get scraping status
+        from app.db.models import ScrapingStatus
+
+        scraping_status = (
+            db.query(ScrapingStatus).filter(ScrapingStatus.source == "reddit").first()
+        )
+
+        scraping_info = None
+        if scraping_status:
+            scraping_info = {
+                "last_scrape_at": scraping_status.last_scrape_at.isoformat(),
+                "items_scraped": scraping_status.items_scraped,
+                "status": scraping_status.status,
+            }
+
         return templates.TemplateResponse(
             "home.html",
             {
                 "request": request,
                 "tickers": tickers,
                 "sentiment_histogram": overall_sentiment_data,
+                "scraping_status": scraping_info,
             },
         )
     finally:
