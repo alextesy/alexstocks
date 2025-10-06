@@ -16,7 +16,9 @@
       "Bash(sudo netstat:*)",
       "Bash(sed:*)",
       "Bash(awk:*)",
-      "Bash(pg_isready:*)"
+      "Bash(pg_isready:*)",
+      "Bash(uv lock:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
