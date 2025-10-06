@@ -1,6 +1,7 @@
 """Sentiment analytics service for generating histograms and aggregations."""
 
 import logging
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -76,7 +77,7 @@ class SentimentAnalyticsService:
             return {"positive": 0, "neutral": 0, "negative": 0, "total": 0}
 
     def get_sentiment_histogram_optimized(
-        self, db: Session, ticker: str | None = None
+        self, db: Session, ticker: str | None = None, days: int | None = None
     ) -> dict[str, int]:
         """
         Get sentiment histogram using SQL aggregation for better performance.
@@ -84,6 +85,7 @@ class SentimentAnalyticsService:
         Args:
             db: Database session
             ticker: Optional ticker symbol to filter by
+            days: Optional number of days to look back (None = all time)
 
         Returns:
             Dictionary with sentiment counts: {"positive": x, "neutral": y, "negative": z}
@@ -95,6 +97,11 @@ class SentimentAnalyticsService:
 
             # Base query
             base_query = db.query(Article).filter(Article.sentiment.isnot(None))
+
+            # Filter by date if specified
+            if days is not None:
+                cutoff_date = datetime.utcnow() - timedelta(days=days)
+                base_query = base_query.filter(Article.published_at >= cutoff_date)
 
             # Filter by ticker if specified
             if ticker:
@@ -131,7 +138,7 @@ class SentimentAnalyticsService:
             return {"positive": 0, "neutral": 0, "negative": 0, "total": 0}
 
     def get_sentiment_distribution_data(
-        self, db: Session, ticker: str | None = None
+        self, db: Session, ticker: str | None = None, days: int | None = None
     ) -> dict:
         """
         Get sentiment distribution data for visualization including percentages.
@@ -139,11 +146,12 @@ class SentimentAnalyticsService:
         Args:
             db: Database session
             ticker: Optional ticker symbol to filter by
+            days: Optional number of days to look back (None = all time)
 
         Returns:
             Dictionary with counts, percentages, and display data
         """
-        histogram = self.get_sentiment_histogram_optimized(db, ticker)
+        histogram = self.get_sentiment_histogram_optimized(db, ticker, days)
         total = histogram["total"]
 
         if total == 0:

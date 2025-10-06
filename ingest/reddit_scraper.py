@@ -25,7 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db.models import Article, ArticleTicker, RedditThread, Ticker
+from app.db.models import Article, ArticleTicker, RedditThread, ScrapingStatus, Ticker
 from app.db.session import SessionLocal
 from ingest.linker import TickerLinker
 from ingest.reddit_discussion_scraper import RedditDiscussionScraper
@@ -653,6 +653,30 @@ class RedditScraper:
 
             stats.duration_ms = int((time.time() - start_time) * 1000)
 
+            # Update scraping status
+            scraping_status = db.execute(
+                select(ScrapingStatus).where(ScrapingStatus.source == "reddit")
+            ).scalar_one_or_none()
+
+            if scraping_status:
+                scraping_status.last_scrape_at = datetime.now(UTC)
+                scraping_status.items_scraped = stats.new_comments
+                scraping_status.status = "success"
+                scraping_status.error_message = None
+                scraping_status.updated_at = datetime.now(UTC)
+            else:
+                scraping_status = ScrapingStatus(
+                    source="reddit",
+                    last_scrape_at=datetime.now(UTC),
+                    items_scraped=stats.new_comments,
+                    status="success",
+                    error_message=None,
+                    updated_at=datetime.now(UTC),
+                )
+                db.add(scraping_status)
+
+            db.commit()
+
             logger.info("\n🎉 Incremental scrape complete:")
             logger.info(f"   Threads: {stats.threads_processed}")
             logger.info(
@@ -667,6 +691,31 @@ class RedditScraper:
         except Exception as e:
             logger.error(f"❌ Error in incremental scrape: {e}")
             db.rollback()
+
+            # Update scraping status to error
+            try:
+                scraping_status = db.execute(
+                    select(ScrapingStatus).where(ScrapingStatus.source == "reddit")
+                ).scalar_one_or_none()
+
+                if scraping_status:
+                    scraping_status.status = "error"
+                    scraping_status.error_message = str(e)
+                    scraping_status.updated_at = datetime.now(UTC)
+                else:
+                    scraping_status = ScrapingStatus(
+                        source="reddit",
+                        last_scrape_at=datetime.now(UTC),
+                        items_scraped=0,
+                        status="error",
+                        error_message=str(e),
+                        updated_at=datetime.now(UTC),
+                    )
+                    db.add(scraping_status)
+                db.commit()
+            except Exception as status_error:
+                logger.error(f"Failed to update scraping status: {status_error}")
+
             return stats
         finally:
             db.close()
@@ -747,6 +796,30 @@ class RedditScraper:
                 current_date += timedelta(days=1)
 
             stats.duration_ms = int((time.time() - start_time) * 1000)
+
+            # Update scraping status
+            scraping_status = db.execute(
+                select(ScrapingStatus).where(ScrapingStatus.source == "reddit")
+            ).scalar_one_or_none()
+
+            if scraping_status:
+                scraping_status.last_scrape_at = datetime.now(UTC)
+                scraping_status.items_scraped = stats.new_comments
+                scraping_status.status = "success"
+                scraping_status.error_message = None
+                scraping_status.updated_at = datetime.now(UTC)
+            else:
+                scraping_status = ScrapingStatus(
+                    source="reddit",
+                    last_scrape_at=datetime.now(UTC),
+                    items_scraped=stats.new_comments,
+                    status="success",
+                    error_message=None,
+                    updated_at=datetime.now(UTC),
+                )
+                db.add(scraping_status)
+
+            db.commit()
 
             logger.info("\n🎉 Backfill complete:")
             logger.info(f"   Date range: {start_date.date()} to {end_date.date()}")

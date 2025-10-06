@@ -15,7 +15,8 @@
       "Bash(sudo lsof:*)",
       "Bash(sudo netstat:*)",
       "Bash(sed:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(pg_isready:*)"
     ],
     "deny": [],
     "ask": []

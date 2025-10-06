@@ -41,10 +41,25 @@
 <!-- Sentiment Overview -->
 {% if sentiment_histogram and sentiment_histogram["total"] > 0 %}
 <div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">
-        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
-        Overall Market Sentiment
-    </h2>
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">
+            <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
+            Overall Market Sentiment (Today)
+        </h2>
+        {% if scraping_status %}
+        <div class="text-xs text-gray-500">
+            Last Reddit scrape:
+            <span class="font-medium text-gray-700" id="last-scrape-time">
+                {{ scraping_status.last_scrape_at }}
+            </span>
+            {% if scraping_status.status == "success" %}
+            <span class="text-green-600 ml-1">✓</span>
+            {% elif scraping_status.status == "error" %}
+            <span class="text-red-600 ml-1">✗</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
     <div class="grid grid-cols-3 gap-4 mb-4">
         {% for item in sentiment_histogram.display_data %}
         <div class="text-center">

@@ -231,6 +231,27 @@ class StockDataCollection(Base):
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
+class ScrapingStatus(Base):
+    """Track scraping status for different sources."""
+
+    __tablename__ = "scraping_status"
+
+    source: Mapped[str] = mapped_column(
+        String(50), primary_key=True
+    )  # e.g., 'reddit', 'news', etc.
+    last_scrape_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    items_scraped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="success"
+    )  # 'success', 'error', 'running'
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+
 # Indexes for performance
 Index("article_published_at_idx", Article.published_at.desc())
 Index("article_ticker_ticker_idx", ArticleTicker.ticker)
