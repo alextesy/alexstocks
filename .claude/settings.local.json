@@ -20,7 +20,9 @@
       "Bash(uv lock:*)",
       "Bash(git checkout:*)",
       "Bash(mypy:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(git merge:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": [],
     "ask": []
