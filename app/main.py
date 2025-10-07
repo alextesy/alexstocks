@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from app.services.sentiment import get_sentiment_service_hybrid
 from app.services.sentiment_analytics import get_sentiment_analytics_service
 from app.services.stock_data import stock_service
+from app.services.stock_price_service import stock_price_service
 from app.services.velocity import get_velocity_service
 
 logger = logging.getLogger(__name__)
@@ -195,15 +196,26 @@ async def get_scraping_status():
 
 @app.get("/api/stock/{symbol}")
 async def get_stock_data(symbol: str):
-    """Get current stock price data for a symbol."""
+    """
+    Get current stock price data for a symbol.
+
+    Uses cached data if fresh (<30 min), otherwise fetches from API.
+    This implements Tier 2 on-demand fetching.
+    """
+    from app.db.session import SessionLocal
+
     try:
-        stock_data = await stock_service.get_stock_price(symbol.upper())
-        if stock_data:
-            return stock_data
-        else:
-            return JSONResponse(
-                status_code=404, content={"error": f"Stock data not found for {symbol}"}
-            )
+        db = SessionLocal()
+        try:
+            stock_data = await stock_price_service.get_or_refresh_price(db, symbol.upper())
+            if stock_data:
+                return stock_data
+            else:
+                return JSONResponse(
+                    status_code=404, content={"error": f"Stock data not found for {symbol}"}
+                )
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error in stock API: {e}")
         return JSONResponse(status_code=500, content={"error": "Internal server error"})
@@ -577,20 +589,25 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
             # Calculate velocity for this ticker
             velocity_data = velocity_service.calculate_velocity(symbol)
 
-            # Build stock data from DB
+            # Build stock data from DB (only if fresh - within 30 minutes)
             stock_data = None
-            if price is not None:
-                stock_data = {
-                    "symbol": symbol,
-                    "price": price,
-                    "previous_close": previous_close,
-                    "change": change,
-                    "change_percent": change_percent,
-                    "market_state": market_state,
-                    "currency": currency,
-                    "exchange": exchange,
-                    "last_updated": updated_at.isoformat() if updated_at else None,
-                }
+            if price is not None and updated_at:
+                # Check if price data is fresh (within 30 minutes)
+                is_fresh = stock_price_service.is_price_stale(
+                    type("StockPrice", (), {"updated_at": updated_at})()
+                )
+                if not is_fresh:  # Not stale = fresh
+                    stock_data = {
+                        "symbol": symbol,
+                        "price": price,
+                        "previous_close": previous_close,
+                        "change": change,
+                        "change_percent": change_percent,
+                        "market_state": market_state,
+                        "currency": currency,
+                        "exchange": exchange,
+                        "last_updated": updated_at.isoformat() if updated_at else None,
+                    }
 
             ticker_dict = {
                 "symbol": symbol,

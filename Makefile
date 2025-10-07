@@ -90,6 +90,9 @@ override-sentiment-dual-recent: ## Override sentiment for articles from last 24 
 	uv run python app/jobs/override_sentiment_dual_model.py --hours-back 24
 
 # Stock Price Collection Jobs
+collect-stock-prices-top50: ## Collect current prices for top 50 most active tickers (15-min cron job)
+	uv run python -m app.jobs.collect_top50_stock_prices
+
 collect-stock-prices: ## Collect current stock prices for all tickers
 	uv run python app/scripts/collect_all_stock_data.py --type current
 

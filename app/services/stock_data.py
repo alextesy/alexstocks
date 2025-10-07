@@ -2,6 +2,8 @@
 
 import asyncio
 import logging
+import os
+import random
 import time
 from datetime import datetime
 
@@ -14,13 +16,48 @@ logger = logging.getLogger(__name__)
 class StockDataService:
     """Service for fetching stock price data using Yahoo Finance (yfinance)."""
 
-    def __init__(self):
+    def __init__(self, proxy_list: list[str] | None = None):
         self.timeout = 10.0
         self.max_retries = 3
         self.base_delay = 1.0  # Base delay for exponential backoff
         # Track rate limiting
         self._last_request_time = 0.0
         self._min_request_interval = 0.5  # Minimum 500ms between requests
+
+        # Proxy support
+        self.proxy_list = proxy_list or self._load_proxies_from_env()
+        self._current_proxy_index = 0
+
+        if self.proxy_list:
+            logger.info(f"Initialized with {len(self.proxy_list)} proxies")
+        else:
+            logger.info("Initialized without proxies (direct connection)")
+
+    def _load_proxies_from_env(self) -> list[str]:
+        """Load proxy list from environment variable."""
+        proxy_str = os.getenv("YFINANCE_PROXIES", "")
+        if proxy_str:
+            # Format: "http://proxy1:port,http://proxy2:port,http://proxy3:port"
+            proxies = [p.strip() for p in proxy_str.split(",") if p.strip()]
+            return proxies
+        return []
+
+    def _get_next_proxy(self) -> str | None:
+        """Get next proxy using round-robin rotation."""
+        if not self.proxy_list:
+            return None
+
+        proxy = self.proxy_list[self._current_proxy_index]
+        self._current_proxy_index = (self._current_proxy_index + 1) % len(
+            self.proxy_list
+        )
+        return proxy
+
+    def _get_random_proxy(self) -> str | None:
+        """Get random proxy from the list."""
+        if not self.proxy_list:
+            return None
+        return random.choice(self.proxy_list)
 
     async def _rate_limit(self):
         """Implement rate limiting between requests."""
@@ -84,7 +121,30 @@ class StockDataService:
         try:
             # Run yfinance in executor to avoid blocking event loop
             loop = asyncio.get_event_loop()
-            ticker = await loop.run_in_executor(None, lambda: yf.Ticker(symbol))
+
+            # Get proxy for this request
+            proxy = self._get_next_proxy()
+
+            # Create ticker with custom session to avoid rate limiting
+            def create_ticker():
+                ticker = yf.Ticker(symbol)
+                # Set user agent to avoid rate limiting
+                if hasattr(ticker, "session"):
+                    ticker.session.headers["User-Agent"] = (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/121.0.0.0 Safari/537.36"
+                    )
+                    # Set proxy if available
+                    if proxy:
+                        ticker.session.proxies = {
+                            "http": proxy,
+                            "https": proxy,
+                        }
+                        logger.debug(f"Using proxy {proxy} for {symbol}")
+                return ticker
+
+            ticker = await loop.run_in_executor(None, create_ticker)
 
             # Get current info
             info = await loop.run_in_executor(None, lambda: ticker.info)
@@ -215,11 +275,29 @@ class StockDataService:
             }
             yf_period = period_map.get(period, "1mo")
 
-            # Create ticker object and fetch data
-            ticker = yf.Ticker(symbol)
+            # Get proxy for this request
+            proxy = self._get_next_proxy()
+
+            # Create ticker object with proxy support
+            def create_ticker_with_proxy():
+                ticker = yf.Ticker(symbol)
+                if hasattr(ticker, "session"):
+                    ticker.session.headers["User-Agent"] = (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/121.0.0.0 Safari/537.36"
+                    )
+                    if proxy:
+                        ticker.session.proxies = {
+                            "http": proxy,
+                            "https": proxy,
+                        }
+                        logger.debug(f"Using proxy {proxy} for historical {symbol}")
+                return ticker
 
             # Run in executor to avoid blocking the event loop
             loop = asyncio.get_event_loop()
+            ticker = await loop.run_in_executor(None, create_ticker_with_proxy)
             hist = await loop.run_in_executor(
                 None, lambda: ticker.history(period=yf_period)
             )
