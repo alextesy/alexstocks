@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from ingest.reddit_scraper import RateLimiter, RedditScraper, ScrapeStats
+from jobs.ingest.reddit_scraper import RateLimiter, RedditScraper, ScrapeStats
 
 
 class TestRateLimiter:
