@@ -11,7 +11,7 @@ from typing import Any
 
 import praw
 from dotenv import load_dotenv
-from jobs.ingest.linker import TickerLinker
+from ingest.linker import TickerLinker
 from ingest.reddit_discussion_scraper import (
     RedditDiscussionScraper,
     get_reddit_credentials,

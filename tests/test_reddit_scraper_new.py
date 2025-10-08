@@ -245,7 +245,7 @@ class TestRedditScraperIntegration:
         scraper = RedditScraper()
 
         # Initialize reddit
-        from ingest.reddit_discussion_scraper import get_reddit_credentials
+        from jobs.ingest.reddit_discussion_scraper import get_reddit_credentials
 
         try:
             client_id, client_secret, user_agent = get_reddit_credentials()

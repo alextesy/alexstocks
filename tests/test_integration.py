@@ -9,7 +9,7 @@ from app.db.models import Article, ArticleTicker
 from app.services.hybrid_sentiment import HybridSentimentService
 from app.services.sentiment import SentimentService
 from jobs.ingest.linker import TickerLinker
-from ingest.reddit_discussion_scraper import RedditDiscussionScraper
+from jobs.ingest.reddit_discussion_scraper import RedditDiscussionScraper
 
 
 @pytest.mark.skip(
@@ -110,7 +110,7 @@ class TestRedditScrapingPipeline:
         mock_submission.subreddit.display_name = "wallstreetbets"
 
         # Parse comment to article
-        from ingest.reddit_discussion_scraper import RedditDiscussionScraper
+        from jobs.ingest.reddit_discussion_scraper import RedditDiscussionScraper
 
         scraper = RedditDiscussionScraper()
         article = scraper.parse_comment_to_article(mock_reddit_comment, mock_submission)
