@@ -38,11 +38,11 @@ class TestTickerLinker:
 
         with (
             patch(
-                "ingest.linker.get_content_scraper",
+                "jobs.ingest.linker.get_content_scraper",
                 return_value=self.mock_content_scraper,
             ),
             patch(
-                "ingest.linker.get_context_analyzer",
+                "jobs.ingest.linker.get_context_analyzer",
                 return_value=self.mock_context_analyzer,
             ),
         ):
@@ -419,11 +419,11 @@ class TestTickerLinkingRealWorldExamples:
 
         with (
             patch(
-                "ingest.linker.get_content_scraper",
+                "jobs.ingest.linker.get_content_scraper",
                 return_value=self.mock_content_scraper,
             ),
             patch(
-                "ingest.linker.get_context_analyzer",
+                "jobs.ingest.linker.get_context_analyzer",
                 return_value=self.mock_context_analyzer,
             ),
         ):

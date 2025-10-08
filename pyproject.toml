@@ -68,6 +68,8 @@ target-version = ['py311']
 line-length = 88
 
 [tool.mypy]
+files = ["app", "jobs", "scripts", "tests"]  # <-- do NOT include "ingest"
+exclude = "(^|/)ingest(/|$)"      # <-- keep mypy from walking a real ingest tree if present
 python_version = "3.11"
 warn_return_any = false
 warn_unused_configs = true
@@ -82,10 +84,6 @@ warn_no_return = true
 warn_unreachable = true
 strict_equality = true
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = ["ingest.*"]
-ignore_errors = true  # or: follow_imports = "skip"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
