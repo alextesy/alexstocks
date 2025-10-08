@@ -68,8 +68,8 @@ target-version = ['py311']
 line-length = 88
 
 [tool.mypy]
-files = ["app", "jobs", "scripts", "tests"]  # <-- do NOT include "ingest"
-exclude = "(^|/)ingest(/|$)|jobs/ingest"      # <-- keep mypy from walking ingest trees
+files = ["app", "jobs/jobs", "scripts", "tests"]  # <-- include jobs/jobs but not jobs/ingest
+exclude = "(^|/)ingest(/|$)"      # <-- keep mypy from walking ingest trees
 python_version = "3.11"
 warn_return_any = false
 warn_unused_configs = true
