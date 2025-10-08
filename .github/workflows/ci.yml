@@ -117,7 +117,7 @@ jobs:
 
     - name: Run mypy type checker
       run: |
-        uv run mypy .
+        uv run mypy
 
   security:
     name: Security Scan
