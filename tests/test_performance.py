@@ -82,8 +82,8 @@ class TestPerformance:
 
         # Test ticker linking performance
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer") as mock_context,
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer") as mock_context,
         ):
 
             mock_context.return_value.analyze_ticker_relevance.return_value = (
@@ -304,8 +304,8 @@ class TestPerformance:
 
         # Test ticker linking
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer") as mock_context,
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer") as mock_context,
         ):
 
             mock_context.return_value.analyze_ticker_relevance.return_value = (
@@ -368,8 +368,8 @@ class TestPerformance:
 
         # Test sequential processing
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer") as mock_context,
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer") as mock_context,
         ):
 
             mock_context.return_value.analyze_ticker_relevance.return_value = (
@@ -491,8 +491,8 @@ class TestPerformance:
 
         # Test batch processing
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer") as mock_context,
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer") as mock_context,
         ):
 
             mock_context.return_value.analyze_ticker_relevance.return_value = (
