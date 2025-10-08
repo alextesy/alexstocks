@@ -8,7 +8,7 @@ import pytest
 from app.db.models import Article, ArticleTicker
 from app.services.hybrid_sentiment import HybridSentimentService
 from app.services.sentiment import SentimentService
-from ingest.linker import TickerLinker
+from jobs.ingest.linker import TickerLinker
 from ingest.reddit_discussion_scraper import RedditDiscussionScraper
 
 

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from app.db.models import Article, Ticker
 from app.db.session import SessionLocal
-from ingest.linker import TickerLinker
+from jobs.ingest.linker import TickerLinker
 
 logger = logging.getLogger(__name__)
 

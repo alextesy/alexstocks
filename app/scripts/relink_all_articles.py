@@ -8,7 +8,7 @@ from sqlalchemy import func, text
 
 from app.db.models import Article, ArticleTicker, Ticker
 from app.db.session import SessionLocal
-from ingest.linker import TickerLinker
+from jobs.ingest.linker import TickerLinker
 
 logger = logging.getLogger(__name__)
 

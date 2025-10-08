@@ -8,7 +8,7 @@ from faker import Faker
 
 from app.db.models import Article, Ticker
 from app.models.dto import TickerLinkDTO
-from ingest.linker import TickerLinker
+from jobs.ingest.linker import TickerLinker
 
 fake = Faker()
 

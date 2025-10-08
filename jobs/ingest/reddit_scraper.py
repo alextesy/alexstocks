@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Article, ArticleTicker, RedditThread, ScrapingStatus, Ticker
 from app.db.session import SessionLocal
-from ingest.linker import TickerLinker
+from jobs.ingest.linker import TickerLinker
 from ingest.reddit_discussion_scraper import RedditDiscussionScraper
 
 load_dotenv()
