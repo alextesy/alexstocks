@@ -53,8 +53,8 @@ class TestRedditScrapingPipeline:
 
         # Test ticker linking
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer") as mock_context,
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer") as mock_context,
         ):
 
             mock_context.return_value.analyze_ticker_relevance.return_value = (
@@ -124,8 +124,8 @@ class TestRedditScrapingPipeline:
 
         # Test ticker linking for comment
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer") as mock_context,
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer") as mock_context,
         ):
 
             mock_context.return_value.analyze_ticker_relevance.return_value = (
@@ -295,7 +295,7 @@ class TestRedditScrapingPipeline:
             mock_upsert.return_value = test_article
 
             # Run ingestion
-            from ingest.reddit import ingest_reddit_data
+            from jobs.ingest.reddit_scraper import ingest_reddit_data
 
             ingest_reddit_data(subreddits=["test"], limit_per_subreddit=1)
 
@@ -365,8 +365,8 @@ class TestRedditScrapingPipeline:
 
         # Test ticker linking
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer") as mock_context,
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer") as mock_context,
         ):
 
             mock_context.return_value.analyze_ticker_relevance.return_value = (
@@ -450,14 +450,14 @@ class TestRedditScrapingPipeline:
         with patch("ingest.reddit.get_reddit_credentials") as mock_creds:
             mock_creds.side_effect = ValueError("Invalid credentials")
 
-            from ingest.reddit import ingest_reddit_data
+            from jobs.ingest.reddit_scraper import ingest_reddit_data
 
             # Should not raise exception, just log error
             ingest_reddit_data()
 
         # Test with empty ticker list
         with patch("ingest.reddit.load_tickers", return_value=[]):
-            from ingest.reddit import ingest_reddit_data
+            from jobs.ingest.reddit_scraper import ingest_reddit_data
 
             # Should not raise exception, just log error
             ingest_reddit_data()
@@ -483,8 +483,8 @@ class TestRedditScrapingPipeline:
 
         # Test ticker linking with malformed data
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer"),
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer"),
         ):
 
             linker = TickerLinker(sample_tickers)
@@ -521,8 +521,8 @@ class TestRedditScrapingPipeline:
 
         # Simulate an error during ticker linking
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer") as mock_context,
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer") as mock_context,
         ):
 
             mock_context.return_value.analyze_ticker_relevance.side_effect = Exception(
