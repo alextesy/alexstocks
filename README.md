@@ -8,6 +8,8 @@ Market Pulse is a comprehensive web application that collects, analyzes, and vis
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
 
+> 🚀 **NEW**: ECS Fargate migration complete! Cron jobs now run as containerized tasks on AWS Fargate (Spot) for 90% cost savings. See [ECS_MIGRATION_SUMMARY.md](ECS_MIGRATION_SUMMARY.md) for details.
+
 ---
 
 ## 🚀 Features
@@ -58,6 +60,13 @@ Market Pulse is a comprehensive web application that collects, analyzes, and vis
 - **pytest** - Comprehensive test suite
 - **Ruff & Black** - Code formatting and linting
 - **MyPy** - Static type checking
+
+**Infrastructure (Production):**
+- **AWS ECS Fargate** - Serverless container orchestration
+- **EventBridge Scheduler** - Cron job scheduling
+- **CloudWatch Logs** - Centralized logging
+- **Terraform** - Infrastructure as code
+- **GitHub Actions** - CI/CD pipeline
 
 ### Database Schema
 
@@ -390,22 +399,24 @@ Tests use:
 **Live Site:** [alexstocks.com](https://alexstocks.com)
 
 **Infrastructure:**
-- **Platform**: AWS EC2 (Ubuntu)
-- **Web Server**: Nginx (reverse proxy)
-- **Application**: FastAPI + Uvicorn
-- **Database**: PostgreSQL 16 (Docker)
+- **Web Application**: AWS EC2 (Ubuntu) + Nginx + FastAPI
+- **Database**: PostgreSQL 16 (Docker on EC2)
+- **Batch Jobs**: AWS ECS Fargate (Spot) ⭐ NEW
+- **Scheduling**: EventBridge Scheduler ⭐ NEW
+- **Container Registry**: Amazon ECR ⭐ NEW
 - **SSL**: Let's Encrypt (auto-renewal)
 - **Process Manager**: systemd
-- **Scheduler**: cron
+- **Logging**: CloudWatch Logs ⭐ NEW
 
 **Deployment Process:**
-1. Code pushed to `master` branch
-2. GitHub Actions runs tests, linting, security scan
-3. Automated deployment to EC2 via SSH
-4. Systemd service restarted
-5. Health check verification
+1. **Web App**: Code pushed → GitHub Actions → Deploy to EC2 → Systemd restart
+2. **Batch Jobs**: Code pushed → GitHub Actions → Build Docker → Push to ECR → Update ECS tasks ⭐ NEW
 
-See [docs/deployment.md](docs/deployment.md) for detailed deployment instructions and [docs/ci-cd-setup.md](docs/ci-cd-setup.md) for CI/CD pipeline details.
+See deployment documentation:
+- [ECS_MIGRATION_SUMMARY.md](ECS_MIGRATION_SUMMARY.md) - ECS Fargate batch jobs (NEW)
+- [docs/ECS_MIGRATION_GUIDE.md](docs/ECS_MIGRATION_GUIDE.md) - Complete migration guide
+- [docs/deployment.md](docs/deployment.md) - EC2 web app deployment
+- [docs/ci-cd-setup.md](docs/ci-cd-setup.md) - CI/CD pipeline details
 
 ### Production Considerations
 

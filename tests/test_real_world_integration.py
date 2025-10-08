@@ -306,7 +306,7 @@ class TestRealWorldIntegration:
         if not articles:
             pytest.skip("No Reddit articles with text content found")
 
-        from ingest.linker import TickerLinker
+        from jobs.ingest.linker import TickerLinker
 
         # Get tickers from database
         tickers = self.db.query(Ticker).all()
@@ -352,7 +352,7 @@ class TestRealWorldIntegration:
 
         # Test complete pipeline
         from app.services.sentiment import get_sentiment_service
-        from ingest.linker import TickerLinker
+        from jobs.ingest.linker import TickerLinker
 
         # Get tickers from database
         tickers = self.db.query(Ticker).all()

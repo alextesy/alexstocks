@@ -18,8 +18,8 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Article, ArticleTicker, RedditThread, Ticker
 from app.db.session import SessionLocal
-from ingest.linker import TickerLinker
-from ingest.reddit_discussion_scraper import (
+from jobs.ingest.linker import TickerLinker
+from jobs.ingest.reddit_discussion_scraper import (
     RedditDiscussionScraper,
     get_reddit_credentials,
 )

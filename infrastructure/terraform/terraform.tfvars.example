@@ -1,0 +1,16 @@
+# Copy this file to terraform.tfvars and fill in your values
+
+aws_region     = "us-east-1"
+project_name   = "market-pulse"
+environment    = "production"
+
+# VPC Configuration (get from your existing EC2/Postgres setup)
+vpc_id                     = "vpc-xxxxxxxxxxxxxxxxx"
+private_subnet_ids         = ["subnet-xxxxxxxxxxxxxxxxx", "subnet-yyyyyyyyyyyyyyyyy"]
+postgres_security_group_id = "sg-xxxxxxxxxxxxxxxxx"
+
+# ECS Task Configuration
+task_cpu              = 256  # 0.25 vCPU
+task_memory           = 512  # 512 MB
+ecr_image_tag         = "latest"
+log_retention_days    = 7

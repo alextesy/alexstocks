@@ -103,7 +103,7 @@ The improved system was tested with 6 sample articles covering various scenarios
 
 ### Basic Linking:
 ```python
-from ingest.linker import TickerLinker
+from jobs.ingest.linker import TickerLinker
 from app.db.models import Ticker
 
 # Initialize with tickers from database

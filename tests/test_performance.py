@@ -9,8 +9,8 @@ import pytest
 from app.db.models import Article, ArticleTicker
 from app.services.hybrid_sentiment import HybridSentimentService
 from app.services.sentiment import SentimentService
-from ingest.linker import TickerLinker
-from ingest.reddit_discussion_scraper import RedditDiscussionScraper
+from jobs.ingest.linker import TickerLinker
+from jobs.ingest.reddit_discussion_scraper import RedditDiscussionScraper
 
 
 @pytest.mark.performance
@@ -82,8 +82,8 @@ class TestPerformance:
 
         # Test ticker linking performance
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer") as mock_context,
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer") as mock_context,
         ):
 
             mock_context.return_value.analyze_ticker_relevance.return_value = (
@@ -304,8 +304,8 @@ class TestPerformance:
 
         # Test ticker linking
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer") as mock_context,
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer") as mock_context,
         ):
 
             mock_context.return_value.analyze_ticker_relevance.return_value = (
@@ -368,8 +368,8 @@ class TestPerformance:
 
         # Test sequential processing
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer") as mock_context,
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer") as mock_context,
         ):
 
             mock_context.return_value.analyze_ticker_relevance.return_value = (
@@ -491,8 +491,8 @@ class TestPerformance:
 
         # Test batch processing
         with (
-            patch("ingest.linker.get_content_scraper"),
-            patch("ingest.linker.get_context_analyzer") as mock_context,
+            patch("jobs.ingest.linker.get_content_scraper"),
+            patch("jobs.ingest.linker.get_context_analyzer") as mock_context,
         ):
 
             mock_context.return_value.analyze_ticker_relevance.return_value = (

@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from app.config import settings
 from app.db.models import Article, ArticleTicker, Ticker
-from ingest.linker import TickerLinker
+from jobs.ingest.linker import TickerLinker
 
 logger = logging.getLogger(__name__)
 
