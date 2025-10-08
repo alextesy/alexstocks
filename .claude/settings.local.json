@@ -14,7 +14,9 @@
       "Bash(aws events describe-rule:*)",
       "Bash(aws events list-targets-by-rule:*)",
       "Bash(pkill:*)",
-      "Bash(curl -s http://127.0.0.1:8001/health)"
+      "Bash(curl -s http://127.0.0.1:8001/health)",
+      "Bash(aws ec2 describe-security-groups:*)",
+      "Bash(aws ec2 describe-instances:*)"
     ],
     "deny": [],
     "ask": []
