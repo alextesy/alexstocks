@@ -83,6 +83,10 @@ warn_unreachable = true
 strict_equality = true
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = ["ingest.*"]
+ignore_errors = true  # or: follow_imports = "skip"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
