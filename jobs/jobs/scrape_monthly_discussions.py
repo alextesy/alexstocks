@@ -11,11 +11,6 @@ from typing import Any
 
 import praw
 from dotenv import load_dotenv
-from jobs.ingest.linker import TickerLinker
-from jobs.ingest.reddit_discussion_scraper import (
-    RedditDiscussionScraper,
-    get_reddit_credentials,
-)
 from praw.models import Comment, Submission
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -23,6 +18,11 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Article, ArticleTicker, RedditThread, Ticker
 from app.db.session import SessionLocal
+from jobs.ingest.linker import TickerLinker
+from jobs.ingest.reddit_discussion_scraper import (
+    RedditDiscussionScraper,
+    get_reddit_credentials,
+)
 
 # Load environment variables from .env file
 load_dotenv()
