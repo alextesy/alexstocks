@@ -39,10 +39,11 @@
             <div class="flex justify-between h-20">
                 <div class="flex items-center">
                     <a href="/" class="flex items-center">
-                        <img src="/static/logo.png" alt="AlexStocks" class="h-16" style="mix-blend-mode: multiply;">
+                        <img src="/static/logo.png" alt="AlexStocks" class="h-12 md:h-16" style="mix-blend-mode: multiply;">
                     </a>
                 </div>
-                <div class="flex items-center space-x-4">
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex items-center space-x-4">
                     <a href="/browse" class="text-sm text-gray-600 hover:text-gray-900 font-medium">
                         <i class="fas fa-th-list mr-1"></i>Browse All
                     </a>
@@ -54,9 +55,44 @@
                     </a>
                     <span class="text-sm text-gray-500">Real-Time Stock Market Analytics</span>
                 </div>
+                <!-- Mobile Burger Menu Button -->
+                <div class="flex md:hidden items-center">
+                    <button id="mobile-menu-button" class="text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded p-2">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </nav>
+
+    <!-- Mobile Sidebar -->
+    <div id="mobile-menu-backdrop" class="hidden fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"></div>
+    <div id="mobile-menu-sidebar" class="fixed top-0 right-0 w-64 h-full bg-white shadow-lg z-50 transform translate-x-full transition-transform duration-300 md:hidden">
+        <div class="flex flex-col h-full">
+            <!-- Close Button -->
+            <div class="flex justify-between items-center p-4 border-b">
+                <span class="text-lg font-semibold text-gray-900">Menu</span>
+                <button id="mobile-menu-close" class="text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded p-2">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <!-- Navigation Links -->
+            <nav class="flex flex-col p-4 space-y-4">
+                <a href="/browse" class="text-base text-gray-600 hover:text-gray-900 font-medium py-2">
+                    <i class="fas fa-th-list mr-2"></i>Browse All
+                </a>
+                <a href="/about" class="text-base text-gray-600 hover:text-gray-900 font-medium py-2">
+                    <i class="fas fa-info-circle mr-2"></i>About
+                </a>
+                <a href="/privacy" class="text-base text-gray-600 hover:text-gray-900 font-medium py-2">
+                    <i class="fas fa-shield-alt mr-2"></i>Privacy
+                </a>
+                <div class="pt-4 border-t">
+                    <span class="text-sm text-gray-500">Real-Time Stock Market Analytics</span>
+                </div>
+            </nav>
+        </div>
+    </div>
 
     <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {% block content %}{% endblock %}
@@ -305,6 +341,36 @@
                 articleSentimentFilter?.addEventListener('change', filterArticles);
             }
         });
+
+        // Mobile burger menu functionality
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const mobileMenuClose = document.getElementById('mobile-menu-close');
+        const mobileMenuBackdrop = document.getElementById('mobile-menu-backdrop');
+        const mobileMenuSidebar = document.getElementById('mobile-menu-sidebar');
+
+        function openMobileMenu() {
+            mobileMenuBackdrop.classList.remove('hidden');
+            mobileMenuSidebar.classList.remove('translate-x-full');
+            document.body.style.overflow = 'hidden'; // Prevent scrolling when menu is open
+        }
+
+        function closeMobileMenu() {
+            mobileMenuBackdrop.classList.add('hidden');
+            mobileMenuSidebar.classList.add('translate-x-full');
+            document.body.style.overflow = ''; // Restore scrolling
+        }
+
+        if (mobileMenuButton) {
+            mobileMenuButton.addEventListener('click', openMobileMenu);
+        }
+
+        if (mobileMenuClose) {
+            mobileMenuClose.addEventListener('click', closeMobileMenu);
+        }
+
+        if (mobileMenuBackdrop) {
+            mobileMenuBackdrop.addEventListener('click', closeMobileMenu);
+        }
     </script>
     {% if settings is defined and settings.cookie_consent_enabled and settings.gtm_container_id and settings.environment == 'production' %}
     <div id="cookie-banner" class="fixed bottom-4 left-4 right-4 md:right-auto md:max-w-xl bg-white border shadow-lg p-4 rounded hidden">

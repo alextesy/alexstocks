@@ -182,6 +182,16 @@ document.addEventListener('DOMContentLoaded', function() {
 <div class="bg-white rounded-lg shadow-sm border p-4 mb-6">
     <div class="flex flex-col sm:flex-row gap-4">
         <div class="flex-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
+            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" id="sort-filter">
+                <option value="date-desc" {% if sort_by == "date-desc" %}selected{% endif %}>Date (Newest First)</option>
+                <option value="date-asc" {% if sort_by == "date-asc" %}selected{% endif %}>Date (Oldest First)</option>
+                <option value="sentiment-desc" {% if sort_by == "sentiment-desc" %}selected{% endif %}>Sentiment (High to Low)</option>
+                <option value="sentiment-asc" {% if sort_by == "sentiment-asc" %}selected{% endif %}>Sentiment (Low to High)</option>
+                <option value="engagement-desc" {% if sort_by == "engagement-desc" %}selected{% endif %}>Engagement (High to Low)</option>
+            </select>
+        </div>
+        <div class="flex-1">
             <label class="block text-sm font-medium text-gray-700 mb-1">Time Range</label>
             <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" id="time-filter">
                 <option value="">All time</option>
@@ -215,13 +225,16 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- Articles List -->
 <div class="space-y-4" id="articles-list">
     {% for article in articles %}
-    <div class="bg-white rounded-lg shadow-sm border p-6 article-card" 
+    <div class="bg-white rounded-lg shadow-sm border p-4 md:p-6 article-card" 
          data-published="{{ article.published_at.isoformat() }}"
          data-language="{{ article.lang or 'unknown' }}"
          data-sentiment="{{ get_sentiment_display_data(article.sentiment).label.lower() }}"
+         data-sentiment-value="{{ article.sentiment or 0.0 }}"
+         data-engagement="{{ article.upvotes or 0 }}"
          data-source="{{ article.source }}">
-        <div class="flex items-start justify-between mb-3">
-            <h3 class="text-lg font-semibold text-gray-900 flex-1 mr-4">
+        <!-- Title -->
+        <div class="mb-3">
+            <h3 class="text-base md:text-lg font-semibold text-gray-900 line-clamp-2 md:line-clamp-none mb-2">
                 <a href="{{ article.url }}" target="_blank" class="hover:text-blue-600">
                     {% set title_text = article.title %}
                     {% for term in article.matched_terms %}
@@ -248,7 +261,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     <i class="fas fa-external-link-alt text-xs text-gray-400 ml-1"></i>
                 </a>
             </h3>
-            <div class="flex items-center space-x-2">
+            <!-- Date and Source first -->
+            <div class="flex flex-wrap items-center gap-2 text-xs md:text-sm text-gray-500 mb-2">
+                {% if article.published_at %}
+                <span class="article-time whitespace-nowrap" data-published="{{ article.published_at.isoformat() }}"></span>
+                {% else %}
+                <span class="whitespace-nowrap">Unknown date</span>
+                {% endif %}
+                <span class="text-gray-300">•</span>
+                <span class="px-2 py-1 bg-gray-100 rounded text-xs text-gray-600">{{ article.source }}</span>
+            </div>
+            <!-- Other metadata -->
+            <div class="flex flex-wrap items-center gap-2">
                 {% set sentiment_data = get_sentiment_display_data(article.sentiment) %}
                 <div class="flex items-center space-x-1">
                     <span class="text-sm">{{ sentiment_data.icon }}</span>
@@ -257,22 +281,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     </span>
                     <span class="text-xs text-gray-500">({{ "%.2f"|format(article.sentiment) }})</span>
                 </div>
-                <span class="text-xs text-gray-500">{{ article.source }}</span>
-            </div>
-        </div>
-        
-        <div class="flex items-center justify-between text-sm text-gray-500">
-            <div class="flex items-center space-x-4">
-                {% if article.published_at %}
-                <span class="article-time" data-published="{{ article.published_at.isoformat() }}"></span>
-                {% else %}
-                <span>Unknown date</span>
-                {% endif %}
+                <span class="flex items-center text-gray-600 whitespace-nowrap text-xs md:text-sm">
+                    <i class="fas fa-arrow-up mr-1"></i>
+                    <span class="font-medium">{{ article.upvotes or 0 }}</span>
+                </span>
                 {% if article.lang %}
                 <span class="px-2 py-1 bg-gray-100 rounded text-xs">{{ article.lang.upper() }}</span>
                 {% endif %}
                 {% if article.author %}
-                <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">{{ article.author }}</span>
+                <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs truncate max-w-[150px]">{{ article.author }}</span>
                 {% endif %}
                 {% if article.subreddit %}
                 <span class="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">{{ article.subreddit }}</span>
@@ -338,7 +355,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <div class="mt-8 flex justify-center">
     <nav class="flex items-center space-x-2">
         {% if pagination.has_prev %}
-        <a href="/t/{{ ticker }}?page={{ pagination.page - 1 }}" 
+        <a href="/t/{{ ticker }}?page={{ pagination.page - 1 }}&sort_by={{ sort_by }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             Previous
         </a>
@@ -353,7 +370,7 @@ document.addEventListener('DOMContentLoaded', function() {
         {% set end_page = [pagination.total_pages, pagination.page + 2]|min %}
         
         {% if start_page > 1 %}
-        <a href="/t/{{ ticker }}?page=1" 
+        <a href="/t/{{ ticker }}?page=1&sort_by={{ sort_by }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">1</a>
         {% if start_page > 2 %}
         <span class="px-2 text-sm text-gray-500">...</span>
@@ -366,7 +383,7 @@ document.addEventListener('DOMContentLoaded', function() {
             {{ page_num }}
         </span>
         {% else %}
-        <a href="/t/{{ ticker }}?page={{ page_num }}" 
+        <a href="/t/{{ ticker }}?page={{ page_num }}&sort_by={{ sort_by }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             {{ page_num }}
         </a>
@@ -377,14 +394,14 @@ document.addEventListener('DOMContentLoaded', function() {
         {% if end_page < pagination.total_pages - 1 %}
         <span class="px-2 text-sm text-gray-500">...</span>
         {% endif %}
-        <a href="/t/{{ ticker }}?page={{ pagination.total_pages }}" 
+        <a href="/t/{{ ticker }}?page={{ pagination.total_pages }}&sort_by={{ sort_by }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             {{ pagination.total_pages }}
         </a>
         {% endif %}
         
         {% if pagination.has_next %}
-        <a href="/t/{{ ticker }}?page={{ pagination.page + 1 }}" 
+        <a href="/t/{{ ticker }}?page={{ pagination.page + 1 }}&sort_by={{ sort_by }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             Next
         </a>
@@ -400,4 +417,25 @@ document.addEventListener('DOMContentLoaded', function() {
     Showing {{ ((pagination.page - 1) * 50) + 1 }} to {{ [pagination.page * 50, pagination.total_articles]|min }} of {{ pagination.total_articles }} articles
 </div>
 {% endif %}
+
+<script>
+// Sorting functionality - redirect with sort_by parameter
+const sortFilter = document.getElementById('sort-filter');
+
+if (sortFilter) {
+    sortFilter.addEventListener('change', function() {
+        const sortValue = this.value;
+        const currentUrl = new URL(window.location.href);
+        
+        // Update or add sort_by parameter
+        currentUrl.searchParams.set('sort_by', sortValue);
+        
+        // Reset to page 1 when changing sort
+        currentUrl.searchParams.set('page', '1');
+        
+        // Redirect to new URL
+        window.location.href = currentUrl.toString();
+    });
+}
+</script>
 {% endblock %}
