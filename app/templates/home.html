@@ -62,14 +62,13 @@
     </div>
     {% if overall_lean %}
     <div class="mb-3 text-center">
-        {% set headline_color = 'text-green-700' if overall_lean.leaning_score > 0 else 'text-red-700' if overall_lean.leaning_score < 0 else 'text-gray-700' %}
-        {% set headline_label = 'Leaning Positive' if overall_lean.leaning_score > 0 else 'Leaning Negative' if overall_lean.leaning_score < 0 else 'Neutral' %}
+        {% set is_pos = overall_lean.leaning_score > 0 %}
+        {% set is_neg = overall_lean.leaning_score < 0 %}
+        {% set headline_color = 'text-green-700' if is_pos else 'text-red-700' if is_neg else 'text-gray-700' %}
+        {% set display_pct = (overall_lean.pos_share_ex_neutral * 100) if is_pos else (overall_lean.neg_share_ex_neutral * 100) %}
         <div class="text-sm font-medium {{ headline_color }}">
-            {{ headline_label }}
-            {% if headline_label != 'Neutral' %}
-                {{ (overall_lean.pos_share_ex_neutral * 100)|round(0) }}%
-            {% endif %}
-            <span class="text-gray-500">(confidence {{ (overall_lean.confidence * 100)|round(0) }}%)</span>
+            {{ 'Positive' if is_pos else 'Negative' if is_neg else 'Neutral' }}{% if is_pos or is_neg %} {{ display_pct|round(0)|int }}%{% endif %}
+            <span class="text-gray-500">(ex-neutral, confidence {{ (overall_lean.confidence * 100)|round(0)|int }}%)</span>
         </div>
     </div>
     <div class="flex h-4 bg-gray-200 rounded-full overflow-hidden" aria-label="Overall leaning bar">
