@@ -92,7 +92,7 @@
     {% endif %}
 
     {% if sentiment_histogram.percentages %}
-    <div class="grid grid-cols-3 gap-4 mt-6 mb-4">
+    <div class="grid grid-cols-3 gap-4 mt-6 mb-2">
         {% for item in sentiment_histogram.display_data %}
         <div class="text-center">
             <div class="text-2xl mb-1">{{ item.icon }}</div>
@@ -102,14 +102,7 @@
         </div>
         {% endfor %}
     </div>
-    <div class="flex h-2 bg-gray-200 rounded-full overflow-hidden" title="All articles by sentiment (includes neutral)">
-        {% for item in sentiment_histogram.display_data %}
-        {% if item.percentage > 0 %}
-        {% set bar_class = 'bg-green-500' if item.label == 'Positive' else 'bg-gray-500' if item.label == 'Neutral' else 'bg-red-500' %}
-        <div class="h-full {{ bar_class }}" style="width: {{ (item.percentage|round(0))|int }}%"></div>
-        {% endif %}
-        {% endfor %}
-    </div>
+    {# Removed the lower stacked bar to keep only the upper leaning bar #}
     {% endif %}
 </div>
 {% endif %}
@@ -147,7 +140,7 @@
                             <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">Neutral</span>
                         {% else %}
                             <span class="px-2 py-1 text-xs font-medium rounded-full {{ 'bg-green-100 text-green-800' if is_pos else 'bg-red-100 text-red-800' }}">
-                                {{ 'Leaning Positive' if is_pos else 'Leaning Negative' }} {{ (lean.pos_share_ex_neutral * 100 if is_pos else lean.neg_share_ex_neutral * 100)|round(0) }}%
+                                {{ 'Positive' if is_pos else 'Negative' }} {{ ((lean.pos_share_ex_neutral * 100) if is_pos else (lean.neg_share_ex_neutral * 100))|round(0)|int }}%
                             </span>
                         {% endif %}
                     </div>

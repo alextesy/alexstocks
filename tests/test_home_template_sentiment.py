@@ -42,4 +42,4 @@ def test_card_uses_lean_label_when_available(tmp_path):
         },
     )
 
-    assert "Leaning Positive" in html
+    assert "Positive 75%" in html
