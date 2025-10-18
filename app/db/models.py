@@ -158,20 +158,42 @@ class RedditThread(Base):
 
 
 class StockPrice(Base):
-    """Current stock price data."""
+    """Current stock price data with intraday and market metrics."""
 
     __tablename__ = "stock_price"
 
     symbol: Mapped[str] = mapped_column(
         String, ForeignKey("ticker.symbol"), primary_key=True
     )
+
+    # Basic price data
     price: Mapped[float] = mapped_column(Float, nullable=False)
     previous_close: Mapped[float | None] = mapped_column(Float, nullable=True)
     change: Mapped[float | None] = mapped_column(Float, nullable=True)
     change_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Intraday trading data
+    open: Mapped[float | None] = mapped_column(Float, nullable=True)
+    day_high: Mapped[float | None] = mapped_column(Float, nullable=True)
+    day_low: Mapped[float | None] = mapped_column(Float, nullable=True)
+    volume: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    # Bid/Ask spread
+    bid: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ask: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bid_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ask_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Market metrics
+    market_cap: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    shares_outstanding: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    average_volume: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    average_volume_10d: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    # Metadata
     market_state: Mapped[str | None] = mapped_column(
         String(20), nullable=True
-    )  # 'OPEN', 'CLOSED'
+    )  # 'OPEN', 'CLOSED', 'REGULAR', etc.
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="USD")
     exchange: Mapped[str | None] = mapped_column(String(50), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(

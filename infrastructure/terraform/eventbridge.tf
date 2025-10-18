@@ -137,6 +137,52 @@ resource "aws_scheduler_schedule" "daily_status" {
   description = "Run daily status check at 4:00 UTC"
 }
 
+# EventBridge Scheduler: Stock Price Collector (every 15 minutes)
+resource "aws_scheduler_schedule" "stock_price_collector" {
+  name       = "${var.project_name}-stock-price-collector"
+  group_name = "default"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  schedule_expression = "rate(15 minutes)"
+
+  target {
+    arn      = aws_ecs_cluster.jobs.arn
+    role_arn = aws_iam_role.eventbridge_scheduler.arn
+
+    ecs_parameters {
+      task_definition_arn = aws_ecs_task_definition.stock_price_collector.arn
+      platform_version    = "LATEST"
+
+      network_configuration {
+        subnets          = var.private_subnet_ids
+        security_groups  = [aws_security_group.ecs_tasks.id]
+        assign_public_ip = true  # Set to true for public subnets (no NAT Gateway)
+      }
+
+      # Enable Fargate Spot for cost savings
+      capacity_provider_strategy {
+        capacity_provider = "FARGATE_SPOT"
+        weight            = 1
+        base              = 0
+      }
+    }
+
+    retry_policy {
+      maximum_retry_attempts       = 2
+      maximum_event_age_in_seconds = 3600
+    }
+
+    dead_letter_config {
+      arn = aws_sqs_queue.stock_price_collector_dlq.arn
+    }
+  }
+
+  description = "Collect stock prices for top 50 tickers every 15 minutes"
+}
+
 # Dead Letter Queues for failed task invocations
 resource "aws_sqs_queue" "reddit_scraper_dlq" {
   name                      = "${var.project_name}-reddit-scraper-dlq"
@@ -154,6 +200,13 @@ resource "aws_sqs_queue" "sentiment_analysis_dlq" {
 
 resource "aws_sqs_queue" "daily_status_dlq" {
   name                      = "${var.project_name}-daily-status-dlq"
+  message_retention_seconds = 1209600 # 14 days
+
+  tags = local.common_tags
+}
+
+resource "aws_sqs_queue" "stock_price_collector_dlq" {
+  name                      = "${var.project_name}-stock-price-collector-dlq"
   message_retention_seconds = 1209600 # 14 days
 
   tags = local.common_tags
@@ -208,6 +261,22 @@ resource "aws_sqs_queue_policy" "daily_status_dlq" {
   })
 }
 
+resource "aws_sqs_queue_policy" "stock_price_collector_dlq" {
+  queue_url = aws_sqs_queue.stock_price_collector_dlq.url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "scheduler.amazonaws.com"
+      }
+      Action   = "sqs:SendMessage"
+      Resource = aws_sqs_queue.stock_price_collector_dlq.arn
+    }]
+  })
+}
+
 # Outputs
 output "reddit_scraper_schedule_name" {
   description = "Reddit scraper schedule name"
@@ -222,4 +291,9 @@ output "sentiment_analysis_schedule_name" {
 output "daily_status_schedule_name" {
   description = "Daily status schedule name"
   value       = aws_scheduler_schedule.daily_status.name
+}
+
+output "stock_price_collector_schedule_name" {
+  description = "Stock price collector schedule name"
+  value       = aws_scheduler_schedule.stock_price_collector.name
 }
