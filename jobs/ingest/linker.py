@@ -10,7 +10,17 @@ from app.services.context_analyzer import get_context_analyzer
 
 logger = logging.getLogger(__name__)
 
+# Words that can appear capitalized in normal sentences and still mean something
+# These are ALWAYS excluded from ticker matching unless prefixed with $
+CAPITALIZED_COMMON_WORDS = {
+    "A",  # Article - "A great day"
+    "I",  # Pronoun - "I think"
+    # Add other words here that are commonly capitalized in normal text
+    # and would create false positives even when checking for separate word boundaries
+}
+
 # Common English words that are also tickers - these require $ prefix to match
+# OR must appear as ALL CAPS separate words in financial context
 COMMON_WORD_TICKERS = {
     # Single letters
     "A",
@@ -74,7 +84,9 @@ COMMON_WORD_TICKERS = {
     "CAN",
     "CARE",
     "COME",
+    "DIPS",
     "DON",
+    "EAT",
     "FALL",
     "FARM",
     "FIND",
@@ -117,6 +129,7 @@ COMMON_WORD_TICKERS = {
     "SPOT",
     "STAY",
     "TELL",
+    "TILL",
     "TREE",
     "TRUE",
     "TURN",
@@ -166,11 +179,14 @@ COMMON_WORD_TICKERS = {
     "WARM",
     # Common nouns
     "AI",
+    "BRO",
     "BULL",
     "CASH",
+    "COST",
     "ELON",
     "FOOD",
     "FORM",
+    "FUN",
     "GAME",
     "HAND",
     "HOME",
@@ -179,12 +195,18 @@ COMMON_WORD_TICKERS = {
     "KIDS",
     "LIFE",
     "LINE",
+    "LOT",
     "MAN",
     "PEAK",
     "PLUS",
     "PORT",
+    "SUB",
+    "TALK",
+    "WAR",
     "WAY",
     "WIND",
+    "WOW",
+    "YALL",
     # Modal verbs, conjunctions, and internet/slang
     "AGO",
     "COM",
@@ -435,11 +457,29 @@ class TickerLinker:
                 if len(match) == 1:
                     continue  # Skip single character tickers without $
 
-                # 2. Common word tickers: ONLY with $ prefix
-                if match in COMMON_WORD_TICKERS:
-                    continue  # Skip common word tickers without $
+                # 2. Capitalized common words (A, I, etc.): ALWAYS skip unless has $ prefix
+                if match in CAPITALIZED_COMMON_WORDS:
+                    continue  # Always skip these - too ambiguous
 
-                # 3. Other tickers: allow normal matching
+                # 3. Common word tickers: require ALL CAPS as separate word (not lowercase/mixed case)
+                if match in COMMON_WORD_TICKERS:
+                    # For common word tickers in Reddit comments, be even more strict
+                    # Check if it appears in ALL CAPS as a separate word in original text
+                    word_boundary_pattern = rf"\b{re.escape(match)}\b"
+                    appears_uppercase_standalone = bool(
+                        re.search(word_boundary_pattern, text)
+                    )
+
+                    # Also check it's not lowercase
+                    appears_lowercase = bool(
+                        re.search(rf"\b{re.escape(match.lower())}\b", text.lower())
+                    )
+
+                    # Only allow if appears as ALL CAPS standalone and NOT as lowercase
+                    if not (appears_uppercase_standalone and not appears_lowercase):
+                        continue  # Skip - must use $ prefix
+
+                # 4. Other tickers: allow normal matching
                 ticker_link = TickerLinkDTO(
                     ticker=ticker_symbol,
                     confidence=0.7,  # Medium confidence for symbol match
@@ -530,20 +570,42 @@ class TickerLinker:
                 if len(match) == 1:
                     continue  # Skip single character tickers without $
 
-                # 2. Common word tickers: require $ prefix OR (ALL CAPS in original text AND financial context)
-                if match in COMMON_WORD_TICKERS:
-                    # Check if it appears in ALL CAPS in the original text
-                    appears_uppercase = match in text
+                # 2. Capitalized common words (A, I, etc.): ALWAYS skip unless has $ prefix
+                if match in CAPITALIZED_COMMON_WORDS:
+                    continue  # Always skip these - too ambiguous even in financial context
 
-                    # Allow if: appears in ALL CAPS AND has financial context nearby
-                    if appears_uppercase and has_financial_context:
+                # 3. Common word tickers: require $ prefix OR (ALL CAPS as separate word in original text)
+                if match in COMMON_WORD_TICKERS:
+                    # For common word tickers, we need to verify:
+                    # - The word appears in ALL CAPS in original text (not lowercase)
+                    # - It appears as a separate word (word boundaries check)
+                    # - It has financial context nearby
+
+                    # Check if it appears in ALL CAPS as a separate word in original text
+                    # Use word boundary regex to ensure it's not part of another word
+                    word_boundary_pattern = rf"\b{re.escape(match)}\b"
+                    appears_uppercase_standalone = bool(
+                        re.search(word_boundary_pattern, text)
+                    )
+
+                    # Also check it's not lowercase
+                    appears_lowercase = bool(
+                        re.search(rf"\b{re.escape(match.lower())}\b", text)
+                    )
+
+                    # Allow if: appears in ALL CAPS as standalone word AND has financial context AND not lowercase
+                    if (
+                        appears_uppercase_standalone
+                        and has_financial_context
+                        and not appears_lowercase
+                    ):
                         # Allow through to context analyzer
                         pass
                     else:
                         # Skip - must use $ prefix
                         continue
 
-                # 3. Other tickers: allow normal matching
+                # 4. Other tickers: allow normal matching
                 if ticker_symbol not in matches:
                     matches[ticker_symbol] = []
                 # Find the actual symbol in the original text (preserve case)
