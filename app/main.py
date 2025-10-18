@@ -876,7 +876,9 @@ async def browse_tickers(
 
 
 @app.get("/t/{ticker}", response_class=HTMLResponse)
-async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLResponse:
+async def ticker_page(
+    request: Request, ticker: str, page: int = 1, sort_by: str = "date-desc"
+) -> HTMLResponse:
     """Ticker detail page with articles."""
     from datetime import datetime
 
@@ -1058,10 +1060,27 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
             db.query(Article, ArticleTicker.confidence, ArticleTicker.matched_terms)
             .join(ArticleTicker, Article.id == ArticleTicker.article_id)
             .filter(ArticleTicker.ticker == ticker.upper())
-            .order_by(Article.published_at.desc())
-            .offset(offset)
-            .limit(articles_per_page)
         )
+
+        # Apply sorting based on sort_by parameter
+        if sort_by == "date-asc":
+            articles_query = articles_query.order_by(Article.published_at.asc())
+        elif sort_by == "sentiment-desc":
+            articles_query = articles_query.order_by(
+                Article.sentiment.desc().nulls_last()
+            )
+        elif sort_by == "sentiment-asc":
+            articles_query = articles_query.order_by(
+                Article.sentiment.asc().nulls_last()
+            )
+        elif sort_by == "engagement-desc":
+            articles_query = articles_query.order_by(
+                Article.upvotes.desc().nulls_last()
+            )
+        else:  # default: date-desc
+            articles_query = articles_query.order_by(Article.published_at.desc())
+
+        articles_query = articles_query.offset(offset).limit(articles_per_page)
 
         articles_with_confidence = articles_query.all()
 
@@ -1118,6 +1137,7 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
                     article.text if article.source == "reddit_comment" else None
                 ),
                 "matched_terms": matched_terms or [],
+                "upvotes": article.upvotes or 0,
             }
             articles.append(article_dict)
 
@@ -1134,6 +1154,7 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
                 "sentiment_over_time": sentiment_over_time,
                 "total_article_count": total_article_count,
                 "pagination": pagination,
+                "sort_by": sort_by,
             },
         )
     finally:
