@@ -137,7 +137,8 @@ resource "aws_scheduler_schedule" "daily_status" {
   description = "Run daily status check at 4:00 UTC"
 }
 
-# EventBridge Scheduler: Stock Price Collector (every 15 minutes)
+# EventBridge Scheduler: Stock Price Collector (every 15 minutes during market hours)
+# Runs Mon-Fri, 9:30 AM - 4:15 PM ET (14:30-21:15 UTC)
 resource "aws_scheduler_schedule" "stock_price_collector" {
   name       = "${var.project_name}-stock-price-collector"
   group_name = "default"
@@ -146,7 +147,9 @@ resource "aws_scheduler_schedule" "stock_price_collector" {
     mode = "OFF"
   }
 
-  schedule_expression = "rate(15 minutes)"
+  # Run every 15 minutes, but only during market hours (Mon-Fri 14:30-21:15 UTC)
+  # This translates to 9:30 AM - 4:15 PM ET (includes 15-min buffer after market close)
+  schedule_expression = "cron(0/15 14-21 ? * MON-FRI *)"
 
   target {
     arn      = aws_ecs_cluster.jobs.arn
