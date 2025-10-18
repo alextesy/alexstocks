@@ -77,6 +77,13 @@ resource "aws_cloudwatch_log_group" "daily_status" {
   tags = local.common_tags
 }
 
+resource "aws_cloudwatch_log_group" "stock_price_collector" {
+  name              = "/ecs/${var.project_name}-jobs/stock-price-collector"
+  retention_in_days = var.log_retention_days
+
+  tags = local.common_tags
+}
+
 # ECS Task Definition: Reddit Scraper
 resource "aws_ecs_task_definition" "reddit_scraper" {
   family                   = "${var.project_name}-reddit-scraper"
@@ -249,6 +256,54 @@ resource "aws_ecs_task_definition" "daily_status" {
   tags = local.common_tags
 }
 
+# ECS Task Definition: Stock Price Collector
+resource "aws_ecs_task_definition" "stock_price_collector" {
+  family                   = "${var.project_name}-stock-price-collector"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.task_cpu
+  memory                   = var.task_memory
+  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([{
+    name      = "stock-price-collector"
+    image     = "${local.ecr_repository_url}:${var.ecr_image_tag}"
+    essential = true
+
+    command = [
+      "python", "jobs/stock_price_collector.py"
+    ]
+
+    environment = [
+      {
+        name  = "ENVIRONMENT"
+        value = var.environment
+      }
+    ]
+
+    secrets = [
+      {
+        name      = "POSTGRES_URL"
+        valueFrom = data.aws_secretsmanager_secret.postgres_url.arn
+      }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.stock_price_collector.name
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "ecs"
+      }
+    }
+
+    stopTimeout = 60
+  }])
+
+  tags = local.common_tags
+}
+
 # Outputs
 output "ecs_cluster_name" {
   description = "ECS cluster name"
@@ -273,4 +328,9 @@ output "sentiment_analysis_task_definition_arn" {
 output "daily_status_task_definition_arn" {
   description = "Daily status task definition ARN"
   value       = aws_ecs_task_definition.daily_status.arn
+}
+
+output "stock_price_collector_task_definition_arn" {
+  description = "Stock price collector task definition ARN"
+  value       = aws_ecs_task_definition.stock_price_collector.arn
 }

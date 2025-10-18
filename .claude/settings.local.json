@@ -14,7 +14,15 @@
       "Bash(aws events describe-rule:*)",
       "Bash(aws events list-targets-by-rule:*)",
       "Bash(pkill:*)",
-      "Bash(curl -s http://127.0.0.1:8001/health)"
+      "Bash(curl -s http://127.0.0.1:8001/health)",
+      "Bash(make:*)",
+      "Bash(source:*)",
+      "Bash(python test:*)",
+      "Bash(uv run:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv run black:*)",
+      "Bash(uv run mypy:*)"
     ],
     "deny": [],
     "ask": []
