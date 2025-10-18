@@ -19,8 +19,8 @@ from datetime import UTC, datetime
 
 from dotenv import load_dotenv
 
-from ingest.reddit_discussion_scraper import get_reddit_credentials
-from ingest.reddit_scraper import RedditScraper
+from .reddit_discussion_scraper import get_reddit_credentials
+from .reddit_scraper import RedditScraper
 
 load_dotenv()
 

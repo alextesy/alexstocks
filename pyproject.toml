@@ -86,9 +86,11 @@ exclude = '''
 '''
 
 [tool.mypy]
-files = ["app", "jobs/jobs", "tests"]  # <-- include jobs/jobs but not jobs/ingest
+files = ["app", "jobs/jobs/*.py", "tests"]  # <-- explicitly check files in jobs/jobs only
 exclude = "(^|/)ingest(/|$)"      # <-- keep mypy from walking ingest trees
 python_version = "3.11"
+namespace_packages = true
+explicit_package_bases = true
 warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = false
