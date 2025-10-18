@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.config import settings
 from app.services.mention_stats import get_mention_stats_service
 from app.services.sentiment import get_sentiment_service_hybrid
 from app.services.sentiment_analytics import get_sentiment_analytics_service
@@ -24,6 +25,8 @@ app = FastAPI(
 
 # Setup templates
 templates = Jinja2Templates(directory="app/templates")
+# Expose runtime settings to templates (for GTM/env-gated features)
+templates.env.globals["settings"] = settings
 
 # Mount static files for logo and assets
 app.mount("/static", StaticFiles(directory="app/artifacts"), name="static")
@@ -173,6 +176,12 @@ async def health() -> dict[str, bool]:
 async def about(request: Request):
     """About page."""
     return templates.TemplateResponse("about.html", {"request": request})
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy(request: Request):
+    """Privacy policy page."""
+    return templates.TemplateResponse("privacy.html", {"request": request})
 
 
 @app.get("/api/scraping-status")

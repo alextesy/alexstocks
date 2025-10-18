@@ -4,11 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}AlexStocks{% endblock %}</title>
+    {% if settings is defined and settings.gtm_container_id and settings.environment == 'production' %}
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);} // Consent Mode v2 defaults
+      gtag('consent','default',{
+        'ad_storage':'denied',
+        'analytics_storage':'denied',
+        'functionality_storage':'denied',
+        'personalization_storage':'denied',
+        'security_storage':'granted',
+        'ad_user_data':'denied',
+        'ad_personalization':'denied'
+      });
+      gtag('set','ads_data_redaction', true);
+      gtag('set','url_passthrough', true);
+    </script>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','{{ settings.gtm_container_id }}');</script>
+    <!-- End Google Tag Manager -->
+    {% endif %}
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
+    {% if settings is defined and settings.gtm_container_id and settings.environment == 'production' %}
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ settings.gtm_container_id }}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+    {% endif %}
     <nav class="bg-white shadow-sm border-b">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-20">
@@ -23,6 +48,9 @@
                     </a>
                     <a href="/about" class="text-sm text-gray-600 hover:text-gray-900 font-medium">
                         <i class="fas fa-info-circle mr-1"></i>About
+                    </a>
+                    <a href="/privacy" class="text-sm text-gray-600 hover:text-gray-900 font-medium">
+                        <i class="fas fa-shield-alt mr-1"></i>Privacy
                     </a>
                     <span class="text-sm text-gray-500">Real-Time Stock Market Analytics</span>
                 </div>
@@ -278,5 +306,48 @@
             }
         });
     </script>
+    {% if settings is defined and settings.cookie_consent_enabled and settings.gtm_container_id and settings.environment == 'production' %}
+    <div id="cookie-banner" class="fixed bottom-4 left-4 right-4 md:right-auto md:max-w-xl bg-white border shadow-lg p-4 rounded hidden">
+      <div class="text-sm text-gray-800 mb-3">We use cookies to improve functionality and measure traffic. You can accept, reject, or customize.</div>
+      <div class="flex flex-wrap gap-2 items-center">
+        <label class="text-sm"><input id="cc-analytics" type="checkbox" class="mr-1">Analytics</label>
+        <label class="text-sm"><input id="cc-ads" type="checkbox" class="mr-1">Ads/Personalization</label>
+        <div class="ml-auto flex gap-2">
+          <button id="cc-reject" class="px-3 py-1 text-sm border rounded">Reject all</button>
+          <button id="cc-accept" class="px-3 py-1 text-sm bg-black text-white rounded">Accept all</button>
+          <button id="cc-save" class="px-3 py-1 text-sm border rounded">Save</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function(){
+      var KEY='mp_cookie_consent_v1';
+      function setConsent(opts){
+        window.gtag && window.gtag('consent','update',{
+          'analytics_storage': opts.analytics? 'granted':'denied',
+          'functionality_storage': opts.analytics? 'granted':'denied',
+          'ad_storage': opts.ads? 'granted':'denied',
+          'ad_user_data': opts.ads? 'granted':'denied',
+          'ad_personalization': opts.ads? 'granted':'denied',
+          'personalization_storage': opts.ads? 'granted':'denied',
+          'security_storage':'granted'
+        });
+      }
+      function show(){document.getElementById('cookie-banner').classList.remove('hidden');}
+      function hide(){document.getElementById('cookie-banner').classList.add('hidden');}
+      try{
+        var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+        if(!saved){ show(); }
+        else { setConsent(saved); }
+      }catch(e){ show(); }
+      var elA=document.getElementById('cc-accept');
+      var elR=document.getElementById('cc-reject');
+      var elS=document.getElementById('cc-save');
+      elA && elA.addEventListener('click', function(){ var v={analytics:true, ads:true}; localStorage.setItem(KEY, JSON.stringify(v)); setConsent(v); hide();});
+      elR && elR.addEventListener('click', function(){ var v={analytics:false, ads:false}; localStorage.setItem(KEY, JSON.stringify(v)); setConsent(v); hide();});
+      elS && elS.addEventListener('click', function(){ var v={analytics:document.getElementById('cc-analytics').checked, ads:document.getElementById('cc-ads').checked}; localStorage.setItem(KEY, JSON.stringify(v)); setConsent(v); hide();});
+    })();
+    </script>
+    {% endif %}
 </body>
 </html>
