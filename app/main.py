@@ -859,9 +859,21 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
         # Get stock data from database
         stock_data = None
         stock_price = (
-            db.query(StockPrice).filter(StockPrice.symbol == ticker.upper()).first()
+            db.query(
+                StockPrice.symbol,
+                StockPrice.price,
+                StockPrice.previous_close,
+                StockPrice.change,
+                StockPrice.change_percent,
+                StockPrice.market_state,
+                StockPrice.currency,
+                StockPrice.exchange,
+                StockPrice.updated_at,
+            )
+            .filter(StockPrice.symbol == ticker.upper())
+            .first()
         )
-        if stock_price:
+        if stock_price is not None:
             stock_data = {
                 "symbol": stock_price.symbol,
                 "price": stock_price.price,
