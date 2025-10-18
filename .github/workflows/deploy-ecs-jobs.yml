@@ -1,0 +1,111 @@
+name: Deploy ECS Jobs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'jobs/**'
+      - 'app/db/**'
+      - 'app/services/**'
+      - 'app/config.py'
+      - 'ingest/**'
+      - '.github/workflows/deploy-ecs-jobs.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: market-pulse-jobs
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy to ECS
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f jobs/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Update ECS task definitions
+        env:
+          IMAGE_URI: ${{ steps.build-image.outputs.image }}
+        run: |
+          # Update Reddit Scraper task definition
+          aws ecs describe-task-definition \
+            --task-definition market-pulse-reddit-scraper \
+            --query taskDefinition > task-def-reddit.json
+
+          jq --arg IMAGE "$IMAGE_URI" \
+            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            task-def-reddit.json > task-def-reddit-updated.json
+
+          aws ecs register-task-definition \
+            --cli-input-json file://task-def-reddit-updated.json
+
+          # Update Sentiment Analysis task definition
+          aws ecs describe-task-definition \
+            --task-definition market-pulse-sentiment-analysis \
+            --query taskDefinition > task-def-sentiment.json
+
+          jq --arg IMAGE "$IMAGE_URI" \
+            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            task-def-sentiment.json > task-def-sentiment-updated.json
+
+          aws ecs register-task-definition \
+            --cli-input-json file://task-def-sentiment-updated.json
+
+          # Update Daily Status task definition
+          aws ecs describe-task-definition \
+            --task-definition market-pulse-daily-status \
+            --query taskDefinition > task-def-status.json
+
+          jq --arg IMAGE "$IMAGE_URI" \
+            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            task-def-status.json > task-def-status-updated.json
+
+          aws ecs register-task-definition \
+            --cli-input-json file://task-def-status-updated.json
+
+      - name: Summary
+        run: |
+          echo "✅ Successfully deployed ECS jobs"
+          echo "Image: ${{ steps.build-image.outputs.image }}"
+          echo "Region: ${{ env.AWS_REGION }}"

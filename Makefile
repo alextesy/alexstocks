@@ -43,7 +43,7 @@ add-reddit-thread-table: ## Add RedditThread table for tracking scraping progres
 # have been removed. They used the deprecated ingest/reddit.py general post scraper.
 # Use the production scraper below for discussion thread scraping.
 reddit-scrape-incremental: ## Production incremental scraper (for 15-min cron)
-	uv run python -m ingest.reddit_scraper_cli --mode incremental
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental
 
 reddit-scrape-backfill: ## Production backfill scraper (requires START and END dates)
 	@if [ -z "$(START)" ] || [ -z "$(END)" ]; then \
@@ -51,10 +51,10 @@ reddit-scrape-backfill: ## Production backfill scraper (requires START and END d
 		echo "Usage: make reddit-scrape-backfill START=2025-09-01 END=2025-09-30"; \
 		exit 1; \
 	fi
-	uv run python -m ingest.reddit_scraper_cli --mode backfill --start $(START) --end $(END)
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode backfill --start $(START) --end $(END)
 
 reddit-scrape-status: ## Show production scraper status
-	uv run python -m ingest.reddit_scraper_cli --mode status
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode status
 
 # Sentiment Analysis Jobs (LLM by default)
 analyze-sentiment: ## Run sentiment analysis on articles without sentiment
@@ -101,6 +101,9 @@ collect-both-stock-data: ## Collect both current and historical stock data
 
 test-stock-collection: ## Test stock data collection with 3 sample tickers
 	uv run python app/scripts/test_stock_collection.py
+
+collect-top50-prices: ## Collect stock prices for top 50 tickers (production job)
+	uv run python -m jobs.jobs.stock_price_collector
 
 setup-stock-cron: ## Setup cron job to collect stock prices every 15 minutes
 	./scripts/setup-stock-price-cron.sh
@@ -180,3 +183,123 @@ security: ## Run security checks
 clean: ## Clean up containers and volumes
 	docker compose down -v
 	docker system prune -f
+
+# ============================================================================
+# ECS Fargate Deployment Commands
+# ============================================================================
+
+# Docker/ECR Commands
+ecr-login: ## Login to AWS ECR
+	aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $(shell aws sts get-caller-identity --query Account --output text).dkr.ecr.us-east-1.amazonaws.com
+
+build-jobs-image: ## Build jobs Docker image locally
+	docker build -f jobs/Dockerfile -t market-pulse-jobs:local .
+
+push-jobs-image: ecr-login ## Build and push jobs image to ECR
+	$(eval ACCOUNT_ID := $(shell aws sts get-caller-identity --query Account --output text))
+	docker build -f jobs/Dockerfile --platform linux/amd64 -t $(ACCOUNT_ID).dkr.ecr.us-east-1.amazonaws.com/market-pulse-jobs:latest .
+	docker push $(ACCOUNT_ID).dkr.ecr.us-east-1.amazonaws.com/market-pulse-jobs:latest
+	@echo "✅ Pushed image to ECR"
+
+# Terraform Commands
+tf-init: ## Initialize Terraform
+	cd infrastructure/terraform && terraform init
+
+tf-plan: ## Plan Terraform changes
+	cd infrastructure/terraform && terraform plan
+
+tf-apply: ## Apply Terraform changes
+	cd infrastructure/terraform && terraform apply
+
+tf-destroy: ## Destroy Terraform resources (BE CAREFUL!)
+	cd infrastructure/terraform && terraform destroy
+
+# ECS Task Management
+ecs-run-scraper: ## Manually trigger Reddit scraper task
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-reddit-scraper)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r 'join(",")' || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1
+
+ecs-run-sentiment: ## Manually trigger sentiment analysis task
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-sentiment-analysis)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r 'join(",")' || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1
+
+ecs-run-status: ## Manually trigger daily status check task
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-daily-status)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r 'join(",")' || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1
+
+ecs-run-stock-prices: ## Manually trigger stock price collector task
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-stock-price-collector)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r 'join(",")' || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1
+
+ecs-list-tasks: ## List running ECS tasks
+	aws ecs list-tasks --cluster market-pulse-jobs
+
+ecs-logs-scraper: ## Tail logs for Reddit scraper
+	aws logs tail /ecs/market-pulse-jobs/reddit-scraper --follow
+
+ecs-logs-sentiment: ## Tail logs for sentiment analysis
+	aws logs tail /ecs/market-pulse-jobs/sentiment-analysis --follow
+
+ecs-logs-status: ## Tail logs for daily status
+	aws logs tail /ecs/market-pulse-jobs/daily-status --follow
+
+ecs-logs-stock-prices: ## Tail logs for stock price collector
+	aws logs tail /ecs/market-pulse-jobs/stock-price-collector --follow
+
+# EventBridge Schedule Management
+schedule-enable-all: ## Enable all EventBridge schedules
+	aws scheduler update-schedule --name market-pulse-reddit-scraper --state ENABLED
+	aws scheduler update-schedule --name market-pulse-sentiment-analysis --state ENABLED
+	aws scheduler update-schedule --name market-pulse-daily-status --state ENABLED
+	aws scheduler update-schedule --name market-pulse-stock-price-collector --state ENABLED
+	@echo "✅ All schedules enabled"
+
+schedule-disable-all: ## Disable all EventBridge schedules
+	aws scheduler update-schedule --name market-pulse-reddit-scraper --state DISABLED
+	aws scheduler update-schedule --name market-pulse-sentiment-analysis --state DISABLED
+	aws scheduler update-schedule --name market-pulse-daily-status --state DISABLED
+	aws scheduler update-schedule --name market-pulse-stock-price-collector --state DISABLED
+	@echo "⏸️  All schedules disabled"
+
+schedule-status: ## Check status of all EventBridge schedules
+	@echo "📋 Schedule Status:"
+	@aws scheduler get-schedule --name market-pulse-reddit-scraper --query '[Name,State]' --output text
+	@aws scheduler get-schedule --name market-pulse-sentiment-analysis --query '[Name,State]' --output text
+	@aws scheduler get-schedule --name market-pulse-daily-status --query '[Name,State]' --output text
+	@aws scheduler get-schedule --name market-pulse-stock-price-collector --query '[Name,State]' --output text
+
+schedule-enable-stock-prices: ## Enable stock price collector schedule only
+	aws scheduler update-schedule --name market-pulse-stock-price-collector --state ENABLED
+	@echo "✅ Stock price collector schedule enabled"
+
+schedule-disable-stock-prices: ## Disable stock price collector schedule only
+	aws scheduler update-schedule --name market-pulse-stock-price-collector --state DISABLED
+	@echo "⏸️  Stock price collector schedule disabled"

@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 from faker import Faker
 
-from ingest.reddit_discussion_scraper import (
+from jobs.ingest.reddit_discussion_scraper import (
     RedditDiscussionScraper,
     get_reddit_credentials,
 )

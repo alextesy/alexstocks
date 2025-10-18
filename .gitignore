@@ -294,6 +294,7 @@ temp/
 .terraform.lock.hcl
 *.tfvars
 *.tfvars.json
+terraform.tfvars
 
 # Local configuration files
 config.local.py
