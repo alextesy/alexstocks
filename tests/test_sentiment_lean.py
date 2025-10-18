@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import uuid
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -20,9 +21,12 @@ def add_article(session, sentiment: float | None, ticker: str, days_ago: int = 0
         session.add(t)
         session.flush()
 
+    # Unique URL per article to satisfy DB uniqueness constraint
+    unique_url = f"https://example.com/{ticker}/{uuid.uuid4()}"
+
     a = Article(
         title=f"{ticker} test",
-        url=f"https://example.com/{ticker}",
+        url=unique_url,
         source="reddit_post",
         published_at=datetime.utcnow() - timedelta(days=days_ago),
         sentiment=sentiment,

@@ -557,57 +557,15 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
         )
         overall_lean = sentiment_analytics.get_sentiment_lean_data(db, days=1)
 
-        tickers = []
-        # Pre-compute lean map for the selected top symbols (24h)
-        top_symbols = [row[0] for row in tickers_query.all()]
+        # Execute the query once and collect all data
+        ticker_rows = tickers_query.all()
+        
+        # Extract symbols for lean map computation
+        top_symbols = [row[0] for row in ticker_rows]
         lean_map = sentiment_analytics.get_ticker_lean_map(db, top_symbols, days=1)
-        # Re-run query to iterate rows (previous .all() consumed it)
-        tickers_query = (
-            db.query(
-                Ticker.symbol,
-                Ticker.name,
-                func.count(ArticleTicker.article_id).label("article_count"),
-                func.avg(Article.sentiment).label("avg_sentiment"),
-                top_tickers_subquery.c.recent_article_count,
-                StockPrice.price,
-                StockPrice.previous_close,
-                StockPrice.change,
-                StockPrice.change_percent,
-                StockPrice.market_state,
-                StockPrice.currency,
-                StockPrice.exchange,
-                StockPrice.updated_at,
-            )
-            .join(top_tickers_subquery, Ticker.symbol == top_tickers_subquery.c.ticker)
-            .outerjoin(
-                ArticleTicker,
-                and_(
-                    Ticker.symbol == ArticleTicker.ticker,
-                    ArticleTicker.article_id.in_(
-                        db.query(Article.id).filter(
-                            Article.published_at >= twenty_four_hours_ago
-                        )
-                    ),
-                ),
-            )
-            .outerjoin(Article, ArticleTicker.article_id == Article.id)
-            .outerjoin(StockPrice, Ticker.symbol == StockPrice.symbol)
-            .group_by(
-                Ticker.symbol,
-                Ticker.name,
-                top_tickers_subquery.c.recent_article_count,
-                StockPrice.price,
-                StockPrice.previous_close,
-                StockPrice.change,
-                StockPrice.change_percent,
-                StockPrice.market_state,
-                StockPrice.currency,
-                StockPrice.exchange,
-                StockPrice.updated_at,
-            )
-            .order_by(top_tickers_subquery.c.recent_article_count.desc(), Ticker.symbol)
-        )
-        for row in tickers_query.all():
+
+        tickers = []
+        for row in ticker_rows:
             (
                 symbol,
                 name,

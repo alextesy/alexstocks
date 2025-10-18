@@ -211,8 +211,6 @@ class SentimentAnalyticsService:
         Returns a dictionary containing counts, shares excluding neutral, leaning
         score and a presentation-friendly label with confidence.
         """
-        from app.config import settings
-
         positive_threshold = 0.05
         negative_threshold = -0.05
 
@@ -277,7 +275,16 @@ class SentimentAnalyticsService:
         neg_share_ex_neutral = negative_count / pos_neg
         leaning_score = (positive_count - negative_count) / pos_neg
 
-        if neutral_share >= settings.sentiment_neutral_dominance_threshold:
+        # Read threshold from env to avoid importing app.config (which validates DB URL)
+        try:
+            from os import getenv
+
+            threshold_str = getenv("SENTIMENT_NEUTRAL_DOMINANCE_THRESHOLD", "0.80")
+            neutral_dominance_threshold = float(threshold_str)
+        except Exception:
+            neutral_dominance_threshold = 0.80
+
+        if neutral_share >= neutral_dominance_threshold:
             leaning_label = "Neutral"
             neutral_dominant = True
         else:
@@ -374,9 +381,16 @@ class SentimentAnalyticsService:
             neg_share_ex_neutral = negative / pos_neg
             leaning_score = (positive - negative) / pos_neg
 
-            from app.config import settings
+            # Threshold from env (default 0.80)
+            try:
+                from os import getenv
 
-            if neutral_share >= settings.sentiment_neutral_dominance_threshold:
+                threshold_str = getenv("SENTIMENT_NEUTRAL_DOMINANCE_THRESHOLD", "0.80")
+                neutral_dominance_threshold = float(threshold_str)
+            except Exception:
+                neutral_dominance_threshold = 0.80
+
+            if neutral_share >= neutral_dominance_threshold:
                 leaning_label = "Neutral"
                 neutral_dominant = True
             else:
@@ -403,8 +417,6 @@ class SentimentAnalyticsService:
             }
 
         # Ensure all requested tickers are present with a neutral default when no rows
-        from app.config import settings
-
         for sym in [t.upper() for t in tickers]:
             if sym not in result:
                 result[sym] = {
