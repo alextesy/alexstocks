@@ -47,5 +47,3 @@ def test_mentions_hourly_zero_fill_and_alignment(db_session: Session):
     series = {s.symbol: s.data for s in payload.series}
     assert series["AAPL"] == [1, 0, 1]  # -2h:1, -1h:0, 0h:1
     assert series["TSLA"] == [0, 2, 0]  # -2h:0, -1h:2, 0h:0
-
-

@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Dict, Iterable, List, Tuple
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -54,12 +53,15 @@ class MentionStatsService:
             return MentionsHourlyResponseDTO(labels=[], series=[], hours=hours)
 
         now = datetime.now(UTC)
-        window_start = now - timedelta(hours=hours - 1)
+        # Align to the top of the current hour to match expected windows
+        hour_end = now.replace(minute=0, second=0, microsecond=0)
+        window_start = hour_end - timedelta(hours=hours - 1)
+        window_exclusive_end = hour_end + timedelta(hours=1)
 
         # Query: group counts by ticker and hour boundary
         # Branch per dialect for portability (SQLite vs Postgres)
         dialect = self.session.get_bind().dialect.name
-        counts_by_key: Dict[_HourlyKey, int] = {}
+        counts_by_key: dict[_HourlyKey, int] = {}
 
         if dialect == "sqlite":
             rows = (
@@ -75,6 +77,7 @@ class MentionStatsService:
                 .filter(
                     ArticleTicker.ticker.in_(normalized),
                     Article.published_at >= window_start,
+                    Article.published_at < window_exclusive_end,
                 )
                 .group_by(
                     ArticleTicker.ticker,
@@ -112,6 +115,7 @@ class MentionStatsService:
                 .filter(
                     ArticleTicker.ticker.in_(normalized),
                     Article.published_at >= window_start,
+                    Article.published_at < window_exclusive_end,
                 )
                 .group_by(ArticleTicker.ticker, hour_expr)
                 .all()
@@ -127,7 +131,9 @@ class MentionStatsService:
                 else:
                     # Fallback: try to parse via str()
                     try:
-                        hour_dt = datetime.fromisoformat(str(hour_dt)).replace(tzinfo=UTC)
+                        hour_dt = datetime.fromisoformat(str(hour_dt)).replace(
+                            tzinfo=UTC
+                        )
                     except Exception:
                         continue
                 counts_by_key[_HourlyKey(symbol=r.ticker.upper(), hour=hour_dt)] = int(
@@ -144,7 +150,7 @@ class MentionStatsService:
             window_start.hour,
             tzinfo=UTC,
         )
-        end = datetime(now.year, now.month, now.day, now.hour, tzinfo=UTC)
+        end = hour_end
         while cursor <= end:
             labels.append(cursor.isoformat())
             hours_list.append(cursor)
@@ -164,5 +170,3 @@ class MentionStatsService:
 def get_mention_stats_service(session: Session) -> MentionStatsService:
     """Factory to obtain MentionStatsService instance."""
     return MentionStatsService(session)
-
-

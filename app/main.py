@@ -6,11 +6,11 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
+from app.services.mention_stats import get_mention_stats_service
 from app.services.sentiment import get_sentiment_service_hybrid
 from app.services.sentiment_analytics import get_sentiment_analytics_service
 from app.services.stock_data import stock_service
 from app.services.velocity import get_velocity_service
-from app.services.mention_stats import get_mention_stats_service
 
 logger = logging.getLogger(__name__)
 

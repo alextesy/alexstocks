@@ -316,7 +316,7 @@ COMMON_WORD_TICKERS = {
     "NEW",
     "ALL",
     "ARE",
-    "APP"
+    "APP",
 }
 
 
