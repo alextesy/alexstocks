@@ -1,7 +1,7 @@
 .PHONY: help up down db-init seed-tickers add-sentiment ingest-hour ingest-24h reddit-ingest reddit-wsb reddit-stocks reddit-investing add-reddit-columns add-reddit-thread-table reddit-incremental reddit-status collect-stock-prices collect-historical-data collect-both-stock-data test clean
 
 help: ## Show this help message
-	@echo "Market Pulse - Available commands:"
+	@echo "AlexStocks - Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 up: ## Start postgres and api services

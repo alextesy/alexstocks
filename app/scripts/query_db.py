@@ -168,7 +168,7 @@ def query_database_stats() -> None:
 
 def main() -> None:
     """Main function for database queries."""
-    parser = argparse.ArgumentParser(description="Query Market Pulse database")
+    parser = argparse.ArgumentParser(description="Query AlexStocks database")
     parser.add_argument("--tickers", action="store_true", help="Show all tickers")
     parser.add_argument(
         "--sources", action="store_true", help="Show articles by source"

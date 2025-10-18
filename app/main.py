@@ -4,6 +4,7 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.services.mention_stats import get_mention_stats_service
@@ -16,13 +17,16 @@ logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
-    title="Market Pulse",
+    title="AlexStocks",
     description="Lean MVP for market news analytics",
     version="0.1.0",
 )
 
 # Setup templates
 templates = Jinja2Templates(directory="app/templates")
+
+# Mount static files for logo and assets
+app.mount("/static", StaticFiles(directory="app/artifacts"), name="static")
 
 
 # Add sentiment helper functions to template context
@@ -163,6 +167,12 @@ def get_sentiment_over_time_data(db, ticker: str, days: int = 30) -> dict:
 async def health() -> dict[str, bool]:
     """Health check endpoint."""
     return {"ok": True}
+
+
+@app.get("/about", response_class=HTMLResponse)
+async def about(request: Request):
+    """About page."""
+    return templates.TemplateResponse("about.html", {"request": request})
 
 
 @app.get("/api/scraping-status")

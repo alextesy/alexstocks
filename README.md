@@ -1,8 +1,8 @@
-# Market Pulse
+# AlexStocks
 
 **A production-ready market sentiment analytics platform that tracks real-time discussions and sentiment across financial markets.**
 
-Market Pulse is a comprehensive web application that collects, analyzes, and visualizes market sentiment from Reddit discussions. It uses advanced NLP techniques including FinBERT-based sentiment analysis and intelligent ticker linking to provide actionable insights into market trends and momentum.
+AlexStocks is a comprehensive web application that collects, analyzes, and visualizes market sentiment from Reddit discussions. It uses advanced NLP techniques including FinBERT-based sentiment analysis and intelligent ticker linking to provide actionable insights into market trends and momentum.
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
@@ -294,7 +294,7 @@ market-pulse-v2/
 1. Visit https://www.reddit.com/prefs/apps
 2. Click "Create App" or "Create Another App"
 3. Fill in details:
-   - **Name**: MarketPulse
+   - **Name**: AlexStocks
    - **App type**: script
    - **Description**: Market sentiment analytics
    - **Redirect URI**: http://localhost:8080
@@ -307,7 +307,7 @@ Add to your `.env` file:
 # Reddit API Configuration
 REDDIT_CLIENT_ID=your_client_id_here
 REDDIT_CLIENT_SECRET=your_client_secret_here
-REDDIT_USER_AGENT=MarketPulse/1.0 by YourUsername
+REDDIT_USER_AGENT=AlexStocks/1.0 by YourUsername
 ```
 
 ### 3. Test Connection

@@ -1,4 +1,4 @@
-# Market Pulse Jobs
+# AlexStocks Jobs
 
 Containerized cron jobs for ECS Fargate deployment.
 

@@ -1,7 +1,7 @@
 [project]
 name = "market-pulse"
 version = "0.1.0"
-description = "Market Pulse - Lean MVP for market news analytics"
+description = "AlexStocks - Lean MVP for market news analytics"
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "fastapi>=0.104.0",

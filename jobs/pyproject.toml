@@ -1,7 +1,7 @@
 [project]
 name = "market-pulse-jobs"
 version = "0.1.0"
-description = "Market Pulse - Cron Jobs (ECS Fargate)"
+description = "AlexStocks - Cron Jobs (ECS Fargate)"
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "sqlalchemy>=2.0.0",
