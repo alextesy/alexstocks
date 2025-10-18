@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy - AlexStocks{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-bold text-gray-900 mb-6">Privacy</h1>
+    <div class="bg-white rounded-lg shadow-sm border p-6 space-y-4 text-gray-700">
+        <p>We use cookies and similar technologies to provide core functionality and to measure traffic (analytics). Through the cookie banner you can accept, reject, or customize categories at any time.</p>
+        <p>Analytics is provided via Google Analytics 4, loaded through Google Tag Manager. Data collection respects your consent choices using Consent Mode v2.</p>
+        <p>No personal financial information is collected. See our <a class="text-blue-600 underline" href="/about">About</a> page for platform details.</p>
+        <button id="reopen-consent" class="mt-4 px-4 py-2 border rounded">Review cookie choices</button>
+    </div>
+</div>
+<script>
+(function(){
+  var btn=document.getElementById('reopen-consent');
+  if(!btn) return;
+  btn.addEventListener('click', function(){
+    try{ localStorage.removeItem('mp_cookie_consent_v1'); }catch(e){}
+    var banner=document.getElementById('cookie-banner');
+    if(banner){ banner.classList.remove('hidden'); }
+  });
+})();
+</script>
+{% endblock %}
+
+

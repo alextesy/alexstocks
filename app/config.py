@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     # Finnhub API configuration
     finnhub_secret: str | None = None
 
+    # Runtime environment and analytics
+    environment: Literal["development", "staging", "production"] = Field(
+        default="development",
+        validation_alias=AliasChoices("ENV", "environment"),
+    )
+    gtm_container_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GTM_CONTAINER_ID", "gtm_container_id"),
+    )
+    cookie_consent_enabled: bool = True
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
