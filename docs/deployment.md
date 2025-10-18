@@ -1,6 +1,6 @@
-# Market Pulse - EC2 Deployment Guide
+# AlexStocks - EC2 Deployment Guide
 
-This document provides a complete guide for deploying Market Pulse to AWS EC2 with a custom domain.
+This document provides a complete guide for deploying AlexStocks to AWS EC2 with a custom domain.
 
 ## Table of Contents
 

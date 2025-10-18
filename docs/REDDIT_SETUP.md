@@ -1,6 +1,6 @@
 # Reddit API Setup Guide
 
-This guide explains how to set up Reddit API access for Market Pulse Reddit ingestion.
+This guide explains how to set up Reddit API access for AlexStocks Reddit ingestion.
 
 ## 1. Create Reddit App
 

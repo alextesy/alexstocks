@@ -1,6 +1,6 @@
 # Infrastructure
 
-AWS infrastructure for Market Pulse ECS Fargate cron jobs.
+AWS infrastructure for AlexStocks ECS Fargate cron jobs.
 
 ## Quick Start
 

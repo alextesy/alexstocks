@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 def display_ticker_stats():
     """Display comprehensive ticker statistics."""
     print("\n" + "=" * 60)
-    print("MARKET PULSE - TICKER DATABASE STATISTICS")
+    print("ALEXSTOCKS - TICKER DATABASE STATISTICS")
     print("=" * 60)
 
     db = SessionLocal()

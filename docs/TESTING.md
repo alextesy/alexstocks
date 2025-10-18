@@ -1,6 +1,6 @@
 # Testing Guide
 
-This document describes the testing setup and strategy for the Market Pulse project.
+This document describes the testing setup and strategy for the AlexStocks project.
 
 ## Test Structure
 

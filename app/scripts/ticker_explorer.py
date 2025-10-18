@@ -99,7 +99,7 @@ class TickerExplorer:
     def interactive_search(self):
         """Run interactive search session."""
         print("\n" + "=" * 60)
-        print("MARKET PULSE - TICKER DATABASE EXPLORER")
+        print("ALEXSTOCKS - TICKER DATABASE EXPLORER")
         print("=" * 60)
         print("\nCommands:")
         print("  search <term>     - Search tickers by symbol, name, or aliases")

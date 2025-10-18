@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}About - AlexStocks{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-4">About AlexStocks</h1>
+        <p class="text-lg text-gray-600">Real-time market sentiment analytics platform</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border p-8 mb-6">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-4">What is AlexStocks?</h2>
+        <div class="prose prose-lg text-gray-700 space-y-4">
+            <p>
+                AlexStocks helps you understand what people are talking about in the stock market. We track conversations 
+                across multiple financial discussion communities and show you the trending stocks, what sentiment surrounds them, 
+                and how the buzz is changing over time.
+            </p>
+            
+            <h3 class="text-xl font-semibold text-gray-900 mt-6 mb-3">What You'll Find Here</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><strong>Trending Stocks:</strong> See which tickers are being discussed the most in the last 24 hours</li>
+                <li><strong>Sentiment Analysis:</strong> Understand if the overall mood is positive, negative, or neutral for any stock</li>
+                <li><strong>Live Stock Prices:</strong> Current market prices updated throughout the day</li>
+                <li><strong>Discussion Volume:</strong> Track how much buzz and attention different stocks are getting</li>
+                <li><strong>Historical Trends:</strong> See how sentiment and discussion volume change over time</li>
+                <li><strong>Interactive Charts:</strong> Visualize hourly mentions and daily sentiment patterns</li>
+            </ul>
+
+            <h3 class="text-xl font-semibold text-gray-900 mt-6 mb-3">How It Works</h3>
+            <p>
+                We continuously monitor financial discussion forums and social communities where investors share their thoughts 
+                and opinions. The platform automatically identifies which stocks are being mentioned, analyzes whether the 
+                sentiment is positive or negative, and presents this information in an easy-to-understand format.
+            </p>
+            <p>
+                Our goal is to help you see what the investing community is talking about right now, spot emerging trends, 
+                and get a sense of market sentiment—all in one place.
+            </p>
+
+            <h3 class="text-xl font-semibold text-gray-900 mt-6 mb-3">Our Data Sources</h3>
+            <p>
+                We gather discussions from multiple major financial communities, including popular forums focused on retail 
+                trading, general market discussions, and long-term investing strategies. Stock price information comes from 
+                reliable market data providers to give you accurate, real-time pricing alongside the sentiment data.
+            </p>
+        </div>
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-r-lg mb-8">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-triangle text-yellow-400 text-xl"></i>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-lg font-semibold text-yellow-800 mb-2">Investment Disclaimer</h3>
+                <p class="text-sm text-yellow-700">
+                    <strong>This is NOT investment advice.</strong> AlexStocks is an informational tool that aggregates and analyzes 
+                    public discussions about stocks. The sentiment and trends shown on this platform reflect community opinions and 
+                    should not be construed as financial advice or recommendations to buy or sell any securities.
+                </p>
+                <p class="text-sm text-yellow-700 mt-2">
+                    Always conduct your own research and consult with qualified financial advisors before making investment decisions. 
+                    Past performance and social sentiment are not indicators of future results. Investing in stocks carries risk, 
+                    including the potential loss of principal.
+                </p>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Contact/Links -->
+    <div class="text-center py-8">
+        <a href="/" class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+            <i class="fas fa-home mr-2"></i>
+            Back to Home
+        </a>
+    </div>
+</div>
+{% endblock %}
+

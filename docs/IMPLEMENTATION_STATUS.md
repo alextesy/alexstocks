@@ -1,7 +1,7 @@
-# Market Pulse MVP - Implementation Status
+# AlexStocks MVP - Implementation Status
 
 ## Overview
-This document summarizes the current implementation status of the Market Pulse MVP, a lean web application for market news analytics. The project follows the architecture and requirements outlined in the PRD and TASKS documents.
+This document summarizes the current implementation status of the AlexStocks MVP, a lean web application for market news analytics. The project follows the architecture and requirements outlined in the PRD and TASKS documents.
 
 ## ✅ Completed Implementation
 

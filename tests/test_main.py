@@ -20,7 +20,7 @@ def test_home_page():
     """Test the home page loads without error."""
     response = client.get("/")
     assert response.status_code == 200
-    assert "Market Pulse" in response.text
+    assert "AlexStocks" in response.text
 
 
 @pytest.mark.skip(reason="Requires database setup - temporarily disabled")
