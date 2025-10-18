@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
+from app.services.mention_stats import get_mention_stats_service
 from app.services.sentiment import get_sentiment_service_hybrid
 from app.services.sentiment_analytics import get_sentiment_analytics_service
 from app.services.stock_data import stock_service
@@ -247,6 +248,30 @@ async def get_sentiment_time_series(ticker: str, days: int = 30):
             db.close()
     except Exception as e:
         logger.error(f"Error in sentiment time series API: {e}")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
+
+
+@app.get("/api/mentions/hourly")
+async def get_mentions_hourly(tickers: str, hours: int = 24):
+    """Get hourly mention counts for one or more tickers for the last N hours.
+
+    Query params:
+      - tickers: comma-separated symbols (e.g., AAPL,TSLA,NVDA)
+      - hours: trailing hours to include (default 24)
+    """
+    from app.db.session import SessionLocal
+
+    try:
+        db = SessionLocal()
+        try:
+            symbols = [s.strip() for s in tickers.split(",") if s.strip()]
+            service = get_mention_stats_service(db)
+            payload = service.get_mentions_hourly(symbols, hours=hours)
+            return payload
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error in mentions hourly API: {e}")
         return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
@@ -565,6 +590,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
         lean_map = sentiment_analytics.get_ticker_lean_map(db, top_symbols, days=1)
 
         tickers = []
+        default_mention_symbols: list[str] = []
         for row in ticker_rows:
             (
                 symbol,
@@ -610,6 +636,8 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "sentiment_lean": lean_map.get(symbol, None),
             }
             tickers.append(ticker_dict)
+            if len(default_mention_symbols) < 10:
+                default_mention_symbols.append(symbol)
 
         # Get scraping status
         from app.db.models import ScrapingStatus
@@ -634,6 +662,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "sentiment_histogram": overall_sentiment_data,
                 "overall_lean": overall_lean,
                 "scraping_status": scraping_info,
+                "default_mention_symbols": default_mention_symbols,
             },
         )
     finally:

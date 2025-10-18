@@ -27,3 +27,20 @@ class TickerLinkDTO:
 
         if not isinstance(self.reasoning, list):
             raise ValueError("reasoning must be a list")
+
+
+@dataclass
+class MentionsSeriesDTO:
+    """Hourly mentions series for a single ticker."""
+
+    symbol: str
+    data: list[int]
+
+
+@dataclass
+class MentionsHourlyResponseDTO:
+    """Response DTO for hourly mentions across multiple tickers."""
+
+    labels: list[str]
+    series: list[MentionsSeriesDTO]
+    hours: int
