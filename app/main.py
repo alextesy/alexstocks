@@ -550,14 +550,22 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
         # Get velocity service for calculating velocity data
         velocity_service = get_velocity_service(db)
 
-        # Get sentiment analytics service for overall sentiment histogram (current day only)
+        # Get sentiment analytics service for overall sentiment (24h)
         sentiment_analytics = get_sentiment_analytics_service()
         overall_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(
             db, days=1
         )
+        overall_lean = sentiment_analytics.get_sentiment_lean_data(db, days=1)
+
+        # Execute the query once and collect all data
+        ticker_rows = tickers_query.all()
+
+        # Extract symbols for lean map computation
+        top_symbols = [row[0] for row in ticker_rows]
+        lean_map = sentiment_analytics.get_ticker_lean_map(db, top_symbols, days=1)
 
         tickers = []
-        for row in tickers_query.all():
+        for row in ticker_rows:
             (
                 symbol,
                 name,
@@ -599,6 +607,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "avg_sentiment": avg_sentiment,
                 "velocity": velocity_data,
                 "stock_data": stock_data,
+                "sentiment_lean": lean_map.get(symbol, None),
             }
             tickers.append(ticker_dict)
 
@@ -623,6 +632,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "request": request,
                 "tickers": tickers,
                 "sentiment_histogram": overall_sentiment_data,
+                "overall_lean": overall_lean,
                 "scraping_status": scraping_info,
             },
         )
@@ -849,9 +859,21 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
         # Get stock data from database
         stock_data = None
         stock_price = (
-            db.query(StockPrice).filter(StockPrice.symbol == ticker.upper()).first()
+            db.query(
+                StockPrice.symbol,
+                StockPrice.price,
+                StockPrice.previous_close,
+                StockPrice.change,
+                StockPrice.change_percent,
+                StockPrice.market_state,
+                StockPrice.currency,
+                StockPrice.exchange,
+                StockPrice.updated_at,
+            )
+            .filter(StockPrice.symbol == ticker.upper())
+            .first()
         )
-        if stock_price:
+        if stock_price is not None:
             stock_data = {
                 "symbol": stock_price.symbol,
                 "price": stock_price.price,

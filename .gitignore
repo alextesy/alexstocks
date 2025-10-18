@@ -292,6 +292,8 @@ temp/
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+*.tfvars
+*.tfvars.json
 terraform.tfvars
 
 # Local configuration files

@@ -263,7 +263,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         <div class="flex items-center justify-between text-sm text-gray-500">
             <div class="flex items-center space-x-4">
+                {% if article.published_at %}
                 <span>{{ article.published_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                {% else %}
+                <span>Unknown date</span>
+                {% endif %}
                 {% if article.lang %}
                 <span class="px-2 py-1 bg-gray-100 rounded text-xs">{{ article.lang.upper() }}</span>
                 {% endif %}
