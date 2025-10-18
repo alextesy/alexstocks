@@ -45,6 +45,12 @@ packages = ["app"]
 [tool.ruff]
 target-version = "py311"
 line-length = 88
+exclude = [
+    ".venv",
+    "jobs/.venv",
+    "notebooks",
+    "*.ipynb",
+]
 
 [tool.ruff.lint]
 select = [
@@ -61,11 +67,23 @@ ignore = [
     "B008",  # do not perform function calls in argument defaults
     "C901",  # too complex
 ]
-per-file-ignores = {"__init__.py" = ["F401"], "notebooks/*.ipynb" = ["E402", "E722", "F821", "F841"]}
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"jobs/jobs/stock_price_collector.py" = ["E402"]  # Load .env before imports
+"explore_yfinance_fields.py" = ["E722"]  # Bare except is intentional
+"test_*.py" = ["E722"]  # Test files may use bare except
 
 [tool.black]
 target-version = ['py311']
 line-length = 88
+exclude = '''
+/(
+    \.venv
+  | jobs/\.venv
+  | notebooks
+  | .*\.ipynb
+)/
+'''
 
 [tool.mypy]
 files = ["app", "jobs/jobs", "tests"]  # <-- include jobs/jobs but not jobs/ingest

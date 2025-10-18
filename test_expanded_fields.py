@@ -123,7 +123,7 @@ async def test_expanded_fields():
     all_data = await service.get_multiple_prices(test_symbols, max_concurrent=3)
 
     field_stats = {}
-    for symbol, data in all_data.items():
+    for _symbol, data in all_data.items():
         if not data:
             continue
         for field in data.keys():
