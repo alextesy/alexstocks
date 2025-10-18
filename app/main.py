@@ -559,7 +559,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
 
         # Execute the query once and collect all data
         ticker_rows = tickers_query.all()
-        
+
         # Extract symbols for lean map computation
         top_symbols = [row[0] for row in ticker_rows]
         lean_map = sentiment_analytics.get_ticker_lean_map(db, top_symbols, days=1)
