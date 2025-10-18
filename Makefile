@@ -58,36 +58,36 @@ reddit-scrape-status: ## Show production scraper status
 
 # Sentiment Analysis Jobs (LLM by default)
 analyze-sentiment: ## Run sentiment analysis on articles without sentiment
-	uv run python app/jobs/analyze_sentiment.py
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.analyze_sentiment
 
 analyze-sentiment-reddit: ## Run sentiment analysis on Reddit articles only
-	uv run python app/jobs/analyze_sentiment.py --source reddit
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.analyze_sentiment --source reddit
 
 analyze-sentiment-recent: ## Run sentiment analysis on articles from last 24 hours
-	uv run python app/jobs/analyze_sentiment.py --hours-back 24
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.analyze_sentiment --hours-back 24
 
 # LLM Sentiment Override Jobs
 override-sentiment-llm: ## Override all existing sentiment with LLM sentiment
-	uv run python app/jobs/override_sentiment_with_llm.py
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.override_sentiment_with_llm
 
 override-sentiment-llm-reddit: ## Override Reddit sentiment with LLM sentiment
-	uv run python app/jobs/override_sentiment_with_llm.py --source reddit
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.override_sentiment_with_llm --source reddit
 
 override-sentiment-llm-force: ## Force override ALL articles with LLM sentiment
-	uv run python app/jobs/override_sentiment_with_llm.py --force-all
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.override_sentiment_with_llm --force-all
 
 # Dual Model Sentiment Override Jobs
 override-sentiment-dual: ## Override all existing sentiment with dual model approach (LLM + VADER)
-	uv run python app/jobs/override_sentiment_dual_model.py
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.override_sentiment_dual_model
 
 override-sentiment-dual-reddit: ## Override Reddit sentiment with dual model approach
-	uv run python app/jobs/override_sentiment_dual_model.py --source reddit
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.override_sentiment_dual_model --source reddit
 
 override-sentiment-dual-force: ## Force override ALL articles with dual model approach
-	uv run python app/jobs/override_sentiment_dual_model.py --force-all
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.override_sentiment_dual_model --force-all
 
 override-sentiment-dual-recent: ## Override sentiment for articles from last 24 hours with dual model
-	uv run python app/jobs/override_sentiment_dual_model.py --hours-back 24
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.override_sentiment_dual_model --hours-back 24
 
 # Stock Price Collection Jobs
 collect-stock-prices: ## Collect current stock prices for all tickers
@@ -103,7 +103,7 @@ test-stock-collection: ## Test stock data collection with 3 sample tickers
 	uv run python app/scripts/test_stock_collection.py
 
 collect-top50-prices: ## Collect stock prices for top 50 tickers (production job)
-	uv run python -m jobs.jobs.stock_price_collector
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.stock_price_collector
 
 setup-stock-cron: ## Setup cron job to collect stock prices every 15 minutes
 	./scripts/setup-stock-price-cron.sh
@@ -126,10 +126,10 @@ check-rate-limit: ## Check if Yahoo Finance rate limit has cleared
 
 # Combined Jobs (Scraping + Sentiment)
 scrape-and-analyze-posts: ## Scrape Reddit posts and analyze sentiment
-	uv run python app/jobs/scrape_and_analyze.py posts
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.scrape_and_analyze posts
 
 scrape-and-analyze-comments: ## Scrape Reddit comments and analyze sentiment
-	uv run python app/jobs/scrape_and_analyze.py comments
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.scrape_and_analyze comments
 
 scrape-and-analyze-full: ## FULL scrape latest daily thread + sentiment analysis
 	make reddit-full-scrape-latest && make analyze-sentiment-recent
