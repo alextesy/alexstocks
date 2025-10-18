@@ -550,13 +550,63 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
         # Get velocity service for calculating velocity data
         velocity_service = get_velocity_service(db)
 
-        # Get sentiment analytics service for overall sentiment histogram (current day only)
+        # Get sentiment analytics service for overall sentiment (24h)
         sentiment_analytics = get_sentiment_analytics_service()
         overall_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(
             db, days=1
         )
+        overall_lean = sentiment_analytics.get_sentiment_lean_data(db, days=1)
 
         tickers = []
+        # Pre-compute lean map for the selected top symbols (24h)
+        top_symbols = [row[0] for row in tickers_query.all()]
+        lean_map = sentiment_analytics.get_ticker_lean_map(db, top_symbols, days=1)
+        # Re-run query to iterate rows (previous .all() consumed it)
+        tickers_query = (
+            db.query(
+                Ticker.symbol,
+                Ticker.name,
+                func.count(ArticleTicker.article_id).label("article_count"),
+                func.avg(Article.sentiment).label("avg_sentiment"),
+                top_tickers_subquery.c.recent_article_count,
+                StockPrice.price,
+                StockPrice.previous_close,
+                StockPrice.change,
+                StockPrice.change_percent,
+                StockPrice.market_state,
+                StockPrice.currency,
+                StockPrice.exchange,
+                StockPrice.updated_at,
+            )
+            .join(top_tickers_subquery, Ticker.symbol == top_tickers_subquery.c.ticker)
+            .outerjoin(
+                ArticleTicker,
+                and_(
+                    Ticker.symbol == ArticleTicker.ticker,
+                    ArticleTicker.article_id.in_(
+                        db.query(Article.id).filter(
+                            Article.published_at >= twenty_four_hours_ago
+                        )
+                    ),
+                ),
+            )
+            .outerjoin(Article, ArticleTicker.article_id == Article.id)
+            .outerjoin(StockPrice, Ticker.symbol == StockPrice.symbol)
+            .group_by(
+                Ticker.symbol,
+                Ticker.name,
+                top_tickers_subquery.c.recent_article_count,
+                StockPrice.price,
+                StockPrice.previous_close,
+                StockPrice.change,
+                StockPrice.change_percent,
+                StockPrice.market_state,
+                StockPrice.currency,
+                StockPrice.exchange,
+                StockPrice.updated_at,
+            )
+            .order_by(top_tickers_subquery.c.recent_article_count.desc(), Ticker.symbol)
+        )
         for row in tickers_query.all():
             (
                 symbol,
@@ -599,6 +649,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "avg_sentiment": avg_sentiment,
                 "velocity": velocity_data,
                 "stock_data": stock_data,
+                "sentiment_lean": lean_map.get(symbol, None),
             }
             tickers.append(ticker_dict)
 
@@ -623,6 +674,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "request": request,
                 "tickers": tickers,
                 "sentiment_histogram": overall_sentiment_data,
+                "overall_lean": overall_lean,
                 "scraping_status": scraping_info,
             },
         )

@@ -3,6 +3,7 @@
 import logging
 from datetime import datetime, timedelta
 
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.db.models import Article, ArticleTicker
@@ -200,6 +201,223 @@ class SentimentAnalyticsService:
             "display_data": display_data,
             "total": total,
         }
+
+    # --- New leaning computations ---
+    def get_sentiment_lean_data(
+        self, db: Session, ticker: str | None = None, days: int = 1
+    ) -> dict:
+        """Compute leaning metrics for overall or a specific ticker over given days.
+
+        Returns a dictionary containing counts, shares excluding neutral, leaning
+        score and a presentation-friendly label with confidence.
+        """
+        from app.config import settings
+
+        positive_threshold = 0.05
+        negative_threshold = -0.05
+
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+        base = db.query(Article)
+        base = base.filter(Article.sentiment.isnot(None))
+        base = base.filter(Article.published_at >= cutoff_date)
+
+        if ticker:
+            base = base.join(
+                ArticleTicker, Article.id == ArticleTicker.article_id
+            ).filter(ArticleTicker.ticker == ticker.upper())
+
+        positive_count = base.filter(Article.sentiment >= positive_threshold).count()
+        negative_count = base.filter(Article.sentiment <= negative_threshold).count()
+        neutral_count = base.filter(
+            Article.sentiment > negative_threshold,
+            Article.sentiment < positive_threshold,
+        ).count()
+
+        total = positive_count + negative_count + neutral_count
+        pos_neg = positive_count + negative_count
+
+        if total == 0:
+            return {
+                "counts": {
+                    "positive": 0,
+                    "negative": 0,
+                    "neutral": 0,
+                    "total": 0,
+                },
+                "pos_share_ex_neutral": 0.0,
+                "neg_share_ex_neutral": 0.0,
+                "leaning_score": 0.0,
+                "leaning_label": "Neutral",
+                "confidence": 0.0,
+                "neutral_dominant": False,
+            }
+
+        neutral_share = neutral_count / total if total else 0.0
+        confidence = (pos_neg / total) if total else 0.0
+
+        if pos_neg == 0:
+            # All neutral
+            return {
+                "counts": {
+                    "positive": positive_count,
+                    "negative": negative_count,
+                    "neutral": neutral_count,
+                    "total": total,
+                },
+                "pos_share_ex_neutral": 0.0,
+                "neg_share_ex_neutral": 0.0,
+                "leaning_score": 0.0,
+                "leaning_label": "Neutral",
+                "confidence": confidence,
+                "neutral_dominant": True,
+            }
+
+        pos_share_ex_neutral = positive_count / pos_neg
+        neg_share_ex_neutral = negative_count / pos_neg
+        leaning_score = (positive_count - negative_count) / pos_neg
+
+        if neutral_share >= settings.sentiment_neutral_dominance_threshold:
+            leaning_label = "Neutral"
+            neutral_dominant = True
+        else:
+            leaning_label = (
+                "Leaning Positive"
+                if leaning_score > 0
+                else "Leaning Negative" if leaning_score < 0 else "Neutral"
+            )
+            neutral_dominant = False
+
+        return {
+            "counts": {
+                "positive": positive_count,
+                "negative": negative_count,
+                "neutral": neutral_count,
+                "total": total,
+            },
+            "pos_share_ex_neutral": round(pos_share_ex_neutral, 4),
+            "neg_share_ex_neutral": round(neg_share_ex_neutral, 4),
+            "leaning_score": round(leaning_score, 4),
+            "leaning_label": leaning_label,
+            "confidence": round(confidence, 4),
+            "neutral_dominant": neutral_dominant,
+        }
+
+    def get_ticker_lean_map(
+        self, db: Session, tickers: list[str], days: int = 1
+    ) -> dict[str, dict]:
+        """Compute lean data for many tickers with one grouped query."""
+        if not tickers:
+            return {}
+
+        positive_threshold = 0.05
+        negative_threshold = -0.05
+
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+        rows = (
+            db.query(
+                ArticleTicker.ticker.label("ticker"),
+                func.sum(
+                    case((Article.sentiment >= positive_threshold, 1), else_=0)
+                ).label("positive"),
+                func.sum(
+                    case((Article.sentiment <= negative_threshold, 1), else_=0)
+                ).label("negative"),
+                func.sum(
+                    case(
+                        (
+                            (Article.sentiment > negative_threshold)
+                            & (Article.sentiment < positive_threshold),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ).label("neutral"),
+            )
+            .join(Article, Article.id == ArticleTicker.article_id)
+            .filter(ArticleTicker.ticker.in_([t.upper() for t in tickers]))
+            .filter(Article.published_at >= cutoff_date)
+            .filter(Article.sentiment.isnot(None))
+            .group_by(ArticleTicker.ticker)
+            .all()
+        )
+
+        result: dict[str, dict] = {}
+        for r in rows:
+            positive = int(r.positive or 0)
+            negative = int(r.negative or 0)
+            neutral = int(r.neutral or 0)
+            total = positive + negative + neutral
+            pos_neg = positive + negative
+            neutral_share = (neutral / total) if total else 0.0
+            confidence = (pos_neg / total) if total else 0.0
+
+            if total == 0 or pos_neg == 0:
+                result[r.ticker] = {
+                    "counts": {
+                        "positive": positive,
+                        "negative": negative,
+                        "neutral": neutral,
+                        "total": total,
+                    },
+                    "pos_share_ex_neutral": 0.0,
+                    "neg_share_ex_neutral": 0.0,
+                    "leaning_score": 0.0,
+                    "leaning_label": "Neutral",
+                    "confidence": round(confidence, 4),
+                    "neutral_dominant": True,
+                }
+                continue
+
+            pos_share_ex_neutral = positive / pos_neg
+            neg_share_ex_neutral = negative / pos_neg
+            leaning_score = (positive - negative) / pos_neg
+
+            from app.config import settings
+
+            if neutral_share >= settings.sentiment_neutral_dominance_threshold:
+                leaning_label = "Neutral"
+                neutral_dominant = True
+            else:
+                leaning_label = (
+                    "Leaning Positive"
+                    if leaning_score > 0
+                    else "Leaning Negative" if leaning_score < 0 else "Neutral"
+                )
+                neutral_dominant = False
+
+            result[r.ticker] = {
+                "counts": {
+                    "positive": positive,
+                    "negative": negative,
+                    "neutral": neutral,
+                    "total": total,
+                },
+                "pos_share_ex_neutral": round(pos_share_ex_neutral, 4),
+                "neg_share_ex_neutral": round(neg_share_ex_neutral, 4),
+                "leaning_score": round(leaning_score, 4),
+                "leaning_label": leaning_label,
+                "confidence": round(confidence, 4),
+                "neutral_dominant": neutral_dominant,
+            }
+
+        # Ensure all requested tickers are present with a neutral default when no rows
+        from app.config import settings
+
+        for sym in [t.upper() for t in tickers]:
+            if sym not in result:
+                result[sym] = {
+                    "counts": {"positive": 0, "negative": 0, "neutral": 0, "total": 0},
+                    "pos_share_ex_neutral": 0.0,
+                    "neg_share_ex_neutral": 0.0,
+                    "leaning_score": 0.0,
+                    "leaning_label": "Neutral",
+                    "confidence": 0.0,
+                    "neutral_dominant": True,
+                }
+
+        return result
 
 
 # Global service instance

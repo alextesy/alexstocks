@@ -39,7 +39,7 @@
 </div>
 
 <!-- Sentiment Overview -->
-{% if sentiment_histogram and sentiment_histogram["total"] > 0 %}
+{% if sentiment_histogram %}
 <div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
     <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-gray-900">
@@ -60,7 +60,39 @@
         </div>
         {% endif %}
     </div>
-    <div class="grid grid-cols-3 gap-4 mb-4">
+    {% if overall_lean %}
+    <div class="mb-3 text-center">
+        {% set headline_color = 'text-green-700' if overall_lean.leaning_score > 0 else 'text-red-700' if overall_lean.leaning_score < 0 else 'text-gray-700' %}
+        {% set headline_label = 'Leaning Positive' if overall_lean.leaning_score > 0 else 'Leaning Negative' if overall_lean.leaning_score < 0 else 'Neutral' %}
+        <div class="text-sm font-medium {{ headline_color }}">
+            {{ headline_label }}
+            {% if headline_label != 'Neutral' %}
+                {{ (overall_lean.pos_share_ex_neutral * 100)|round(0) }}%
+            {% endif %}
+            <span class="text-gray-500">(confidence {{ (overall_lean.confidence * 100)|round(0) }}%)</span>
+        </div>
+    </div>
+    <div class="flex h-4 bg-gray-200 rounded-full overflow-hidden" aria-label="Overall leaning bar">
+        {% set pos_width = (overall_lean.pos_share_ex_neutral * 100) if overall_lean.pos_share_ex_neutral else 0 %}
+        {% set neg_width = (overall_lean.neg_share_ex_neutral * 100) if overall_lean.neg_share_ex_neutral else 0 %}
+        {% if neg_width > 0 %}
+        <div class="h-full bg-red-500" style="width: {{ (neg_width|round(0))|int }}%" title="Negative share (ex. neutral): {{ neg_width|round(0) }}%"></div>
+        {% endif %}
+        {% if pos_width > 0 %}
+        <div class="h-full bg-green-500" style="width: {{ (pos_width|round(0))|int }}%" title="Positive share (ex. neutral): {{ pos_width|round(0) }}%"></div>
+        {% endif %}
+    </div>
+    <div class="text-xs text-gray-500 mt-2 text-center">
+        {% if sentiment_histogram.percentages %}
+            Neutral {{ sentiment_histogram.percentages.neutral }}% • Total articles analyzed: {{ sentiment_histogram["total"] }}
+        {% else %}
+            No articles with sentiment in the last 24h.
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if sentiment_histogram.percentages %}
+    <div class="grid grid-cols-3 gap-4 mt-6 mb-4">
         {% for item in sentiment_histogram.display_data %}
         <div class="text-center">
             <div class="text-2xl mb-1">{{ item.icon }}</div>
@@ -70,23 +102,15 @@
         </div>
         {% endfor %}
     </div>
-    
-    <!-- Visual Bar Chart -->
-    <div class="flex h-4 bg-gray-200 rounded-full overflow-hidden">
+    <div class="flex h-2 bg-gray-200 rounded-full overflow-hidden" title="All articles by sentiment (includes neutral)">
         {% for item in sentiment_histogram.display_data %}
         {% if item.percentage > 0 %}
-        <div 
-            class="h-full" 
-            style="background-color: {{ item.color }}; width: {{ item.percentage }}%"
-            title="{{ item.label }}: {{ item.count }} articles ({{ item.percentage }}%)"
-        ></div>
+        {% set bar_class = 'bg-green-500' if item.label == 'Positive' else 'bg-gray-500' if item.label == 'Neutral' else 'bg-red-500' %}
+        <div class="h-full {{ bar_class }}" style="width: {{ (item.percentage|round(0))|int }}%"></div>
         {% endif %}
         {% endfor %}
     </div>
-    
-    <div class="text-xs text-gray-500 mt-2 text-center">
-        Total articles analyzed: {{ sentiment_histogram["total"] }}
-    </div>
+    {% endif %}
 </div>
 {% endif %}
 
@@ -113,13 +137,19 @@
                         {{ ticker.article_count }}
                     </span>
                 </div>
-                {% if ticker.article_count > 0 and ticker.avg_sentiment is not none %}
-                    {% set sentiment_data = get_sentiment_display_data(ticker.avg_sentiment) %}
+                {% if ticker.sentiment_lean is defined %}
+                    {% set lean = ticker.sentiment_lean %}
+                    {% set is_pos = lean.leaning_score > 0 %}
+                    {% set is_neg = lean.leaning_score < 0 %}
+                    {% set show_neutral = lean.neutral_dominant or (not is_pos and not is_neg) %}
                     <div class="flex items-center space-x-1">
-                        <span class="text-sm">{{ sentiment_data.icon }}</span>
-                        <span class="px-2 py-1 text-xs font-medium rounded-full {{ sentiment_data.bg_color }} {{ sentiment_data.text_color }}" data-sentiment="{{ sentiment_data.label.lower() }}">
-                            {{ sentiment_data.label }}
-                        </span>
+                        {% if show_neutral %}
+                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">Neutral</span>
+                        {% else %}
+                            <span class="px-2 py-1 text-xs font-medium rounded-full {{ 'bg-green-100 text-green-800' if is_pos else 'bg-red-100 text-red-800' }}">
+                                {{ 'Leaning Positive' if is_pos else 'Leaning Negative' }} {{ (lean.pos_share_ex_neutral * 100 if is_pos else lean.neg_share_ex_neutral * 100)|round(0) }}%
+                            </span>
+                        {% endif %}
                     </div>
                 {% else %}
                     <div class="text-sm text-gray-500">

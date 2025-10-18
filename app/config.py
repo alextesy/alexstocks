@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     sentiment_dual_model: bool = True
     sentiment_strong_threshold: float = 0.2
 
+    # Sentiment display configuration
+    # When neutral share >= this threshold, show Neutral on cards
+    sentiment_neutral_dominance_threshold: float = 0.80
+
     # Reddit API configuration
     reddit_client_id: str | None = None
     reddit_client_secret: str | None = None
