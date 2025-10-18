@@ -176,6 +176,8 @@ async def health() -> dict[str, bool]:
 async def about(request: Request):
     """About page."""
     return templates.TemplateResponse("about.html", {"request": request})
+
+
 @app.get("/privacy", response_class=HTMLResponse)
 async def privacy(request: Request):
     """Privacy policy page."""
