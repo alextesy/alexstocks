@@ -367,7 +367,7 @@ COMMON_WORD_TICKERS.update(
         "BIT",
         "EDIT",
         "FLY",
-        "SON"
+        "SON",
     }
 )
 
@@ -518,7 +518,9 @@ class TickerLinker:
         # Pre-clean noisy spans to reduce false positives from links/handles
         clean_text = text
         # Replace markdown links [text](url) with just the text
-        clean_text = re.sub(r"\[(.*?)\]\((?:https?://|www\.)[^\s)]+\)", r"\1", clean_text)
+        clean_text = re.sub(
+            r"\[(.*?)\]\((?:https?://|www\.)[^\s)]+\)", r"\1", clean_text
+        )
         # Remove URLs and emails
         clean_text = re.sub(r"https?://\S+|www\.\S+", " ", clean_text)
         clean_text = re.sub(r"\b\S+@\S+\b", " ", clean_text)
@@ -543,7 +545,9 @@ class TickerLinker:
         # Pattern matching for SYMBOL format (uppercase, strict boundaries)
         # Forbid adjacency to apostrophes/hyphens/underscores/slashes to avoid substrings
         # Require at least 2 chars here; single-char symbols only match via $SYMBOL
-        symbol_pattern = r"(?<![A-Za-z0-9$])([A-Z]{2,5}(?:\.[A-Z])?)(?![A-Za-z0-9'’\/_-])"
+        symbol_pattern = (
+            r"(?<![A-Za-z0-9$])([A-Z]{2,5}(?:\.[A-Z])?)(?![A-Za-z0-9'’\/_-])"
+        )
         symbol_matches = re.findall(symbol_pattern, clean_text.upper())
 
         for match in symbol_matches:

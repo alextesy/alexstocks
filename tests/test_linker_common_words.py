@@ -9,11 +9,41 @@ from jobs.ingest.linker import TickerLinker
 
 @pytest.fixture()
 def linker() -> TickerLinker:
-    mock_tickers = [Mock(symbol=s) for s in [
-        "FAT","NERD","CUT","CHAT","PICK","AIN","CAR","SELF","WEN","CUZ",
-        "FLOW","THO","PRE","RULE","BROS","WILD","COKE","DOG","TIP","TBH",
-        "FAN","WEED","VS","WEST","PM","DD","YOLO","A","TAX","AGO"
-    ]]
+    mock_tickers = [
+        Mock(symbol=s)
+        for s in [
+            "FAT",
+            "NERD",
+            "CUT",
+            "CHAT",
+            "PICK",
+            "AIN",
+            "CAR",
+            "SELF",
+            "WEN",
+            "CUZ",
+            "FLOW",
+            "THO",
+            "PRE",
+            "RULE",
+            "BROS",
+            "WILD",
+            "COKE",
+            "DOG",
+            "TIP",
+            "TBH",
+            "FAN",
+            "WEED",
+            "VS",
+            "WEST",
+            "PM",
+            "DD",
+            "YOLO",
+            "A",
+            "TAX",
+            "AGO",
+        ]
+    ]
 
     with (
         patch("jobs.ingest.linker.get_content_scraper") as mock_scraper,
@@ -34,20 +64,46 @@ def make_article(source: str, title: str, text: str) -> Article:
 
 
 def test_aint_not_linked(linker: TickerLinker):
-    article = make_article("reddit", "", "That ain't it chief")
     matches = linker._find_ticker_matches("That ain't it chief")
     assert "AIN" not in matches
 
 
-@pytest.mark.parametrize("word", [
-    "FAT","NERD","CUT","CHAT","PICK","CAR","SELF","WEN","CUZ",
-    "FLOW","THO","PRE","RULE","BROS","WILD","COKE","DOG","TIP","TBH",
-    "FAN","WEED","VS","WEST",
-])
+@pytest.mark.parametrize(
+    "word",
+    [
+        "FAT",
+        "NERD",
+        "CUT",
+        "CHAT",
+        "PICK",
+        "CAR",
+        "SELF",
+        "WEN",
+        "CUZ",
+        "FLOW",
+        "THO",
+        "PRE",
+        "RULE",
+        "BROS",
+        "WILD",
+        "COKE",
+        "DOG",
+        "TIP",
+        "TBH",
+        "FAN",
+        "WEED",
+        "VS",
+        "WEST",
+    ],
+)
 def test_common_words_only_all_caps_or_cashtag(linker: TickerLinker, word: str):
     # lower/mixed should not link
-    assert word.lower() not in linker._find_ticker_matches(f"i like {word.lower()} a lot")
-    assert word.lower() not in linker._find_ticker_matches(f"I like {word.title()} a lot")
+    assert word.lower() not in linker._find_ticker_matches(
+        f"i like {word.lower()} a lot"
+    )
+    assert word.lower() not in linker._find_ticker_matches(
+        f"I like {word.title()} a lot"
+    )
 
     # ALL CAPS standalone should link
     matches_caps = linker._find_ticker_matches(f"Thinking about {word} today")
@@ -58,7 +114,7 @@ def test_common_words_only_all_caps_or_cashtag(linker: TickerLinker, word: str):
     assert word in matches_cash
 
 
-@pytest.mark.parametrize("acro", ["PM","DD","YOLO"])
+@pytest.mark.parametrize("acro", ["PM", "DD", "YOLO"])
 def test_acronyms_require_cashtag(linker: TickerLinker, acro: str):
     # Plain uppercase should not link
     assert acro not in linker._find_ticker_matches(f"I will do some {acro} later")
@@ -67,10 +123,14 @@ def test_acronyms_require_cashtag(linker: TickerLinker, acro: str):
     assert acro in matches
 
 
-@pytest.mark.parametrize("word", ["TAX","AGO"])
-def test_lowercase_does_not_link_but_caps_or_cashtag_does(linker: TickerLinker, word: str):
+@pytest.mark.parametrize("word", ["TAX", "AGO"])
+def test_lowercase_does_not_link_but_caps_or_cashtag_does(
+    linker: TickerLinker, word: str
+):
     # lower-case should not link
-    assert word not in linker._find_ticker_matches(f"i paid some {word.lower()} yesterday")
+    assert word not in linker._find_ticker_matches(
+        f"i paid some {word.lower()} yesterday"
+    )
     # ALL CAPS standalone should link
     caps = linker._find_ticker_matches(f"Thinking about {word} today")
     assert word in caps
@@ -110,5 +170,3 @@ def test_reddit_comment_lowercase_tax_not_linked(linker: TickerLinker):
     # Fast path for reddit comments must not link TAX here
     links = linker.link_article(article, use_title_only=True)
     assert all(link.ticker != "TAX" for link in links)
-
-
