@@ -178,7 +178,6 @@ COMMON_WORD_TICKERS = {
     "VERY",
     "WARM",
     # Common nouns
-    "AI",
     "BRO",
     "BULL",
     "CASH",
@@ -207,6 +206,7 @@ COMMON_WORD_TICKERS = {
     "WIND",
     "WOW",
     "YALL",
+    "TAX"
     # Modal verbs, conjunctions, and internet/slang
     "AGO",
     "COM",
@@ -214,7 +214,6 @@ COMMON_WORD_TICKERS = {
     "FOR",
     "MUST",
     "WHEN",
-    "WTF",
     "WWW",
     # Numbers and quantifiers
     "ONE",
@@ -319,6 +318,59 @@ COMMON_WORD_TICKERS = {
     "APP",
 }
 
+# Symbols that should only be linked when explicitly cashtagged (e.g., $PM)
+# These are commonly used acronyms/terms in communities and are too ambiguous
+REQUIRE_CASHTAG_ONLY = {
+    "PM",
+    "DD",
+    "YOLO",
+    "OPEN",
+    "AI",
+    "WTF",
+}
+
+# Additional common words that collide with tickers and should only link when
+# cashtagged or written as standalone ALL-CAPS words
+COMMON_WORD_TICKERS.update(
+    {
+        "GLAD",
+        "AIR",
+        "TAX",
+        "AGO",
+        "FAT",
+        "NERD",
+        "CUT",
+        "CHAT",
+        "PICK",
+        "AIN",
+        "CAR",
+        "SELF",
+        "WEN",
+        "CUZ",
+        "FLOW",
+        "THO",
+        "PRE",
+        "RULE",
+        "BROS",
+        "WILD",
+        "COKE",
+        "DOG",
+        "TIP",
+        "TBH",
+        "FAN",
+        "WEED",
+        "VS",
+        "WEST",
+        "FOX",
+        "BOAT",
+        "BOOM",
+        "BIT",
+        "EDIT",
+        "FLY",
+        "SON"
+    }
+)
+
 
 class TickerLinker:
     """Links articles to tickers using alias matching and context analysis."""
@@ -402,7 +454,7 @@ class TickerLinker:
         return text
 
     def _fast_reddit_comment_linking(self, article: Article) -> list[TickerLinkDTO]:
-        """Ultra-fast linking for Reddit comments - check all tickers but skip context analysis."""
+        """Ultra-fast linking for Reddit comments using the same matcher (no context analysis)."""
         text = article.text or ""
 
         if not text:
@@ -417,77 +469,21 @@ class TickerLinker:
             else:
                 text = text[:500]
 
-        ticker_links = []
-        text_upper = text.upper()
-
-        # Pattern 1: $SYMBOL format (highest confidence)
-        import re
-
-        dollar_matches = re.findall(r"\$([A-Z]{1,5}(?:\.\w)?)", text_upper)
-        for match in dollar_matches:
-            if match in self.alias_to_ticker:
-                ticker_symbol = self.alias_to_ticker[match]
-                ticker_link = TickerLinkDTO(
+        # Reuse the main matcher so rules stay consistent
+        ticker_matches = self._find_ticker_matches(text)
+        ticker_links: list[TickerLinkDTO] = []
+        for ticker_symbol, matched_terms in ticker_matches.items():
+            has_cashtag = any(term.startswith("$") for term in matched_terms)
+            confidence = 0.9 if has_cashtag else 0.7
+            reasoning = ["dollar_symbol_format"] if has_cashtag else ["ticker_symbol"]
+            ticker_links.append(
+                TickerLinkDTO(
                     ticker=ticker_symbol,
-                    confidence=0.9,  # High confidence for $SYMBOL
-                    matched_terms=[f"${match}"],
-                    reasoning=["dollar_symbol_format"],
+                    confidence=confidence,
+                    matched_terms=matched_terms,
+                    reasoning=reasoning,
                 )
-                ticker_links.append(ticker_link)
-
-        # Pattern 2: Check ticker symbols (but be very restrictive)
-        # Only match if:
-        # 1. Single character tickers: ONLY with $ prefix
-        # 2. Common word tickers: ONLY with $ prefix
-        # 3. Other tickers: normal word boundaries
-
-        # Find all potential ticker symbols
-        symbol_pattern = r"(?<![A-Za-z0-9])([A-Z]{1,5}(?:\.\w)?)(?![A-Za-z0-9])"
-        symbol_matches = re.findall(symbol_pattern, text_upper)
-
-        for match in symbol_matches:
-            if match in self.alias_to_ticker:
-                ticker_symbol = self.alias_to_ticker[match]
-
-                # Skip if we already found this ticker via $SYMBOL format
-                if any(link.ticker == ticker_symbol for link in ticker_links):
-                    continue
-
-                # Apply strict rules:
-                # 1. Single character tickers: ONLY with $ prefix
-                if len(match) == 1:
-                    continue  # Skip single character tickers without $
-
-                # 2. Capitalized common words (A, I, etc.): ALWAYS skip unless has $ prefix
-                if match in CAPITALIZED_COMMON_WORDS:
-                    continue  # Always skip these - too ambiguous
-
-                # 3. Common word tickers: require ALL CAPS as separate word (not lowercase/mixed case)
-                if match in COMMON_WORD_TICKERS:
-                    # For common word tickers in Reddit comments, be even more strict
-                    # Check if it appears in ALL CAPS as a separate word in original text
-                    word_boundary_pattern = rf"\b{re.escape(match)}\b"
-                    appears_uppercase_standalone = bool(
-                        re.search(word_boundary_pattern, text)
-                    )
-
-                    # Also check it's not lowercase
-                    appears_lowercase = bool(
-                        re.search(rf"\b{re.escape(match.lower())}\b", text.lower())
-                    )
-
-                    # Only allow if appears as ALL CAPS standalone and NOT as lowercase
-                    if not (appears_uppercase_standalone and not appears_lowercase):
-                        continue  # Skip - must use $ prefix
-
-                # 4. Other tickers: allow normal matching
-                ticker_link = TickerLinkDTO(
-                    ticker=ticker_symbol,
-                    confidence=0.7,  # Medium confidence for symbol match
-                    matched_terms=[match],
-                    reasoning=["ticker_symbol"],
-                )
-                ticker_links.append(ticker_link)
+            )
 
         return ticker_links
 
@@ -519,9 +515,19 @@ class TickerLinker:
         """
         matches: dict[str, list[str]] = {}
 
+        # Pre-clean noisy spans to reduce false positives from links/handles
+        clean_text = text
+        # Replace markdown links [text](url) with just the text
+        clean_text = re.sub(r"\[(.*?)\]\((?:https?://|www\.)[^\s)]+\)", r"\1", clean_text)
+        # Remove URLs and emails
+        clean_text = re.sub(r"https?://\S+|www\.\S+", " ", clean_text)
+        clean_text = re.sub(r"\b\S+@\S+\b", " ", clean_text)
+        # Remove @handles
+        clean_text = re.sub(r"(?<=\s)@\w+|^@\w+", " ", clean_text)
+
         # Pattern matching for $SYMBOL format (highest priority)
         dollar_pattern = r"\$([A-Z]{1,5}(?:\.[A-Z])?)"
-        dollar_matches = re.findall(dollar_pattern, text.upper())
+        dollar_matches = re.findall(dollar_pattern, clean_text.upper())
         for match in dollar_matches:
             if match in self.alias_to_ticker:
                 ticker_symbol = self.alias_to_ticker[match]
@@ -534,42 +540,20 @@ class TickerLinker:
                 elif dollar_symbol.lower() in text:
                     matches[ticker_symbol].append(dollar_symbol.lower())
 
-        # Pattern matching for SYMBOL format (uppercase, strict word boundaries)
-        # Use negative lookbehind/lookahead to prevent substring matches
-        symbol_pattern = r"(?<![A-Za-z0-9])([A-Z]{1,5}(?:\.[A-Z])?)(?![A-Za-z0-9])"
-        symbol_matches = re.findall(symbol_pattern, text.upper())
-
-        # Check if text has financial context keywords to allow common word tickers
-        has_financial_context = any(
-            keyword in text.lower()
-            for keyword in [
-                "stock",
-                "share",
-                "earnings",
-                "revenue",
-                "trading",
-                "market",
-                "investor",
-                "price",
-                "dividend",
-                "rally",
-                "surge",
-                "earnings",
-                "financials",
-                "quarterly",
-                "profit",
-                "loss",
-            ]
-        )
+        # Pattern matching for SYMBOL format (uppercase, strict boundaries)
+        # Forbid adjacency to apostrophes/hyphens/underscores/slashes to avoid substrings
+        # Require at least 2 chars here; single-char symbols only match via $SYMBOL
+        symbol_pattern = r"(?<![A-Za-z0-9$])([A-Z]{2,5}(?:\.[A-Z])?)(?![A-Za-z0-9'’\/_-])"
+        symbol_matches = re.findall(symbol_pattern, clean_text.upper())
 
         for match in symbol_matches:
             if match in self.alias_to_ticker:
                 ticker_symbol = self.alias_to_ticker[match]
 
                 # Apply strict rules:
-                # 1. Single character tickers: ONLY with $ prefix
-                if len(match) == 1:
-                    continue  # Skip single character tickers without $
+                # 1. Explicit cashtag-only symbols must not match without $
+                if match in REQUIRE_CASHTAG_ONLY:
+                    continue
 
                 # 2. Capitalized common words (A, I, etc.): ALWAYS skip unless has $ prefix
                 if match in CAPITALIZED_COMMON_WORDS:
@@ -577,33 +561,8 @@ class TickerLinker:
 
                 # 3. Common word tickers: require $ prefix OR (ALL CAPS as separate word in original text)
                 if match in COMMON_WORD_TICKERS:
-                    # For common word tickers, we need to verify:
-                    # - The word appears in ALL CAPS in original text (not lowercase)
-                    # - It appears as a separate word (word boundaries check)
-                    # - It has financial context nearby
-
-                    # Check if it appears in ALL CAPS as a separate word in original text
-                    # Use word boundary regex to ensure it's not part of another word
-                    word_boundary_pattern = rf"\b{re.escape(match)}\b"
-                    appears_uppercase_standalone = bool(
-                        re.search(word_boundary_pattern, text)
-                    )
-
-                    # Also check it's not lowercase
-                    appears_lowercase = bool(
-                        re.search(rf"\b{re.escape(match.lower())}\b", text)
-                    )
-
-                    # Allow if: appears in ALL CAPS as standalone word AND has financial context AND not lowercase
-                    if (
-                        appears_uppercase_standalone
-                        and has_financial_context
-                        and not appears_lowercase
-                    ):
-                        # Allow through to context analyzer
-                        pass
-                    else:
-                        # Skip - must use $ prefix
+                    # Allow only if it appears as a standalone ALL-CAPS word in original text
+                    if not re.search(rf"\b{re.escape(match)}\b", text):
                         continue
 
                 # 4. Other tickers: allow normal matching
