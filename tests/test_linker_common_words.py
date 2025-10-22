@@ -68,6 +68,11 @@ def test_aint_not_linked(linker: TickerLinker):
     assert "AIN" not in matches
 
 
+def test_arent_not_linked(linker: TickerLinker):
+    matches = linker._find_ticker_matches("We aren't going there")
+    assert "AREN" not in matches
+
+
 @pytest.mark.parametrize(
     "word",
     [
