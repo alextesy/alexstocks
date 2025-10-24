@@ -801,7 +801,7 @@ After completing all phases, you should have:
 
 **After:**
 - ECS Fargate Spot tasks: $1-2/month
-- CloudWatch Logs: $0.50/month
+- CloudWatch Logs: ~$0.20/month
 - Secrets Manager: $1.60/month
 - **Total:** $3-4/month
 

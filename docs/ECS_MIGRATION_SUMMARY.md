@@ -120,7 +120,7 @@ make schedule-status       # Check schedule status
 - ✅ **Fargate Spot** for 70% cost savings vs on-demand
 - ✅ **EventBridge Scheduler** with retry policy (2 retries)
 - ✅ **Dead Letter Queues** (SQS) for failed invocations
-- ✅ **CloudWatch Logs** with 7-day retention
+- ✅ **CloudWatch Logs** with 3-day retention
 - ✅ **Secrets Manager** for credentials (Postgres, Reddit API)
 - ✅ **IAM roles** with least-privilege access
 - ✅ **Security groups** allowing ECS → Postgres connectivity
@@ -221,7 +221,7 @@ psql $POSTGRES_URL -c "SELECT COUNT(*) FROM articles WHERE created_at > NOW() - 
 | Component | Before (EC2) | After (ECS Fargate Spot) | Savings |
 |-----------|--------------|--------------------------|---------|
 | Compute for cron jobs | $30-60/mo | $1-2/mo | **~95%** |
-| CloudWatch Logs | $0 (shared) | $0.50/mo | - |
+| CloudWatch Logs | $0 (shared) | $0.20/mo | - |
 | Secrets Manager | $0 (env vars) | $1.60/mo | - |
 | **Total** | **$30-60/mo** | **$3-4/mo** | **~90%** |
 
