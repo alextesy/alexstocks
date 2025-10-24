@@ -280,6 +280,224 @@ async def get_sentiment_time_series(
         return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
+@app.get("/api/ticker/{ticker}/sentiment-timeline")
+async def get_ticker_sentiment_timeline(
+    ticker: str,
+    period: str = Query("month", regex="^(day|week|month)$"),
+    metric: str = Query("comments", regex="^(comments|users)$"),
+    _: None = Depends(rate_limit("sentiment_timeline", requests=60, window_seconds=60)),
+):
+    """Get sentiment timeline data with different time granularities.
+
+    Args:
+        ticker: Ticker symbol
+        period: Time period - "day" (hourly, 24h), "week" (daily, 7d), or "month" (daily, 30d)
+        metric: Metric type - "comments" (count all comments) or "users" (count unique users)
+
+    Returns:
+        Timeline data with positive, negative, neutral, and total counts per time bucket
+    """
+    from datetime import datetime, timedelta
+
+    from sqlalchemy import case, func
+
+    from app.db.models import Article, ArticleTicker
+    from app.db.session import SessionLocal
+
+    try:
+        db = SessionLocal()
+        try:
+            # Define sentiment thresholds
+            positive_threshold = 0.05
+            negative_threshold = -0.05
+
+            # Determine time range and grouping
+            if period == "day":
+                hours_back = 24
+                cutoff_date = datetime.utcnow() - timedelta(hours=hours_back)
+                # Group by hour
+                time_bucket = func.date_trunc("hour", Article.published_at)
+            elif period == "week":
+                days_back = 7
+                cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+                # Group by day
+                time_bucket = func.date(Article.published_at)
+            else:  # month
+                days_back = 30
+                cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+                # Group by day
+                time_bucket = func.date(Article.published_at)
+
+            # Query based on metric type
+            if metric == "comments":
+                # Count all comments with sentiment
+                timeline_data = (
+                    db.query(
+                        time_bucket.label("time_bucket"),
+                        func.sum(
+                            case((Article.sentiment >= positive_threshold, 1), else_=0)
+                        ).label("positive"),
+                        func.sum(
+                            case((Article.sentiment <= negative_threshold, 1), else_=0)
+                        ).label("negative"),
+                        func.sum(
+                            case(
+                                (
+                                    (Article.sentiment > negative_threshold)
+                                    & (Article.sentiment < positive_threshold),
+                                    1,
+                                ),
+                                else_=0,
+                            )
+                        ).label("neutral"),
+                        func.count(Article.id).label("total"),
+                    )
+                    .join(ArticleTicker, Article.id == ArticleTicker.article_id)
+                    .filter(
+                        ArticleTicker.ticker == ticker.upper(),
+                        Article.published_at >= cutoff_date,
+                        Article.sentiment.isnot(None),
+                    )
+                    .group_by(time_bucket)
+                    .order_by(time_bucket)
+                    .all()
+                )
+
+                # Create a dictionary for quick lookup
+                data_by_time = {}
+                for row in timeline_data:
+                    data_by_time[row.time_bucket] = {
+                        "positive": int(row.positive or 0),
+                        "negative": int(row.negative or 0),
+                        "neutral": int(row.neutral or 0),
+                        "total": int(row.total or 0),
+                    }
+            else:  # metric == "users"
+                # Get all articles with time bucket and author
+                # We'll process in Python to get latest sentiment per user per bucket
+                articles_data = (
+                    db.query(
+                        time_bucket.label("time_bucket"),
+                        Article.author,
+                        Article.sentiment,
+                        Article.published_at,
+                    )
+                    .join(ArticleTicker, Article.id == ArticleTicker.article_id)
+                    .filter(
+                        ArticleTicker.ticker == ticker.upper(),
+                        Article.published_at >= cutoff_date,
+                        Article.sentiment.isnot(None),
+                        Article.author.isnot(None),
+                        Article.author != "",
+                    )
+                    .order_by(time_bucket, Article.published_at.desc())
+                    .all()
+                )
+
+                # Group by time bucket and author, keeping only latest sentiment
+                from collections import defaultdict
+                from typing import Any
+
+                user_latest_sentiment: defaultdict[Any, dict[str, float]] = defaultdict(
+                    dict
+                )
+
+                for row in articles_data:
+                    bucket = row.time_bucket
+                    author = row.author
+                    # Only keep the first (latest) sentiment for each user in each bucket
+                    if author not in user_latest_sentiment[bucket]:
+                        user_latest_sentiment[bucket][author] = row.sentiment
+
+                # Count sentiment categories per time bucket
+                data_by_time = {}
+                for bucket, users in user_latest_sentiment.items():
+                    positive = sum(1 for s in users.values() if s >= positive_threshold)
+                    negative = sum(1 for s in users.values() if s <= negative_threshold)
+                    neutral = sum(
+                        1
+                        for s in users.values()
+                        if negative_threshold < s < positive_threshold
+                    )
+                    total = len(users)
+
+                    data_by_time[bucket] = {
+                        "positive": positive,
+                        "negative": negative,
+                        "neutral": neutral,
+                        "total": total,
+                    }
+
+            # Fill missing time buckets with zeros for continuous display
+            result_data = []
+            if period == "day":
+                # Generate hourly buckets for last 24 hours
+                current_time = datetime.utcnow().replace(
+                    minute=0, second=0, microsecond=0
+                )
+                for i in range(24):
+                    bucket_time = current_time - timedelta(hours=(23 - i))
+                    # Try to find the matching bucket in data_by_time
+                    # The key might be a datetime or could have slight timezone differences
+                    data_point = None
+                    for key in data_by_time.keys():
+                        # Compare by converting both to naive UTC
+                        key_naive = (
+                            key.replace(tzinfo=None) if hasattr(key, "tzinfo") else key
+                        )
+                        if key_naive == bucket_time:
+                            data_point = data_by_time[key]
+                            break
+
+                    if data_point is None:
+                        data_point = {
+                            "positive": 0,
+                            "negative": 0,
+                            "neutral": 0,
+                            "total": 0,
+                        }
+
+                    result_data.append(
+                        {"timestamp": bucket_time.isoformat(), **data_point}
+                    )
+            else:
+                # Generate daily buckets
+                days = 7 if period == "week" else 30
+                current_date = datetime.utcnow().date()
+                for i in range(days):
+                    bucket_date = current_date - timedelta(days=(days - 1 - i))
+                    if bucket_date in data_by_time:
+                        data_point = data_by_time[bucket_date]
+                    else:
+                        data_point = {
+                            "positive": 0,
+                            "negative": 0,
+                            "neutral": 0,
+                            "total": 0,
+                        }
+
+                    result_data.append(
+                        {
+                            "timestamp": datetime.combine(
+                                bucket_date, datetime.min.time()
+                            ).isoformat(),
+                            **data_point,
+                        }
+                    )
+
+            return {
+                "ticker": ticker.upper(),
+                "period": period,
+                "metric": metric,
+                "data": result_data,
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error in sentiment timeline API: {e}")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
+
+
 @app.get("/api/mentions/hourly")
 async def get_mentions_hourly(
     tickers: str,
@@ -1153,12 +1371,6 @@ async def ticker_page(
                     chart_data = None
 
         if not ticker_obj:
-            # Get sentiment histogram even for unknown tickers
-            sentiment_analytics = get_sentiment_analytics_service()
-            ticker_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(
-                db, ticker.upper()
-            )
-
             # Return 404 or redirect to home
             return templates.TemplateResponse(
                 "ticker.html",
@@ -1169,7 +1381,6 @@ async def ticker_page(
                     "ticker_obj": None,
                     "stock_data": stock_data,
                     "chart_data": chart_data,
-                    "sentiment_histogram": ticker_sentiment_data,
                     "total_article_count": total_article_count,
                     "today_article_count": today_article_count,
                     "article_change": today_article_count - yesterday_article_count,
@@ -1229,15 +1440,6 @@ async def ticker_page(
             "total_articles": total_article_count,
         }
 
-        # Get sentiment histogram for this ticker
-        sentiment_analytics = get_sentiment_analytics_service()
-        ticker_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(
-            db, ticker.upper()
-        )
-
-        # Get sentiment over time data for visualization
-        sentiment_over_time = get_sentiment_over_time_data(db, ticker.upper())
-
         # Format articles for template
         articles = []
         for article, confidence, matched_terms in articles_with_confidence:
@@ -1285,8 +1487,6 @@ async def ticker_page(
                 "articles": articles,
                 "stock_data": stock_data,
                 "chart_data": chart_data,
-                "sentiment_histogram": ticker_sentiment_data,
-                "sentiment_over_time": sentiment_over_time,
                 "total_article_count": total_article_count,
                 "today_article_count": today_article_count,
                 "article_change": today_article_count - yesterday_article_count,
