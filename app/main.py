@@ -398,7 +398,9 @@ async def get_ticker_sentiment_timeline(
                 from collections import defaultdict
                 from typing import Any
 
-                user_latest_sentiment: defaultdict[Any, dict[str, float]] = defaultdict(dict)
+                user_latest_sentiment: defaultdict[Any, dict[str, float]] = defaultdict(
+                    dict
+                )
 
                 for row in articles_data:
                     bucket = row.time_bucket
