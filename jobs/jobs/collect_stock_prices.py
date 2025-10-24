@@ -1,5 +1,10 @@
 """Job to collect current stock prices and store in database."""
 
+from dotenv import load_dotenv
+
+# Load .env BEFORE importing app modules that use settings
+load_dotenv()
+
 import asyncio
 import logging
 import sys

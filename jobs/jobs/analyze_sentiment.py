@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Dedicated sentiment analysis job for articles without sentiment data."""
 
+from dotenv import load_dotenv
+
+# Load .env BEFORE importing app modules that use settings
+load_dotenv()
+
 import argparse
 import logging
 import sys

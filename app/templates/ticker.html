@@ -93,152 +93,52 @@
     </div>
 </div>
 
-<!-- Sentiment Analysis for this Ticker -->
-{% if sentiment_histogram and sentiment_histogram["total"] > 0 %}
-<div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">
-        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
-        {{ ticker }} Sentiment Analysis
-    </h2>
-    <div class="grid grid-cols-3 gap-4 mb-4">
-        {% for item in sentiment_histogram.display_data %}
-        <div class="text-center">
-            <div class="text-2xl mb-1">{{ item.icon }}</div>
-            <div class="text-lg font-bold text-gray-900">{{ item.count }}</div>
-            <div class="text-sm text-gray-600">{{ item.label }}</div>
-            <div class="text-xs text-gray-500">{{ item.percentage }}%</div>
+<!-- Sentiment Timeline Chart -->
+<div class="bg-white rounded-lg shadow-sm border p-4 md:p-6 mb-6">
+    <div class="mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">
+            <i class="fas fa-chart-area text-blue-600 mr-2"></i>
+            {{ ticker }} Sentiment Over Time
+        </h2>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div class="flex items-center space-x-2">
+                <label for="metric-selector" class="text-sm font-medium text-gray-700 whitespace-nowrap">Metric:</label>
+                <select id="metric-selector" class="flex-1 sm:flex-none px-3 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="comments" selected>By Comments</option>
+                    <option value="users">By Unique Users</option>
+                </select>
+            </div>
+            <div class="flex items-center space-x-2">
+                <label for="period-selector" class="text-sm font-medium text-gray-700 whitespace-nowrap">Period:</label>
+                <select id="period-selector" class="flex-1 sm:flex-none px-3 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="day">Last 24 Hours</option>
+                    <option value="week">Last 7 Days</option>
+                    <option value="month" selected>Last 30 Days</option>
+                </select>
+            </div>
         </div>
-        {% endfor %}
     </div>
     
-    <!-- Visual Bar Chart -->
-    <div class="flex h-4 bg-gray-200 rounded-full overflow-hidden">
-        {% for item in sentiment_histogram.display_data %}
-        {% if item.percentage > 0 %}
-        <div 
-            class="h-full" 
-            style="background-color: {{ item.color }}; width: {{ item.percentage }}%"
-            title="{{ item.label }}: {{ item.count }} articles ({{ item.percentage }}%)"
-        ></div>
-        {% endif %}
-        {% endfor %}
+    <div class="h-64 mb-4">
+        <canvas id="sentimentAreaChart"></canvas>
     </div>
     
-    <div class="text-xs text-gray-500 mt-2 text-center">
-        Total articles analyzed: {{ sentiment_histogram["total"] }}
+    <div class="flex items-center justify-center space-x-4 text-xs text-gray-600">
+        <div class="flex items-center space-x-1">
+            <div class="w-3 h-3 rounded-full bg-blue-400"></div>
+            <span id="legend-total">Total Comments</span>
+        </div>
+        <div class="flex items-center space-x-1">
+            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+            <span>Positive</span>
+        </div>
+        <div class="flex items-center space-x-1">
+            <div class="w-3 h-3 rounded-full bg-red-500"></div>
+            <span>Negative</span>
+        </div>
     </div>
 </div>
 
-<!-- Sentiment Over Time Chart -->
-{% if sentiment_over_time and sentiment_over_time.data|length > 0 %}
-<div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">
-        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
-        {{ ticker }} Daily Sentiment (Last {{ sentiment_over_time.period_days }} Days)
-    </h2>
-    <div class="h-64">
-        <canvas id="sentimentTimeChart"></canvas>
-    </div>
-    <div class="text-xs text-gray-500 mt-2 text-center">
-        Green bars = Positive articles, Red bars = Negative articles ({{ sentiment_over_time.total_points }} days)
-    </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const sentimentTimeData = {{ sentiment_over_time.data | tojson }};
-    
-    if (sentimentTimeData && sentimentTimeData.length > 0) {
-        const ctx = document.getElementById('sentimentTimeChart').getContext('2d');
-        
-        const chartData = {
-            labels: sentimentTimeData.map(d => {
-                // Format date to show only month/day for better readability
-                const date = new Date(d.date);
-                return `${date.getMonth() + 1}/${date.getDate()}`;
-            }),
-            datasets: [{
-                label: 'Positive Articles',
-                data: sentimentTimeData.map(d => d.positive),
-                backgroundColor: '#10b981', // green-500
-                borderColor: '#059669', // green-600
-                borderWidth: 1
-            }, {
-                label: 'Negative Articles',
-                data: sentimentTimeData.map(d => -d.negative), // Negative values to show below zero
-                backgroundColor: '#ef4444', // red-500
-                borderColor: '#dc2626', // red-600
-                borderWidth: 1
-            }]
-        };
-        
-        const config = {
-            type: 'bar',
-            data: chartData,
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        },
-                        ticks: {
-                            callback: function(value) {
-                                return Math.abs(value); // Show absolute values
-                            }
-                        }
-                    },
-                    x: {
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        },
-                        ticks: {
-                            maxRotation: 45,
-                            minRotation: 45
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const dataPoint = sentimentTimeData[context.dataIndex];
-                                if (context.datasetIndex === 0) {
-                                    return `Positive: ${context.parsed.y} articles`;
-                                } else {
-                                    return `Negative: ${Math.abs(context.parsed.y)} articles`;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        
-        new Chart(ctx, config);
-    }
-});
-</script>
-{% endif %}
-{% elif sentiment_histogram and sentiment_histogram["total"] == 0 %}
-<div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">
-        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
-        {{ ticker }} Sentiment Analysis
-    </h2>
-    <div class="text-center py-8 text-gray-500">
-        <i class="fas fa-inbox text-4xl mb-4"></i>
-        <p class="text-lg">No sentiment data available</p>
-        <p class="text-sm">Articles for {{ ticker }} haven't been analyzed yet</p>
-    </div>
-</div>
-{% endif %}
 
 <!-- Filters -->
 <div class="bg-white rounded-lg shadow-sm border p-4 mb-6">
@@ -499,5 +399,219 @@ if (sortFilter) {
         window.location.href = currentUrl.toString();
     });
 }
+
+// Sentiment Area Chart
+const ticker = '{{ ticker }}';
+let sentimentChart = null;
+
+async function loadSentimentTimeline(period, metric) {
+    try {
+        const response = await fetch(`/api/ticker/${ticker}/sentiment-timeline?period=${period}&metric=${metric}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch sentiment timeline data');
+        }
+        const data = await response.json();
+        renderSentimentChart(data, period, metric);
+    } catch (error) {
+        console.error('Error loading sentiment timeline:', error);
+    }
+}
+
+function formatTimestamp(timestamp, period) {
+    // Parse the UTC timestamp - Date object automatically converts to local timezone
+    const date = new Date(timestamp);
+    if (period === 'day') {
+        // Show hour in local timezone (e.g., "14:00")
+        const hh = String(date.getHours()).padStart(2, '0');
+        const mi = String(date.getMinutes()).padStart(2, '0');
+        return `${hh}:${mi}`;
+    } else {
+        // Show month/day (e.g., "10/24")
+        const mm = date.getMonth() + 1;
+        const dd = date.getDate();
+        return `${mm}/${dd}`;
+    }
+}
+
+function renderSentimentChart(data, period, metric) {
+    const ctx = document.getElementById('sentimentAreaChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if it exists
+    if (sentimentChart) {
+        sentimentChart.destroy();
+    }
+    
+    const labels = data.data.map(d => formatTimestamp(d.timestamp, period));
+    const totalData = data.data.map(d => d.total);
+    const positiveData = data.data.map(d => d.positive);
+    const negativeData = data.data.map(d => d.negative);
+    const neutralData = data.data.map(d => d.neutral);
+    
+    // Dynamic labels based on metric
+    const metricLabel = metric === 'users' ? 'Users' : 'Comments';
+    const totalLabel = metric === 'users' ? 'Total Users' : 'Total Comments';
+    
+    // Update legend text
+    const legendTotal = document.getElementById('legend-total');
+    if (legendTotal) {
+        legendTotal.textContent = totalLabel;
+    }
+    
+    sentimentChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: totalLabel,
+                    data: totalData,
+                    fill: true,
+                    backgroundColor: 'rgba(96, 165, 250, 0.2)', // blue-400 with opacity
+                    borderColor: 'rgba(96, 165, 250, 0.8)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    order: 3
+                },
+                {
+                    label: 'Positive',
+                    data: positiveData,
+                    fill: true,
+                    backgroundColor: 'rgba(16, 185, 129, 0.3)', // green-500 with opacity
+                    borderColor: 'rgba(16, 185, 129, 0.8)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    order: 2
+                },
+                {
+                    label: 'Negative',
+                    data: negativeData,
+                    fill: true,
+                    backgroundColor: 'rgba(239, 68, 68, 0.3)', // red-500 with opacity
+                    borderColor: 'rgba(239, 68, 68, 0.8)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    stacked: false,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        precision: 0
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        autoSkip: true,
+                        maxTicksLimit: period === 'day' ? 12 : 15
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false  // We have custom legend below the chart
+                },
+                tooltip: {
+                    displayColors: false,
+                    callbacks: {
+                        title: function(context) {
+                            const dataIndex = context[0].dataIndex;
+                            const timestamp = data.data[dataIndex].timestamp;
+                            const date = new Date(timestamp);
+                            
+                            if (period === 'day') {
+                                // Format as "Hour: 14:00" in local timezone
+                                const hh = String(date.getHours()).padStart(2, '0');
+                                const mi = String(date.getMinutes()).padStart(2, '0');
+                                return `Hour: ${hh}:${mi}`;
+                            } else {
+                                // Format as "Date: 10/24/2025" in local timezone
+                                const mm = date.getMonth() + 1;
+                                const dd = date.getDate();
+                                const yyyy = date.getFullYear();
+                                return `Date: ${mm}/${dd}/${yyyy}`;
+                            }
+                        },
+                        beforeBody: function(context) {
+                            const dataIndex = context[0].dataIndex;
+                            const total = totalData[dataIndex];
+                            const positive = positiveData[dataIndex];
+                            const negative = negativeData[dataIndex];
+                            const neutral = neutralData[dataIndex];
+                            
+                            // Build tooltip in order: Total, bigger sentiment, smaller sentiment, neutral
+                            const lines = [];
+                            lines.push(`${totalLabel}: ${total} ${metricLabel.toLowerCase()}`);
+                            lines.push('');  // Add spacing
+                            
+                            if (positive > negative) {
+                                lines.push(`Positive: ${positive} ${metricLabel.toLowerCase()}`);
+                                lines.push(`Negative: ${negative} ${metricLabel.toLowerCase()}`);
+                            } else if (negative > positive) {
+                                lines.push(`Negative: ${negative} ${metricLabel.toLowerCase()}`);
+                                lines.push(`Positive: ${positive} ${metricLabel.toLowerCase()}`);
+                            } else {
+                                // Equal, show positive first
+                                lines.push(`Positive: ${positive} ${metricLabel.toLowerCase()}`);
+                                lines.push(`Negative: ${negative} ${metricLabel.toLowerCase()}`);
+                            }
+                            
+                            lines.push(`Neutral: ${neutral} ${metricLabel.toLowerCase()}`);
+                            
+                            return lines;
+                        },
+                        label: function(context) {
+                            // Hide default labels since we're using beforeBody
+                            return null;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Load initial data on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const periodSelector = document.getElementById('period-selector');
+    const metricSelector = document.getElementById('metric-selector');
+    
+    // Load initial chart with default values (month, comments)
+    loadSentimentTimeline('month', 'comments');
+    
+    // Handle period selector changes
+    if (periodSelector) {
+        periodSelector.addEventListener('change', function() {
+            const currentMetric = metricSelector ? metricSelector.value : 'comments';
+            loadSentimentTimeline(this.value, currentMetric);
+        });
+    }
+    
+    // Handle metric selector changes
+    if (metricSelector) {
+        metricSelector.addEventListener('change', function() {
+            const currentPeriod = periodSelector ? periodSelector.value : 'month';
+            loadSentimentTimeline(currentPeriod, this.value);
+        });
+    }
+});
 </script>
 {% endblock %}
