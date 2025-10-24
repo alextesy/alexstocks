@@ -73,7 +73,7 @@ jobs:
           fi
           
           # Check if job/app files changed
-          if echo "$CHANGED_FILES" | grep -qE "^(jobs/|app/|ingest/|\.github/workflows/deploy-ecs-jobs\.yml)"; then
+          if echo "$CHANGED_FILES" | grep -qE "^(jobs/|app/|ingest/)"; then
             echo "jobs_changed=true" >> $GITHUB_OUTPUT
             echo "✅ Job/app files changed"
           else
