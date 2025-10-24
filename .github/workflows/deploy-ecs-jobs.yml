@@ -3,13 +3,16 @@ name: Deploy ECS Jobs
 on:
   push:
     branches:
-      - main
+      - master  # Changed from main
     paths:
       - 'jobs/**'
       - 'app/db/**'
       - 'app/services/**'
       - 'app/config.py'
+      - 'app/models/**'
+      - 'app/collectors/**'
       - 'ingest/**'
+      - 'infrastructure/terraform/**'
       - '.github/workflows/deploy-ecs-jobs.yml'
   workflow_dispatch:
     inputs:
@@ -21,6 +24,11 @@ on:
         options:
           - production
           - staging
+      dry_run:
+        description: 'Dry run mode (build/plan only, no push/apply)'
+        required: false
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: us-east-1
@@ -38,6 +46,44 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need 2 commits to detect changes
+
+      - name: Detect changes
+        id: changes
+        run: |
+          echo "Detecting which paths changed..."
+          
+          # For workflow_dispatch, check all files
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "terraform_changed=true" >> $GITHUB_OUTPUT
+            echo "jobs_changed=true" >> $GITHUB_OUTPUT
+            echo "Manual trigger - will check both terraform and jobs"
+            exit 0
+          fi
+          
+          # Get list of changed files
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # Check if terraform files changed
+          if echo "$CHANGED_FILES" | grep -q "^infrastructure/terraform/"; then
+            echo "terraform_changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Terraform files changed"
+          else
+            echo "terraform_changed=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No terraform changes"
+          fi
+          
+          # Check if job/app files changed
+          if echo "$CHANGED_FILES" | grep -qE "^(jobs/|app/|ingest/|\.github/workflows/deploy-ecs-jobs\.yml)"; then
+            echo "jobs_changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Job/app files changed"
+          else
+            echo "jobs_changed=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No job/app changes"
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -45,30 +91,94 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # ============================================================================
+      # DOCKER BUILD & PUSH WORKFLOW
+      # ============================================================================
+
       - name: Login to Amazon ECR
         id: login-ecr
+        if: steps.changes.outputs.jobs_changed == 'true'
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set up Docker Buildx
+        if: steps.changes.outputs.jobs_changed == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
+        if: steps.changes.outputs.jobs_changed == 'true'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          echo "Building Docker image..."
+          docker build -f jobs/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          # Get image size and digest for logging
+          IMAGE_SIZE=$(docker image inspect $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG --format='{{.Size}}' | awk '{printf "%.2f MB", $1/1024/1024}')
+          echo "Image size: $IMAGE_SIZE"
+          
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "🔍 DRY RUN MODE - Skipping push to ECR"
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+            echo "image_size=$IMAGE_SIZE" >> $GITHUB_OUTPUT
+            echo "pushed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Pushing image to ECR..."
+            docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+            
+            # Get image digest from ECR
+            IMAGE_DIGEST=$(docker image inspect $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG --format='{{index .RepoDigests 0}}')
+            
+            echo "✅ Successfully pushed image to ECR"
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+            echo "image_size=$IMAGE_SIZE" >> $GITHUB_OUTPUT
+            echo "image_digest=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
+            echo "pushed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify ECR image
+        if: steps.changes.outputs.jobs_changed == 'true' && steps.build-image.outputs.pushed == 'true'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -f jobs/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "Verifying images in ECR..."
+          
+          # Pull the specific tag to verify it exists
+          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "✅ Successfully pulled $IMAGE_TAG"
+          
+          # Pull latest tag to verify it was updated
+          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "✅ Successfully pulled latest tag"
+          
+          # Verify image digests match
+          DIGEST_TAG=$(docker image inspect $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG --format='{{index .RepoDigests 0}}')
+          DIGEST_LATEST=$(docker image inspect $ECR_REGISTRY/$ECR_REPOSITORY:latest --format='{{index .RepoDigests 0}}')
+          
+          if [ "$DIGEST_TAG" = "$DIGEST_LATEST" ]; then
+            echo "✅ Image digests match - latest tag correctly updated"
+          else
+            echo "⚠️  Warning: Image digests don't match"
+            echo "Tag digest: $DIGEST_TAG"
+            echo "Latest digest: $DIGEST_LATEST"
+          fi
 
       - name: Update ECS task definitions
+        if: steps.changes.outputs.jobs_changed == 'true' && steps.build-image.outputs.pushed == 'true'
+        id: update-tasks
         env:
           IMAGE_URI: ${{ steps.build-image.outputs.image }}
         run: |
+          echo "Updating ECS task definitions with new image..."
+          UPDATED_TASKS=""
+          
           # Update Reddit Scraper task definition
+          echo "Updating market-pulse-reddit-scraper..."
           aws ecs describe-task-definition \
             --task-definition market-pulse-reddit-scraper \
             --query taskDefinition > task-def-reddit.json
@@ -78,9 +188,11 @@ jobs:
             task-def-reddit.json > task-def-reddit-updated.json
 
           aws ecs register-task-definition \
-            --cli-input-json file://task-def-reddit-updated.json
+            --cli-input-json file://task-def-reddit-updated.json > /dev/null
+          UPDATED_TASKS="$UPDATED_TASKS\n- market-pulse-reddit-scraper"
 
           # Update Sentiment Analysis task definition
+          echo "Updating market-pulse-sentiment-analysis..."
           aws ecs describe-task-definition \
             --task-definition market-pulse-sentiment-analysis \
             --query taskDefinition > task-def-sentiment.json
@@ -90,9 +202,11 @@ jobs:
             task-def-sentiment.json > task-def-sentiment-updated.json
 
           aws ecs register-task-definition \
-            --cli-input-json file://task-def-sentiment-updated.json
+            --cli-input-json file://task-def-sentiment-updated.json > /dev/null
+          UPDATED_TASKS="$UPDATED_TASKS\n- market-pulse-sentiment-analysis"
 
           # Update Daily Status task definition
+          echo "Updating market-pulse-daily-status..."
           aws ecs describe-task-definition \
             --task-definition market-pulse-daily-status \
             --query taskDefinition > task-def-status.json
@@ -102,10 +216,180 @@ jobs:
             task-def-status.json > task-def-status-updated.json
 
           aws ecs register-task-definition \
-            --cli-input-json file://task-def-status-updated.json
+            --cli-input-json file://task-def-status-updated.json > /dev/null
+          UPDATED_TASKS="$UPDATED_TASKS\n- market-pulse-daily-status"
 
-      - name: Summary
+          # Update Stock Price Collector task definition
+          echo "Updating market-pulse-stock-price-collector..."
+          aws ecs describe-task-definition \
+            --task-definition market-pulse-stock-price-collector \
+            --query taskDefinition > task-def-stock-price.json
+
+          jq --arg IMAGE "$IMAGE_URI" \
+            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            task-def-stock-price.json > task-def-stock-price-updated.json
+
+          aws ecs register-task-definition \
+            --cli-input-json file://task-def-stock-price-updated.json > /dev/null
+          UPDATED_TASKS="$UPDATED_TASKS\n- market-pulse-stock-price-collector"
+
+          echo "✅ Updated all ECS task definitions"
+          echo "updated_tasks<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$UPDATED_TASKS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # ============================================================================
+      # TERRAFORM WORKFLOW
+      # ============================================================================
+
+      - name: Setup Terraform
+        if: steps.changes.outputs.terraform_changed == 'true'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6.0"
+
+      - name: Terraform Init
+        if: steps.changes.outputs.terraform_changed == 'true'
+        working-directory: infrastructure/terraform
         run: |
-          echo "✅ Successfully deployed ECS jobs"
-          echo "Image: ${{ steps.build-image.outputs.image }}"
-          echo "Region: ${{ env.AWS_REGION }}"
+          echo "Initializing Terraform..."
+          terraform init
+
+      - name: Terraform Plan
+        if: steps.changes.outputs.terraform_changed == 'true'
+        id: terraform-plan
+        working-directory: infrastructure/terraform
+        run: |
+          echo "Running Terraform plan..."
+          terraform plan -out=tfplan -no-color | tee plan-output.txt
+          
+          # Save plan summary for later
+          grep -A 100 "Terraform will perform" plan-output.txt > plan-summary.txt || echo "No changes detected" > plan-summary.txt
+          
+          echo "plan_file=tfplan" >> $GITHUB_OUTPUT
+
+      - name: Terraform Apply
+        if: steps.changes.outputs.terraform_changed == 'true' && github.event.inputs.dry_run != 'true'
+        id: terraform-apply
+        working-directory: infrastructure/terraform
+        run: |
+          echo "Applying Terraform changes..."
+          terraform apply -auto-approve tfplan
+          echo "applied=true" >> $GITHUB_OUTPUT
+
+      - name: Upload Terraform Plan
+        if: steps.changes.outputs.terraform_changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: infrastructure/terraform/plan-summary.txt
+
+      # ============================================================================
+      # DEPLOYMENT SUMMARY
+      # ============================================================================
+
+      - name: Generate Deployment Summary
+        if: always()
+        env:
+          JOBS_CHANGED: ${{ steps.changes.outputs.jobs_changed }}
+          TERRAFORM_CHANGED: ${{ steps.changes.outputs.terraform_changed }}
+          IMAGE_URI: ${{ steps.build-image.outputs.image }}
+          IMAGE_SIZE: ${{ steps.build-image.outputs.image_size }}
+          IMAGE_DIGEST: ${{ steps.build-image.outputs.image_digest }}
+          IMAGE_PUSHED: ${{ steps.build-image.outputs.pushed }}
+          UPDATED_TASKS: ${{ steps.update-tasks.outputs.updated_tasks }}
+          TERRAFORM_APPLIED: ${{ steps.terraform-apply.outputs.applied }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          echo "# 🚀 ECS Jobs Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "## 🔍 DRY RUN MODE" >> $GITHUB_STEP_SUMMARY
+            echo "This was a dry run - no changes were pushed or applied." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "## 📦 Docker Image Build" >> $GITHUB_STEP_SUMMARY
+          if [ "$JOBS_CHANGED" = "true" ]; then
+            echo "✅ **Status**: Built" >> $GITHUB_STEP_SUMMARY
+            if [ "$IMAGE_PUSHED" = "true" ]; then
+              echo "✅ **Pushed to ECR**: Yes" >> $GITHUB_STEP_SUMMARY
+              echo "- **Image URI**: \`$IMAGE_URI\`" >> $GITHUB_STEP_SUMMARY
+              echo "- **Image Size**: $IMAGE_SIZE" >> $GITHUB_STEP_SUMMARY
+              echo "- **Image Digest**: \`$IMAGE_DIGEST\`" >> $GITHUB_STEP_SUMMARY
+              echo "- **[View in AWS Console](https://console.aws.amazon.com/ecr/repositories/private/${{ env.AWS_REGION }}/${{ env.ECR_REPOSITORY }}?region=${{ env.AWS_REGION }})**" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⏭️ **Pushed to ECR**: Skipped (dry run)" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⏭️ **Status**: Skipped (no job/app changes detected)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🔄 ECS Task Definitions Updated" >> $GITHUB_STEP_SUMMARY
+          if [ "$JOBS_CHANGED" = "true" ] && [ "$IMAGE_PUSHED" = "true" ]; then
+            echo "$UPDATED_TASKS" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**View Logs**:" >> $GITHUB_STEP_SUMMARY
+            echo "- [Reddit Scraper Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Freddit-scraper)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Sentiment Analysis Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Fsentiment-analysis)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Daily Status Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Fdaily-status)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Stock Price Collector Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Fstock-price-collector)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⏭️ Skipped" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🏗️ Terraform Infrastructure" >> $GITHUB_STEP_SUMMARY
+          if [ "$TERRAFORM_CHANGED" = "true" ]; then
+            if [ "$TERRAFORM_APPLIED" = "true" ]; then
+              echo "✅ **Status**: Applied" >> $GITHUB_STEP_SUMMARY
+            elif [ "$DRY_RUN" = "true" ]; then
+              echo "✅ **Status**: Planned (dry run, not applied)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ **Status**: Planned" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "- See [Terraform Plan artifact](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⏭️ **Status**: Skipped (no terraform changes detected)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 📊 Deployment Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Region**: ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$JOBS_CHANGED" = "true" ] && [ "$IMAGE_PUSHED" = "true" ]; then
+            echo "## 🧪 Next Steps" >> $GITHUB_STEP_SUMMARY
+            echo "To verify the deployment:" >> $GITHUB_STEP_SUMMARY
+            echo '```bash' >> $GITHUB_STEP_SUMMARY
+            echo "# Manually trigger a task to test the new image" >> $GITHUB_STEP_SUMMARY
+            echo "make ecs-run-stock-prices" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "# Watch the logs" >> $GITHUB_STEP_SUMMARY
+            echo "make ecs-logs-stock-prices" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Final Status
+        if: always()
+        run: |
+          echo "============================================"
+          echo "         🎉 Deployment Pipeline Complete"
+          echo "============================================"
+          echo ""
+          if [ "${{ steps.changes.outputs.jobs_changed }}" = "true" ]; then
+            echo "✅ Docker: Built and pushed"
+          fi
+          if [ "${{ steps.changes.outputs.terraform_changed }}" = "true" ]; then
+            echo "✅ Terraform: Planned and applied"
+          fi
+          if [ "${{ steps.changes.outputs.jobs_changed }}" = "false" ] && [ "${{ steps.changes.outputs.terraform_changed }}" = "false" ]; then
+            echo "ℹ️  No changes detected in monitored paths"
+          fi
+          echo ""
+          echo "See the summary tab for full deployment details"
