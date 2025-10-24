@@ -21,9 +21,6 @@ def _is_fresh(
         return False
 
     updated_at = record.updated_at
-    if updated_at is None:
-        return False
-
     # Ensure timezone-aware comparison
     if updated_at.tzinfo is None:
         updated_at = updated_at.replace(tzinfo=UTC)
@@ -72,7 +69,11 @@ async def ensure_fresh_stock_price(
         db.add(existing)
 
     # Basic price data
-    existing.price = data.get("price")
+    price = data.get("price")
+    if price is None:
+        logger.error("No price data available for %s", symbol)
+        return existing
+    existing.price = price
     existing.previous_close = data.get("previous_close")
     existing.change = data.get("change")
     existing.change_percent = data.get("change_percent")
