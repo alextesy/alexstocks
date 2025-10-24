@@ -13,6 +13,7 @@ from app.services.rate_limit import rate_limit
 from app.services.sentiment import get_sentiment_service_hybrid
 from app.services.sentiment_analytics import get_sentiment_analytics_service
 from app.services.stock_data import stock_service
+from app.services.stock_price_cache import ensure_fresh_stock_price
 from app.services.velocity import get_velocity_service
 
 logger = logging.getLogger(__name__)
@@ -922,7 +923,7 @@ async def ticker_page(
     request: Request, ticker: str, page: int = 1, sort_by: str = "date-desc"
 ) -> HTMLResponse:
     """Ticker detail page with articles."""
-    from datetime import datetime
+    from datetime import datetime, timedelta
 
     from sqlalchemy import desc, func
 
@@ -940,6 +941,13 @@ async def ticker_page(
         # Get ticker info
         ticker_obj = db.query(Ticker).filter(Ticker.symbol == ticker.upper()).first()
 
+        # Ensure we have a fresh price cached for this symbol
+        await ensure_fresh_stock_price(
+            db,
+            ticker.upper(),
+            freshness_minutes=settings.STOCK_PRICE_FRESHNESS_MINUTES,
+        )
+
         # Get total article count for this ticker
         total_article_count = (
             db.query(func.count(ArticleTicker.article_id))
@@ -947,6 +955,85 @@ async def ticker_page(
             .scalar()
             or 0
         )
+
+        # Get today's article count
+        today = datetime.now().date()
+        today_start = datetime.combine(today, datetime.min.time())
+        today_article_count = (
+            db.query(func.count(ArticleTicker.article_id))
+            .join(Article, ArticleTicker.article_id == Article.id)
+            .filter(
+                ArticleTicker.ticker == ticker.upper(),
+                Article.published_at >= today_start,
+            )
+            .scalar()
+            or 0
+        )
+
+        # Get yesterday's article count for comparison
+        yesterday = today - timedelta(days=1)
+        yesterday_start = datetime.combine(yesterday, datetime.min.time())
+        yesterday_end = datetime.combine(today, datetime.min.time())
+        yesterday_article_count = (
+            db.query(func.count(ArticleTicker.article_id))
+            .join(Article, ArticleTicker.article_id == Article.id)
+            .filter(
+                ArticleTicker.ticker == ticker.upper(),
+                Article.published_at >= yesterday_start,
+                Article.published_at < yesterday_end,
+            )
+            .scalar()
+            or 0
+        )
+
+        # Calculate percentage change from yesterday
+        if yesterday_article_count > 0:
+            article_change_percent = (
+                (today_article_count - yesterday_article_count)
+                / yesterday_article_count
+            ) * 100
+        elif today_article_count > 0:
+            article_change_percent = 100.0  # 100% increase from 0
+        else:
+            article_change_percent = 0.0
+
+        # Get unique users talking about this ticker today
+        unique_users_today = (
+            db.query(func.count(func.distinct(Article.author)))
+            .join(ArticleTicker, Article.id == ArticleTicker.article_id)
+            .filter(
+                ArticleTicker.ticker == ticker.upper(),
+                Article.published_at >= today_start,
+                Article.author.isnot(None),
+                Article.author != "",
+            )
+            .scalar()
+            or 0
+        )
+
+        # Get unique users from yesterday for comparison
+        unique_users_yesterday = (
+            db.query(func.count(func.distinct(Article.author)))
+            .join(ArticleTicker, Article.id == ArticleTicker.article_id)
+            .filter(
+                ArticleTicker.ticker == ticker.upper(),
+                Article.published_at >= yesterday_start,
+                Article.published_at < yesterday_end,
+                Article.author.isnot(None),
+                Article.author != "",
+            )
+            .scalar()
+            or 0
+        )
+
+        # Calculate user change
+        users_change = unique_users_today - unique_users_yesterday
+        if unique_users_yesterday > 0:
+            users_change_percent = (users_change / unique_users_yesterday) * 100
+        elif unique_users_today > 0:
+            users_change_percent = 100.0  # 100% increase from 0
+        else:
+            users_change_percent = 0.0
 
         # Get stock data from database
         stock_data = None
@@ -1084,6 +1171,12 @@ async def ticker_page(
                     "chart_data": chart_data,
                     "sentiment_histogram": ticker_sentiment_data,
                     "total_article_count": total_article_count,
+                    "today_article_count": today_article_count,
+                    "article_change": today_article_count - yesterday_article_count,
+                    "article_change_percent": article_change_percent,
+                    "unique_users_today": unique_users_today,
+                    "users_change": users_change,
+                    "users_change_percent": users_change_percent,
                     "pagination": {
                         "page": 1,
                         "total_pages": 1,
@@ -1195,6 +1288,12 @@ async def ticker_page(
                 "sentiment_histogram": ticker_sentiment_data,
                 "sentiment_over_time": sentiment_over_time,
                 "total_article_count": total_article_count,
+                "today_article_count": today_article_count,
+                "article_change": today_article_count - yesterday_article_count,
+                "article_change_percent": article_change_percent,
+                "unique_users_today": unique_users_today,
+                "users_change": users_change,
+                "users_change_percent": users_change_percent,
                 "pagination": pagination,
                 "sort_by": sort_by,
             },

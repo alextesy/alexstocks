@@ -137,8 +137,8 @@ resource "aws_scheduler_schedule" "daily_status" {
   description = "Run daily status check at 4:00 UTC"
 }
 
-# EventBridge Scheduler: Stock Price Collector (hourly during market hours)
-# Runs Mon-Fri, 9:30 AM - 4:30 PM ET on the half-hour
+# EventBridge Scheduler: Stock Price Collector (every 15 minutes)
+# Runs continuously and job code enforces market-hour logic
 resource "aws_scheduler_schedule" "stock_price_collector" {
   name       = "${var.project_name}-stock-price-collector"
   group_name = "default"
@@ -148,9 +148,8 @@ resource "aws_scheduler_schedule" "stock_price_collector" {
   }
 
   schedule_expression_timezone = "America/New_York"
-
-  # Run every 60 minutes on the half-hour during market hours (Mon-Fri 9:30 AM - 4:30 PM ET)
-  schedule_expression = "cron(30 9-16 ? * MON-FRI *)"
+  # Fire every 15 minutes on business days; job code enforces the exact 9:30–16:15 ET window
+  schedule_expression          = "cron(0/15 9-16 ? * MON-FRI *)"
 
   target {
     arn      = aws_ecs_cluster.jobs.arn
@@ -184,7 +183,7 @@ resource "aws_scheduler_schedule" "stock_price_collector" {
     }
   }
 
-  description = "Collect stock prices for top 50 tickers hourly during market hours"
+  description = "Collect stock prices for top tickers every 15 minutes during market hours"
 }
 
 # Dead Letter Queues for failed task invocations

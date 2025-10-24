@@ -13,10 +13,6 @@
             <p class="text-gray-600">Recent news and sentiment analysis</p>
             {% endif %}
             <div class="mt-2 flex items-center space-x-4 text-sm text-gray-500">
-                <span class="flex items-center">
-                    <i class="fas fa-newspaper mr-1"></i>
-                    {{ total_article_count }} total articles
-                </span>
                 {% if pagination.total_pages > 1 %}
                 <span class="flex items-center">
                     <i class="fas fa-list mr-1"></i>
@@ -28,6 +24,72 @@
         <a href="/" class="text-blue-600 hover:text-blue-800">
             ← Back to all tickers
         </a>
+    </div>
+</div>
+
+<!-- Stock Price & Metrics Display -->
+<div class="bg-white rounded-lg shadow-sm border p-4 md:p-6 mb-6">
+    <div class="grid grid-cols-4 gap-2 md:gap-6">
+        <!-- Stock Price -->
+        {% if stock_data %}
+        <div class="text-center">
+            <h3 class="text-xs md:text-sm font-medium text-gray-500 mb-1">Current Price</h3>
+            <div class="text-lg md:text-2xl font-bold text-gray-900">
+                ${{ "%.2f"|format(stock_data.price) }}
+            </div>
+            <div class="flex flex-col md:flex-row items-center justify-center space-y-0 md:space-y-0 md:space-x-2 mt-1">
+                {% set change_color = "text-green-600" if stock_data.change >= 0 else "text-red-600" %}
+                <span class="text-xs md:text-sm {{ change_color }} font-medium">
+                    {{ "+" if stock_data.change >= 0 else "" }}${{ "%.2f"|format(stock_data.change) }}
+                </span>
+                <span class="text-xs md:text-sm {{ change_color }}">
+                    ({{ "+" if stock_data.change >= 0 else "" }}{{ "%.1f"|format(stock_data.change_percent) }}%)
+                </span>
+            </div>
+            <div class="text-xs text-gray-500 mt-1">
+                {{ stock_data.exchange }} • {{ stock_data.currency }}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Today's Articles -->
+        <div class="text-center">
+            <h3 class="text-xs md:text-sm font-medium text-gray-500 mb-1">Today</h3>
+            <div class="text-lg md:text-2xl font-bold text-gray-900">{{ today_article_count }}</div>
+            <div class="flex flex-col md:flex-row items-center justify-center space-y-0 md:space-y-0 md:space-x-2 mt-1">
+                {% set change_color = "text-green-600" if article_change >= 0 else "text-red-600" %}
+                <span class="text-xs md:text-sm {{ change_color }} font-medium">
+                    {{ "+" if article_change >= 0 else "" }}{{ article_change }}
+                </span>
+                <span class="text-xs md:text-sm {{ change_color }}">
+                    ({{ "+" if article_change >= 0 else "" }}{{ "%.1f"|format(article_change_percent) }}%)
+                </span>
+            </div>
+            <div class="text-xs text-gray-500 mt-1">vs yesterday</div>
+        </div>
+        
+        <!-- Users Talking Today -->
+        <div class="text-center">
+            <h3 class="text-xs md:text-sm font-medium text-gray-500 mb-1">Users</h3>
+            <div class="text-lg md:text-2xl font-bold text-gray-900">{{ unique_users_today }}</div>
+            <div class="flex flex-col md:flex-row items-center justify-center space-y-0 md:space-y-0 md:space-x-2 mt-1">
+                {% set change_color = "text-green-600" if users_change >= 0 else "text-red-600" %}
+                <span class="text-xs md:text-sm {{ change_color }} font-medium">
+                    {{ "+" if users_change >= 0 else "" }}{{ users_change }}
+                </span>
+                <span class="text-xs md:text-sm {{ change_color }}">
+                    ({{ "+" if users_change >= 0 else "" }}{{ "%.1f"|format(users_change_percent) }}%)
+                </span>
+            </div>
+            <div class="text-xs text-gray-500 mt-1">vs yesterday</div>
+        </div>
+        
+        <!-- Total Articles -->
+        <div class="text-center">
+            <h3 class="text-xs md:text-sm font-medium text-gray-500 mb-1">Total</h3>
+            <div class="text-lg md:text-2xl font-bold text-gray-900">{{ total_article_count }}</div>
+            <div class="text-xs text-gray-500 mt-1">Since Oct 2025</div>
+        </div>
     </div>
 </div>
 

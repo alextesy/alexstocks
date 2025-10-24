@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     # Prevent deep scans; applies to (page-1)*limit derived offset
     MAX_OFFSET_ITEMS: int = 5000
 
+    # Stock price cache configuration
+    STOCK_PRICE_FRESHNESS_MINUTES: int = 15
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
