@@ -4,6 +4,35 @@ help: ## Show this help message
 	@echo "AlexStocks - Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
+redis-up: ## Start Redis (Docker, 200MB, LRU)
+	@if docker ps -a --format '{{.Names}}' | grep -w redis >/dev/null 2>&1; then \
+		echo "➡️  Redis container exists. Starting..."; \
+		docker start redis >/dev/null; \
+	else \
+		echo "➡️  Creating Redis container..."; \
+		docker run -d --name redis -p 6379:6379 redis:7-alpine \
+		  redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru --appendonly no >/dev/null; \
+	fi; \
+	 docker exec -it redis redis-cli ping || true
+
+redis-down: ## Stop and remove Redis container
+	- docker stop redis >/dev/null 2>&1 || true
+	- docker rm redis >/dev/null 2>&1 || true
+	@echo "🛑 Redis stopped and removed (if it existed)."
+
+rate-limit-smoke: ## Hammer an endpoint to observe 429 with Retry-After, and test caps
+	@echo "Note: Ensure the API is running on http://127.0.0.1:8000"
+	@echo "\n➡️  Testing parameter caps (expect 422 or 400):"
+	@echo "- /api/sentiment/time-series with excessive days"
+	@curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:8000/api/sentiment/time-series?ticker=AAPL&days=9999"
+	@echo "- /api/ticker/TSLA/articles with excessive limit"
+	@curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:8000/api/ticker/TSLA/articles?page=1&limit=9999"
+	@echo "\n➡️  Testing rate limiting (expect mix of 200 and 429):"
+	@echo "Sending 80 requests to /api/mentions/hourly ..."
+	@bash -c 'for i in $$(seq 1 80); do \
+		curl -s -o /dev/null -w "%{http_code}\\n" "http://127.0.0.1:8000/api/mentions/hourly?tickers=AAPL&hours=1"; \
+	done | sort | uniq -c'
+
 up: ## Start postgres and api services
 	docker compose up -d postgres
 	@echo "Waiting for postgres to be ready..."

@@ -2,13 +2,14 @@
 
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.services.mention_stats import get_mention_stats_service
+from app.services.rate_limit import rate_limit
 from app.services.sentiment import get_sentiment_service_hybrid
 from app.services.sentiment_analytics import get_sentiment_analytics_service
 from app.services.stock_data import stock_service
@@ -96,6 +97,8 @@ def get_sentiment_over_time_data(db, ticker: str, days: int = 30) -> dict:
     from app.db.models import Article, ArticleTicker
 
     try:
+        # Clamp days to configured maximum as a defense-in-depth
+        days = min(days, settings.MAX_DAYS_TIME_SERIES)
         # Get sentiment data grouped by day for the last N days
         cutoff_date = datetime.utcnow() - timedelta(days=days)
 
@@ -254,7 +257,13 @@ async def get_sentiment_histogram(ticker: str | None = None):
 
 
 @app.get("/api/sentiment/time-series")
-async def get_sentiment_time_series(ticker: str, days: int = 30):
+async def get_sentiment_time_series(
+    ticker: str,
+    days: int = Query(30, ge=1, le=settings.MAX_DAYS_TIME_SERIES),
+    _: None = Depends(
+        rate_limit("sentiment_time_series", requests=60, window_seconds=60)
+    ),
+):
     """Get sentiment data over time for a specific ticker."""
     from app.db.session import SessionLocal
 
@@ -271,7 +280,11 @@ async def get_sentiment_time_series(ticker: str, days: int = 30):
 
 
 @app.get("/api/mentions/hourly")
-async def get_mentions_hourly(tickers: str, hours: int = 24):
+async def get_mentions_hourly(
+    tickers: str,
+    hours: int = Query(24, ge=1, le=settings.MAX_HOURS_MENTIONS),
+    _: None = Depends(rate_limit("mentions_hourly", requests=60, window_seconds=60)),
+):
     """Get hourly mention counts for one or more tickers for the last N hours.
 
     Query params:
@@ -295,7 +308,12 @@ async def get_mentions_hourly(tickers: str, hours: int = 24):
 
 
 @app.get("/api/ticker/{ticker}/articles")
-async def get_ticker_articles(ticker: str, page: int = 1, limit: int = 50):
+async def get_ticker_articles(
+    ticker: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=settings.MAX_LIMIT_ARTICLES),
+    _: None = Depends(rate_limit("ticker_articles", requests=60, window_seconds=60)),
+):
     """Get paginated articles for a specific ticker."""
     from sqlalchemy import desc, func
 
@@ -322,8 +340,17 @@ async def get_ticker_articles(ticker: str, page: int = 1, limit: int = 50):
                 or 0
             )
 
-            # Calculate pagination
+            # Calculate pagination with server-side clamps and offset guard
+            limit = min(limit, settings.MAX_LIMIT_ARTICLES)
             offset = (page - 1) * limit
+            if offset > settings.MAX_OFFSET_ITEMS:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": "Offset too large",
+                        "message": "Requested page exceeds maximum offset.",
+                    },
+                )
             total_pages = (total_count + limit - 1) // limit
 
             # Get paginated articles
@@ -690,10 +717,11 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
 
 @app.get("/api/tickers")
 async def get_all_tickers(
-    page: int = 1,
-    limit: int = 50,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=settings.MAX_LIMIT_TICKERS),
     search: str | None = None,
     sort_by: str = "recent_activity",  # recent_activity, alphabetical, total_articles
+    _: None = Depends(rate_limit("tickers_list", requests=60, window_seconds=60)),
 ):
     """Get paginated list of all tickers with optional search and sorting."""
     from datetime import datetime, timedelta
@@ -705,8 +733,22 @@ async def get_all_tickers(
 
     db = SessionLocal()
     try:
-        # Calculate pagination
+        # Calculate pagination with clamps and offset guard
+        limit = min(limit, settings.MAX_LIMIT_TICKERS)
         offset = (page - 1) * limit
+        if offset > settings.MAX_OFFSET_ITEMS:
+            return {
+                "tickers": [],
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": 0,
+                    "total_pages": 0,
+                    "has_next": False,
+                    "has_prev": page > 1,
+                },
+                "error": "Requested page exceeds maximum offset.",
+            }
 
         # Base query for tickers
         base_query = db.query(
