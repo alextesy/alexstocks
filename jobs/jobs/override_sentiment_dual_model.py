@@ -5,11 +5,6 @@ This script re-analyzes all articles using the new dual model strategy that
 intelligently combines LLM (FinBERT) and VADER models to reduce neutral classifications.
 """
 
-from dotenv import load_dotenv
-
-# Load .env BEFORE importing app modules that use settings
-load_dotenv()
-
 import argparse
 import logging
 import sys

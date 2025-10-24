@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 """Override all existing sentiment analysis with LLM sentiment."""
 
-from dotenv import load_dotenv
-
-# Load .env BEFORE importing app modules that use settings
-load_dotenv()
-
 import argparse
 import logging
 import sys

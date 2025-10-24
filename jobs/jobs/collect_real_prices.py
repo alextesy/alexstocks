@@ -1,10 +1,5 @@
 """Carefully collect real stock prices from Yahoo Finance with proper rate limiting."""
 
-from dotenv import load_dotenv
-
-# Load .env BEFORE importing app modules that use settings
-load_dotenv()
-
 import asyncio
 import logging
 import sys
