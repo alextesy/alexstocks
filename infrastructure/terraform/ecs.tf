@@ -4,7 +4,7 @@ resource "aws_ecs_cluster" "jobs" {
 
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = "disabled"
   }
 
   tags = merge(local.common_tags, {
