@@ -52,6 +52,23 @@ class Settings(BaseSettings):
     )
     cookie_consent_enabled: bool = True
 
+    # Redis / Rate limiting configuration
+    redis_url: str = Field(
+        default="redis://localhost:6379/0",
+        validation_alias=AliasChoices("REDIS_URL", "redis_url"),
+    )
+    # Default budgets are per-IP, per-endpoint
+    rl_requests_per_minute: int = 60
+    rl_window_seconds: int = 60
+
+    # Parameter caps to protect the API from abuse
+    MAX_LIMIT_ARTICLES: int = 100
+    MAX_LIMIT_TICKERS: int = 100
+    MAX_DAYS_TIME_SERIES: int = 90
+    MAX_HOURS_MENTIONS: int = 168
+    # Prevent deep scans; applies to (page-1)*limit derived offset
+    MAX_OFFSET_ITEMS: int = 5000
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
