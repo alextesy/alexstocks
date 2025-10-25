@@ -445,7 +445,8 @@ async def get_ticker_sentiment_timeline(
                         key_naive = (
                             key.replace(tzinfo=None) if hasattr(key, "tzinfo") else key
                         )
-                        if key_naive == bucket_time:
+                        bucket_time_naive = bucket_time.replace(tzinfo=None)
+                        if key_naive == bucket_time_naive:
                             data_point = data_by_time[key]
                             break
 
@@ -901,7 +902,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "sentiment_lean": lean_map.get(symbol, None),
             }
             tickers.append(ticker_dict)
-            if len(default_mention_symbols) < 10:
+            if len(default_mention_symbols) < 7:
                 default_mention_symbols.append(symbol)
 
         # Get scraping status
