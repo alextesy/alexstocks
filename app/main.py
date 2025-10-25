@@ -297,7 +297,7 @@ async def get_ticker_sentiment_timeline(
     Returns:
         Timeline data with positive, negative, neutral, and total counts per time bucket
     """
-    from datetime import datetime, timedelta
+    from datetime import UTC, datetime, timedelta
 
     from sqlalchemy import case, func
 
@@ -314,17 +314,17 @@ async def get_ticker_sentiment_timeline(
             # Determine time range and grouping
             if period == "day":
                 hours_back = 24
-                cutoff_date = datetime.utcnow() - timedelta(hours=hours_back)
+                cutoff_date = datetime.now(UTC) - timedelta(hours=hours_back)
                 # Group by hour
                 time_bucket = func.date_trunc("hour", Article.published_at)
             elif period == "week":
                 days_back = 7
-                cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+                cutoff_date = datetime.now(UTC) - timedelta(days=days_back)
                 # Group by day
                 time_bucket = func.date(Article.published_at)
             else:  # month
                 days_back = 30
-                cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+                cutoff_date = datetime.now(UTC) - timedelta(days=days_back)
                 # Group by day
                 time_bucket = func.date(Article.published_at)
 
@@ -432,7 +432,7 @@ async def get_ticker_sentiment_timeline(
             result_data = []
             if period == "day":
                 # Generate hourly buckets for last 24 hours
-                current_time = datetime.utcnow().replace(
+                current_time = datetime.now(UTC).replace(
                     minute=0, second=0, microsecond=0
                 )
                 for i in range(24):
@@ -463,7 +463,7 @@ async def get_ticker_sentiment_timeline(
             else:
                 # Generate daily buckets
                 days = 7 if period == "week" else 30
-                current_date = datetime.utcnow().date()
+                current_date = datetime.now(UTC).date()
                 for i in range(days):
                     bucket_date = current_date - timedelta(days=(days - 1 - i))
                     if bucket_date in data_by_time:
@@ -479,7 +479,7 @@ async def get_ticker_sentiment_timeline(
                     result_data.append(
                         {
                             "timestamp": datetime.combine(
-                                bucket_date, datetime.min.time()
+                                bucket_date, datetime.min.time(), tzinfo=UTC
                             ).isoformat(),
                             **data_point,
                         }
