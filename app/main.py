@@ -902,7 +902,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "sentiment_lean": lean_map.get(symbol, None),
             }
             tickers.append(ticker_dict)
-            if len(default_mention_symbols) < 10:
+            if len(default_mention_symbols) < 7:
                 default_mention_symbols.append(symbol)
 
         # Get scraping status
