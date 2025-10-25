@@ -111,9 +111,9 @@
             <div class="flex items-center space-x-2">
                 <label for="period-selector" class="text-sm font-medium text-gray-700 whitespace-nowrap">Period:</label>
                 <select id="period-selector" class="flex-1 sm:flex-none px-3 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm">
-                    <option value="day">Last 24 Hours</option>
+                    <option value="day" selected>Last 24 Hours</option>
                     <option value="week">Last 7 Days</option>
-                    <option value="month" selected>Last 30 Days</option>
+                    <option value="month">Last 30 Days</option>
                 </select>
             </div>
         </div>
@@ -594,8 +594,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const periodSelector = document.getElementById('period-selector');
     const metricSelector = document.getElementById('metric-selector');
     
-    // Load initial chart with default values (month, comments)
-    loadSentimentTimeline('month', 'comments');
+    // Load initial chart with default values (day, comments)
+    loadSentimentTimeline('day', 'comments');
     
     // Handle period selector changes
     if (periodSelector) {
