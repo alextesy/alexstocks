@@ -445,7 +445,8 @@ async def get_ticker_sentiment_timeline(
                         key_naive = (
                             key.replace(tzinfo=None) if hasattr(key, "tzinfo") else key
                         )
-                        if key_naive == bucket_time:
+                        bucket_time_naive = bucket_time.replace(tzinfo=None)
+                        if key_naive == bucket_time_naive:
                             data_point = data_by_time[key]
                             break
 
