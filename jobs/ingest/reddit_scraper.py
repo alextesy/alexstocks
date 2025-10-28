@@ -612,7 +612,7 @@ class RedditScraper:
             else:
                 thread_type = "top_post"
 
-            # Create Article for the post itself
+            # Create Article for post itself
             published_at = datetime.fromtimestamp(submission.created_utc, tz=UTC)
 
             article = Article(
