@@ -101,7 +101,8 @@ resource "aws_ecs_task_definition" "reddit_scraper" {
 
     command = [
       "python", "-m", "ingest.reddit_scraper_cli",
-      "--mode", "incremental"
+      "--mode", "incremental",
+      "--config", "config/reddit_scraper_config.yaml"
     ]
 
     environment = [

@@ -140,54 +140,63 @@
 </div>
 
 
-<!-- Filters -->
-<div class="bg-white rounded-lg shadow-sm border p-4 mb-6">
-    <div class="flex flex-col sm:flex-row gap-4">
-        <div class="flex-1">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
-            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" id="sort-filter">
-                <option value="date-desc" {% if sort_by == "date-desc" %}selected{% endif %}>Date (Newest First)</option>
-                <option value="date-asc" {% if sort_by == "date-asc" %}selected{% endif %}>Date (Oldest First)</option>
-                <option value="sentiment-desc" {% if sort_by == "sentiment-desc" %}selected{% endif %}>Sentiment (High to Low)</option>
-                <option value="sentiment-asc" {% if sort_by == "sentiment-asc" %}selected{% endif %}>Sentiment (Low to High)</option>
-                <option value="engagement-desc" {% if sort_by == "engagement-desc" %}selected{% endif %}>Engagement (High to Low)</option>
-            </select>
-        </div>
-        <div class="flex-1">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Time Range</label>
-            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" id="time-filter">
-                <option value="">All time</option>
-                <option value="24h">Last 24 hours</option>
-                <option value="3d">Last 3 days</option>
-                <option value="1w">Last week</option>
-                <option value="1m">Last month</option>
-            </select>
-        </div>
-        <div class="flex-1">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Language</label>
-            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" id="language-filter">
-                <option value="">All languages</option>
-                <option value="en">English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-            </select>
-        </div>
-        <div class="flex-1">
+<!-- Filters (server-side) -->
+<form id="ticker-filters-form" class="bg-white rounded-lg shadow-sm border p-4 mb-6" method="get">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Sentiment</label>
-            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" id="article-sentiment-filter">
-                <option value="">All sentiment</option>
-                <option value="positive">Positive</option>
-                <option value="neutral">Neutral</option>
-                <option value="negative">Negative</option>
+            <select name="sentiment" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                <option value="" {% if (sentiment|default('')) == '' %}selected{% endif %}>All</option>
+                <option value="positive" {% if sentiment=='positive' %}selected{% endif %}>Positive</option>
+                <option value="neutral" {% if sentiment=='neutral' %}selected{% endif %}>Neutral</option>
+                <option value="negative" {% if sentiment=='negative' %}selected{% endif %}>Negative</option>
             </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Source</label>
+            <select name="source" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                <option value="" {{ '' == (source|default('')) and 'selected' or '' }}>All</option>
+                {% if sources_available %}
+                    {% for s in sources_available %}
+                        <option value="{{ s }}" {{ source==s and 'selected' or '' }}>{{ s }}</option>
+                    {% endfor %}
+                {% endif %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Start</label>
+            <input type="date" name="start" value="{{ start or '' }}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">End</label>
+            <input type="date" name="end" value="{{ end or '' }}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
         </div>
     </div>
-</div>
+    <div class="mt-4 flex gap-2">
+        <button class="px-3 py-2 bg-blue-600 text-white rounded">Apply</button>
+        <a href="/t/{{ ticker }}" class="px-3 py-2 border border-gray-300 rounded">Reset</a>
+    </div>
+    <!-- preserve page reset to 1 automatically by form submit (no page field) -->
+</form>
+{% if pagination and pagination.total_articles is defined %}
+<div class="mt-2 text-sm text-gray-600">
+    Showing {{ pagination.total_articles }} article{{ 's' if pagination.total_articles != 1 else '' }} matching filters
+    {% if filtered_article_count is defined and filtered_article_count != pagination.total_articles %}
+        <!-- Guard if pagination changes in future -->
+    {% endif %}
+    {% if total_article_count is defined %}
+        <span class="text-gray-400">•</span>
+        Total available: {{ total_article_count }}
+    {% endif %}
+    </div>
+{% endif %}
 
 <!-- Articles List -->
 <div class="space-y-4" id="articles-list">
     {% for article in articles %}
-    <div class="bg-white rounded-lg shadow-sm border p-4 md:p-6 article-card" 
+    {% set is_reddit_post = article.source in ['reddit_post', 'reddit'] %}
+    {% set is_reddit_comment = article.source == 'reddit_comment' %}
+    <div class="bg-white rounded-lg shadow-sm {{ 'border-4' if is_reddit_post else 'border' }} border-gray-200 p-4 md:p-6 article-card" 
          data-published="{{ article.published_at.isoformat() }}"
          data-language="{{ article.lang or 'unknown' }}"
          data-sentiment="{{ get_sentiment_display_data(article.sentiment).label.lower() }}"
@@ -231,7 +240,12 @@
                 <span class="whitespace-nowrap">Unknown date</span>
                 {% endif %}
                 <span class="text-gray-300">•</span>
-                <span class="px-2 py-1 bg-gray-100 rounded text-xs text-gray-600">{{ article.source }}</span>
+                <span class="px-2 py-1 rounded text-xs {{ 'bg-orange-100 text-orange-800' if is_reddit_post else ('bg-amber-100 text-amber-800' if is_reddit_comment else 'bg-gray-100 text-gray-600') }}">
+                    {% if is_reddit_post or is_reddit_comment %}
+                    <i class="fab fa-reddit-alien mr-1"></i>
+                    {% endif %}
+                    {{ article.source }}
+                </span>
             </div>
             <!-- Other metadata -->
             <div class="flex flex-wrap items-center gap-2">
@@ -247,6 +261,12 @@
                     <i class="fas fa-arrow-up mr-1"></i>
                     <span class="font-medium">{{ article.upvotes or 0 }}</span>
                 </span>
+                {% if is_reddit_post %}
+                <span class="flex items-center text-gray-600 whitespace-nowrap text-xs md:text-sm">
+                    <i class="fas fa-comments mr-1"></i>
+                    <span class="font-medium">{{ article.num_comments or 0 }}</span>
+                </span>
+                {% endif %}
                 {% if article.lang %}
                 <span class="px-2 py-1 bg-gray-100 rounded text-xs">{{ article.lang.upper() }}</span>
                 {% endif %}
@@ -259,7 +279,7 @@
             </div>
         </div>
         
-        {% if article.full_text and article.source == 'reddit_comment' %}
+        {% if article.full_text and article.source in ['reddit_comment','reddit_post','reddit'] %}
         <div class="mt-3 p-3 bg-gray-50 rounded-md">
             <p class="text-sm text-gray-700">
                 {% set text = article.full_text %}
@@ -317,7 +337,7 @@
 <div class="mt-8 flex justify-center">
     <nav class="flex items-center space-x-2">
         {% if pagination.has_prev %}
-        <a href="/t/{{ ticker }}?page={{ pagination.page - 1 }}&sort_by={{ sort_by }}" 
+        <a href="/t/{{ ticker }}?page={{ pagination.page - 1 }}&sentiment={{ sentiment or '' }}&source={{ source or '' }}&start={{ start or '' }}&end={{ end or '' }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             Previous
         </a>
@@ -332,7 +352,7 @@
         {% set end_page = [pagination.total_pages, pagination.page + 2]|min %}
         
         {% if start_page > 1 %}
-        <a href="/t/{{ ticker }}?page=1&sort_by={{ sort_by }}" 
+        <a href="/t/{{ ticker }}?page=1&sentiment={{ sentiment or '' }}&source={{ source or '' }}&start={{ start or '' }}&end={{ end or '' }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">1</a>
         {% if start_page > 2 %}
         <span class="px-2 text-sm text-gray-500">...</span>
@@ -345,7 +365,7 @@
             {{ page_num }}
         </span>
         {% else %}
-        <a href="/t/{{ ticker }}?page={{ page_num }}&sort_by={{ sort_by }}" 
+        <a href="/t/{{ ticker }}?page={{ page_num }}&sentiment={{ sentiment or '' }}&source={{ source or '' }}&start={{ start or '' }}&end={{ end or '' }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             {{ page_num }}
         </a>
@@ -356,14 +376,14 @@
         {% if end_page < pagination.total_pages - 1 %}
         <span class="px-2 text-sm text-gray-500">...</span>
         {% endif %}
-        <a href="/t/{{ ticker }}?page={{ pagination.total_pages }}&sort_by={{ sort_by }}" 
+        <a href="/t/{{ ticker }}?page={{ pagination.total_pages }}&sentiment={{ sentiment or '' }}&source={{ source or '' }}&start={{ start or '' }}&end={{ end or '' }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             {{ pagination.total_pages }}
         </a>
         {% endif %}
         
         {% if pagination.has_next %}
-        <a href="/t/{{ ticker }}?page={{ pagination.page + 1 }}&sort_by={{ sort_by }}" 
+        <a href="/t/{{ ticker }}?page={{ pagination.page + 1 }}&sentiment={{ sentiment or '' }}&source={{ source or '' }}&start={{ start or '' }}&end={{ end or '' }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             Next
         </a>
@@ -381,25 +401,6 @@
 {% endif %}
 
 <script>
-// Sorting functionality - redirect with sort_by parameter
-const sortFilter = document.getElementById('sort-filter');
-
-if (sortFilter) {
-    sortFilter.addEventListener('change', function() {
-        const sortValue = this.value;
-        const currentUrl = new URL(window.location.href);
-        
-        // Update or add sort_by parameter
-        currentUrl.searchParams.set('sort_by', sortValue);
-        
-        // Reset to page 1 when changing sort
-        currentUrl.searchParams.set('page', '1');
-        
-        // Redirect to new URL
-        window.location.href = currentUrl.toString();
-    });
-}
-
 // Sentiment Area Chart
 const ticker = '{{ ticker }}';
 let sentimentChart = null;
@@ -615,3 +616,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
+

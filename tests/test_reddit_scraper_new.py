@@ -14,7 +14,7 @@ class TestRateLimiter:
     def test_rate_limiter_init(self):
         """Test RateLimiter initialization."""
         limiter = RateLimiter()
-        assert limiter.requests_per_minute == 90
+        assert limiter.requests_per_minute == 60
         assert limiter.request_times == []
 
     def test_rate_limiter_check_and_wait_empty(self):
@@ -70,7 +70,7 @@ class TestRedditScraper:
         scraper = RedditScraper()
         assert scraper.max_scraping_workers == 5
         assert scraper.batch_save_interval == 200
-        assert scraper.rate_limiter.requests_per_minute == 90
+        assert scraper.rate_limiter.requests_per_minute == 60
 
     def test_scraper_custom_config(self):
         """Test scraper with custom configuration."""

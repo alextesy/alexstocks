@@ -22,6 +22,7 @@ COPY app/config.py /app/app/config.py
 # Copy job-specific code from jobs/ directory
 COPY jobs/ingest /app/ingest
 COPY jobs/jobs /app/jobs
+COPY jobs/config /app/config
 
 # Set Python path
 ENV PYTHONPATH=/app
