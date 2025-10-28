@@ -1160,9 +1160,9 @@ async def ticker_page(
         StockPriceHistory,
         Ticker,
     )
-    from app.db.session import SessionLocal
+    from app.db.session import get_db as _get_db
 
-    db = SessionLocal()
+    # db is already injected via Depends(get_db)
     try:
         # Get ticker info
         ticker_obj = db.query(Ticker).filter(Ticker.symbol == ticker.upper()).first()
