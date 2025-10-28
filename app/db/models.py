@@ -142,7 +142,7 @@ class RedditThread(Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     thread_type: Mapped[str] = mapped_column(
         String(20), nullable=False
-    )  # 'daily', 'weekend'
+    )  # 'daily', 'weekend', 'top_post', 'other'
     url: Mapped[str] = mapped_column(String, nullable=False)
     author: Mapped[str | None] = mapped_column(String(50), nullable=True)
     upvotes: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)

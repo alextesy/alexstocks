@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -1139,10 +1139,17 @@ async def browse_tickers(
 
 @app.get("/t/{ticker}", response_class=HTMLResponse)
 async def ticker_page(
-    request: Request, ticker: str, page: int = 1, sort_by: str = "date-desc"
+    request: Request,
+    ticker: str,
+    page: int = 1,
+    sentiment: str | None = Query(default=None),
+    source: str | None = None,
+    start: str | None = None,  # YYYY-MM-DD
+    end: str | None = None,  # YYYY-MM-DD
+    _: None = Depends(rate_limit("ticker_page", requests=60, window_seconds=60)),
 ) -> HTMLResponse:
     """Ticker detail page with articles."""
-    from datetime import datetime, timedelta
+    from datetime import UTC, datetime, timedelta
 
     from sqlalchemy import desc, func
 
@@ -1167,8 +1174,8 @@ async def ticker_page(
             freshness_minutes=settings.STOCK_PRICE_FRESHNESS_MINUTES,
         )
 
-        # Get total article count for this ticker
-        total_article_count = (
+        # Unfiltered total article count for this ticker (for header metrics)
+        unfiltered_total_article_count = (
             db.query(func.count(ArticleTicker.article_id))
             .filter(ArticleTicker.ticker == ticker.upper())
             .scalar()
@@ -1372,87 +1379,119 @@ async def ticker_page(
                     chart_data = None
 
         if not ticker_obj:
-            # Return 404 or redirect to home
-            return templates.TemplateResponse(
-                "ticker.html",
-                {
-                    "request": request,
-                    "ticker": ticker,
-                    "articles": [],
-                    "ticker_obj": None,
-                    "stock_data": stock_data,
-                    "chart_data": chart_data,
-                    "total_article_count": total_article_count,
-                    "today_article_count": today_article_count,
-                    "article_change": today_article_count - yesterday_article_count,
-                    "article_change_percent": article_change_percent,
-                    "unique_users_today": unique_users_today,
-                    "users_change": users_change,
-                    "users_change_percent": users_change_percent,
-                    "pagination": {
-                        "page": 1,
-                        "total_pages": 1,
-                        "has_next": False,
-                        "has_prev": False,
-                    },
-                },
-            )
+            # Ticker doesn't exist - return 404
+            raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
 
         # Pagination settings
         articles_per_page = 50
         offset = (page - 1) * articles_per_page
 
-        # Get articles for this ticker with matched terms (paginated)
-        articles_query = (
+        # Build filtered base query for this ticker
+        filtered_query_base = (
             db.query(Article, ArticleTicker.confidence, ArticleTicker.matched_terms)
             .join(ArticleTicker, Article.id == ArticleTicker.article_id)
             .filter(ArticleTicker.ticker == ticker.upper())
         )
 
-        # Apply sorting based on sort_by parameter
-        if sort_by == "date-asc":
-            articles_query = articles_query.order_by(Article.published_at.asc())
-        elif sort_by == "sentiment-desc":
-            articles_query = articles_query.order_by(
-                Article.sentiment.desc().nulls_last()
-            )
-        elif sort_by == "sentiment-asc":
-            articles_query = articles_query.order_by(
-                Article.sentiment.asc().nulls_last()
-            )
-        elif sort_by == "engagement-desc":
-            articles_query = articles_query.order_by(
-                Article.upvotes.desc().nulls_last()
-            )
-        else:  # default: date-desc
-            articles_query = articles_query.order_by(Article.published_at.desc())
+        # Apply server-side filters
+        # Sentiment thresholds (aligned with analytics)
+        positive_threshold = 0.05
+        negative_threshold = -0.05
+        # Normalize sentiment from query: allow empty/invalid -> None
+        if sentiment is not None:
+            sentiment = sentiment.strip().lower()
+            if sentiment == "":
+                sentiment = None
+            elif sentiment not in {"positive", "neutral", "negative"}:
+                sentiment = None
 
-        articles_query = articles_query.offset(offset).limit(articles_per_page)
+        if sentiment:
+            if sentiment == "positive":
+                filtered_query_base = filtered_query_base.filter(
+                    Article.sentiment.isnot(None),
+                    Article.sentiment > positive_threshold,
+                )
+            elif sentiment == "negative":
+                filtered_query_base = filtered_query_base.filter(
+                    Article.sentiment.isnot(None),
+                    Article.sentiment < negative_threshold,
+                )
+            else:  # neutral
+                filtered_query_base = filtered_query_base.filter(
+                    Article.sentiment.isnot(None),
+                    Article.sentiment >= negative_threshold,
+                    Article.sentiment <= positive_threshold,
+                )
 
-        articles_with_confidence = articles_query.all()
+        if source:
+            filtered_query_base = filtered_query_base.filter(Article.source == source)
 
-        # Calculate pagination info
-        total_pages = (total_article_count + articles_per_page - 1) // articles_per_page
+        # Date range filters (inclusive of start, inclusive of end day)
+        if start:
+            try:
+                start_dt = datetime.fromisoformat(start)
+                if start_dt.tzinfo is None:
+                    start_dt = start_dt.replace(tzinfo=UTC)
+                filtered_query_base = filtered_query_base.filter(
+                    Article.published_at >= start_dt
+                )
+            except Exception:
+                logger.warning("invalid_start_date", extra={"value": start})
+
+        if end:
+            try:
+                end_dt = datetime.fromisoformat(end)
+                if end_dt.tzinfo is None:
+                    end_dt = end_dt.replace(tzinfo=UTC)
+                # Add one day to include the entire end date
+                filtered_query_base = filtered_query_base.filter(
+                    Article.published_at < (end_dt + timedelta(days=1))
+                )
+            except Exception:
+                logger.warning("invalid_end_date", extra={"value": end})
+
+        # Compute filtered count AFTER filters for proper pagination
+        filtered_article_count = filtered_query_base.count()
+
+        # Always order newest first, then paginate
+        articles_with_confidence = (
+            filtered_query_base.order_by(Article.published_at.desc())
+            .offset(offset)
+            .limit(articles_per_page)
+            .all()
+        )
+
+        # Calculate pagination info (based on filtered results)
+        total_pages = (
+            filtered_article_count + articles_per_page - 1
+        ) // articles_per_page
         pagination = {
             "page": page,
             "total_pages": total_pages,
             "has_next": page < total_pages,
             "has_prev": page > 1,
-            "total_articles": total_article_count,
+            "total_articles": filtered_article_count,
         }
 
         # Format articles for template
         articles = []
         for article, confidence, matched_terms in articles_with_confidence:
-            # For Reddit comments, use the comment text as title and reddit_url as link
-            if article.source == "reddit_comment":
-                title = (
-                    article.text[:100] + "..."
-                    if len(article.text) > 100
-                    else article.text
-                )
+            # Source-specific shaping
+            if article.source in {"reddit_comment", "reddit_post", "reddit"}:
+                if article.source == "reddit_comment":
+                    title = (
+                        article.text[:100] + "..."
+                        if len(article.text) > 100
+                        else article.text
+                    )
+                else:
+                    title = article.title
                 url = article.reddit_url or article.url
-                author_info = f"u/{article.author}" if article.author else "Unknown"
+                author_info = (
+                    f"u/{article.author}"
+                    if article.author
+                    else ("Unknown" if article.source == "reddit_comment" else "")
+                )
                 subreddit_info = f"r/{article.subreddit}" if article.subreddit else ""
             else:
                 title = article.title
@@ -1471,13 +1510,26 @@ async def ticker_page(
                 "confidence": confidence,
                 "author": author_info,
                 "subreddit": subreddit_info,
+                "num_comments": article.num_comments or 0,
                 "full_text": (
-                    article.text if article.source == "reddit_comment" else None
+                    article.text
+                    if article.source in {"reddit_comment", "reddit_post", "reddit"}
+                    else None
                 ),
                 "matched_terms": matched_terms or [],
                 "upvotes": article.upvotes or 0,
             }
             articles.append(article_dict)
+
+        # Build list of distinct sources available for this ticker (for filter dropdown)
+        sources_available = [
+            row[0]
+            for row in db.query(Article.source)
+            .join(ArticleTicker, ArticleTicker.article_id == Article.id)
+            .filter(ArticleTicker.ticker == ticker.upper())
+            .distinct()
+            .all()
+        ]
 
         return templates.TemplateResponse(
             "ticker.html",
@@ -1488,7 +1540,8 @@ async def ticker_page(
                 "articles": articles,
                 "stock_data": stock_data,
                 "chart_data": chart_data,
-                "total_article_count": total_article_count,
+                "total_article_count": unfiltered_total_article_count,
+                "filtered_article_count": filtered_article_count,
                 "today_article_count": today_article_count,
                 "article_change": today_article_count - yesterday_article_count,
                 "article_change_percent": article_change_percent,
@@ -1496,7 +1549,11 @@ async def ticker_page(
                 "users_change": users_change,
                 "users_change_percent": users_change_percent,
                 "pagination": pagination,
-                "sort_by": sort_by,
+                "sentiment": sentiment,
+                "source": source,
+                "start": start,
+                "end": end,
+                "sources_available": sources_available,
             },
         )
     finally:

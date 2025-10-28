@@ -38,7 +38,8 @@ def setup_logging(verbose: bool = False) -> None:
 
 
 def run_incremental(
-    subreddit: str = "wallstreetbets",
+    config_path: str | None = None,
+    subreddit: str | None = None,
     max_threads: int = 3,
     max_replace_more: int | None = 32,
     verbose: bool = False,
@@ -47,13 +48,18 @@ def run_incremental(
     Run incremental scraping (for 15-min cron jobs).
 
     Args:
-        subreddit: Subreddit to scrape
-        max_threads: Max threads to process
-        max_replace_more: Max "more comments" expansion
+        config_path: Path to config file (if None, uses default)
+        subreddit: Specific subreddit to scrape (if None, scrapes all enabled in config)
+        max_threads: DEPRECATED - kept for backwards compat
+        max_replace_more: DEPRECATED - kept for backwards compat
         verbose: Enable verbose logging
     """
     setup_logging(verbose)
-    logger.info(f"🚀 Starting INCREMENTAL scraping for r/{subreddit}")
+
+    if subreddit:
+        logger.info(f"🚀 Starting INCREMENTAL scraping for r/{subreddit}")
+    else:
+        logger.info("🚀 Starting INCREMENTAL scraping (all enabled subreddits)")
 
     try:
         # Get credentials
@@ -63,8 +69,8 @@ def run_incremental(
         sys.exit(1)
 
     try:
-        # Initialize scraper
-        scraper = RedditScraper()
+        # Initialize scraper with config
+        scraper = RedditScraper(config_path=config_path)
         scraper.initialize_reddit(client_id, client_secret, user_agent)
 
         # Run incremental scrape
@@ -98,6 +104,7 @@ def run_backfill(
     subreddit: str,
     start_date: str,
     end_date: str,
+    config_path: str | None = None,
     max_replace_more: int | None = 32,
     verbose: bool = False,
 ) -> None:
@@ -108,6 +115,7 @@ def run_backfill(
         subreddit: Subreddit to scrape
         start_date: Start date (YYYY-MM-DD)
         end_date: End date (YYYY-MM-DD)
+        config_path: Path to config file (if None, uses default)
         max_replace_more: Max "more comments" expansion
         verbose: Enable verbose logging
     """
@@ -136,8 +144,8 @@ def run_backfill(
         sys.exit(1)
 
     try:
-        # Initialize scraper
-        scraper = RedditScraper()
+        # Initialize scraper with config
+        scraper = RedditScraper(config_path=config_path)
         scraper.initialize_reddit(client_id, client_secret, user_agent)
 
         # Run backfill
@@ -169,11 +177,16 @@ def run_backfill(
         sys.exit(1)
 
 
-def show_status(subreddit: str = "wallstreetbets", verbose: bool = False) -> None:
+def show_status(
+    config_path: str | None = None,
+    subreddit: str = "wallstreetbets",
+    verbose: bool = False,
+) -> None:
     """
     Show scraping status.
 
     Args:
+        config_path: Path to config file (if None, uses default)
         subreddit: Subreddit to check
         verbose: Enable verbose logging
     """
@@ -188,7 +201,7 @@ def show_status(subreddit: str = "wallstreetbets", verbose: bool = False) -> Non
 
     try:
         # Use RedditScraper for status
-        scraper = RedditScraper()
+        scraper = RedditScraper(config_path=config_path)
         scraper.initialize_reddit(client_id, client_secret, user_agent)
 
         status = scraper.get_scraping_status(subreddit, check_live_counts=True)
@@ -233,24 +246,27 @@ def show_status(subreddit: str = "wallstreetbets", verbose: bool = False) -> Non
 def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Production Reddit Scraper CLI",
+        description="Production Reddit Scraper CLI - Multi-subreddit support with YAML config",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Incremental scraping (for cron)
+  # Incremental scraping (all enabled subreddits from config)
   python -m ingest.reddit_scraper_cli --mode incremental
 
+  # Incremental with custom config
+  python -m ingest.reddit_scraper_cli --mode incremental --config my_config.yaml
+
+  # Incremental for specific subreddit (overrides config)
+  python -m ingest.reddit_scraper_cli --mode incremental --subreddit wallstreetbets
+
   # Backfill historical data
-  python -m ingest.reddit_scraper_cli --mode backfill --start 2025-09-01 --end 2025-09-30
+  python -m ingest.reddit_scraper_cli --mode backfill --subreddit wallstreetbets --start 2025-09-01 --end 2025-09-30
 
   # Check status
   python -m ingest.reddit_scraper_cli --mode status
 
-  # Verbose incremental
+  # Verbose mode
   python -m ingest.reddit_scraper_cli --mode incremental --verbose
-
-  # Custom subreddit
-  python -m ingest.reddit_scraper_cli --mode incremental --subreddit stocks
         """,
     )
 
@@ -263,10 +279,15 @@ Examples:
     )
 
     parser.add_argument(
+        "--config",
+        type=str,
+        help="Path to YAML config file (default: config/reddit_scraper_config.yaml)",
+    )
+
+    parser.add_argument(
         "--subreddit",
         type=str,
-        default="wallstreetbets",
-        help="Subreddit to scrape (default: wallstreetbets)",
+        help="Specific subreddit to scrape (if not set, uses enabled subreddits from config)",
     )
 
     parser.add_argument(
@@ -314,21 +335,29 @@ Examples:
     # Route to appropriate handler
     if args.mode == "incremental":
         run_incremental(
+            config_path=args.config,
             subreddit=args.subreddit,
             max_threads=args.max_threads,
             max_replace_more=max_replace_more,
             verbose=args.verbose,
         )
     elif args.mode == "backfill":
+        if not args.subreddit:
+            parser.error("--mode backfill requires --subreddit")
         run_backfill(
             subreddit=args.subreddit,
             start_date=args.start,
             end_date=args.end,
+            config_path=args.config,
             max_replace_more=max_replace_more,
             verbose=args.verbose,
         )
     elif args.mode == "status":
-        show_status(subreddit=args.subreddit, verbose=args.verbose)
+        show_status(
+            config_path=args.config,
+            subreddit=args.subreddit or "wallstreetbets",
+            verbose=args.verbose,
+        )
 
 
 if __name__ == "__main__":

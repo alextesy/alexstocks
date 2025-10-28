@@ -1,7 +1,9 @@
 """
-Production-ready Reddit scraper for WSB daily/weekend discussions.
+Production-ready Reddit scraper for daily discussions and top posts.
 
 Supports:
+- Multiple subreddits via YAML config
+- Daily discussions and top posts
 - Historical backfill by date range (inclusive, UTC)
 - Incremental runs every 15 min
 - Rate-limit aware with exponential backoff
@@ -15,6 +17,7 @@ import re
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import praw
@@ -29,6 +32,7 @@ from app.db.models import Article, ArticleTicker, RedditThread, ScrapingStatus, 
 from app.db.session import SessionLocal
 
 from .linker import TickerLinker
+from .reddit_config import RedditScraperConfig, SubredditConfig, load_config
 from .reddit_discussion_scraper import RedditDiscussionScraper
 
 load_dotenv()
@@ -54,7 +58,7 @@ class ScrapeStats:
 class RateLimiter:
     """Advanced rate limiter with exponential backoff."""
 
-    requests_per_minute: int = 90  # Stay under 100 QPM limit
+    requests_per_minute: int = 60  # Reddit OAuth limit (conservative)
     request_times: list[float] | None = None  # Track request times
 
     def __post_init__(self):
@@ -136,9 +140,11 @@ class RateLimiter:
 
 class RedditScraper:
     """
-    Production Reddit scraper for WSB daily/weekend discussions.
+    Production Reddit scraper for daily discussions and top posts.
 
     Implements PRD requirements:
+    - Multi-subreddit support via YAML config
+    - Daily discussions and top posts
     - Backfill by date range
     - Incremental with stateful tracking
     - Advanced rate limiting
@@ -148,22 +154,72 @@ class RedditScraper:
 
     def __init__(
         self,
-        max_scraping_workers: int = 5,
-        batch_save_interval: int = 200,
-        requests_per_minute: int = 90,
+        config_path: str | Path | None = None,
+        max_scraping_workers: int | None = None,
+        batch_save_interval: int | None = None,
+        requests_per_minute: int | None = None,
     ):
         """
         Initialize the production scraper.
 
         Args:
-            max_scraping_workers: Workers for ticker linking
-            batch_save_interval: Save every N comments
-            requests_per_minute: QPM limit (default 90 for safety)
+            config_path: Path to YAML config file (if None, uses default)
+            max_scraping_workers: Workers for ticker linking (overrides config)
+            batch_save_interval: Save every N comments (overrides config)
+            requests_per_minute: QPM limit (overrides config)
         """
+        # Load config
+        if config_path:
+            self.config = load_config(config_path)
+        else:
+            # Try default config paths
+            from .reddit_config import get_default_config_path
+
+            default_path = get_default_config_path()
+            if default_path.exists():
+                self.config = load_config(default_path)
+                logger.info(f"Loaded config from: {default_path}")
+            else:
+                # Fallback to minimal config if no file found
+                logger.warning(
+                    f"No config file found at {default_path}, using defaults"
+                )
+                self.config = RedditScraperConfig.from_dict(
+                    {
+                        "rate_limiting": {"requests_per_minute": 60},
+                        "scraping": {"batch_save_interval": 200, "max_workers": 5},
+                        "subreddits": [
+                            {
+                                "name": "wallstreetbets",
+                                "enabled": True,
+                                "daily_discussion_keywords": [
+                                    "daily discussion",
+                                    "weekend discussion",
+                                    "moves tomorrow",
+                                ],
+                                "limits": {
+                                    "daily_discussion_max_comments": -1,
+                                    "regular_post_max_comments": 100,
+                                    "max_top_posts_per_run": 100,
+                                },
+                            }
+                        ],
+                    }
+                )
+
+        # Apply overrides
+        self.max_scraping_workers = (
+            max_scraping_workers or self.config.scraping.max_workers
+        )
+        self.batch_save_interval = (
+            batch_save_interval or self.config.scraping.batch_save_interval
+        )
+        requests_per_min = (
+            requests_per_minute or self.config.rate_limiting.requests_per_minute
+        )
+
         self.discussion_scraper = RedditDiscussionScraper()
-        self.max_scraping_workers = max_scraping_workers
-        self.batch_save_interval = batch_save_interval
-        self.rate_limiter = RateLimiter(requests_per_minute=requests_per_minute)
+        self.rate_limiter = RateLimiter(requests_per_minute=requests_per_min)
         self.reddit: praw.Reddit | None = None
 
     def initialize_reddit(
@@ -172,6 +228,44 @@ class RedditScraper:
         """Initialize PRAW Reddit instance."""
         self.discussion_scraper.initialize_reddit(client_id, client_secret, user_agent)
         self.reddit = self.discussion_scraper.reddit
+
+    def fetch_top_posts(
+        self, subreddit_name: str, subreddit_config: SubredditConfig, limit: int = 100
+    ) -> list[Submission]:
+        """
+        Fetch top posts from last 24 hours, excluding daily discussions.
+
+        Args:
+            subreddit_name: Subreddit name
+            subreddit_config: Config with daily discussion keywords
+            limit: Max posts to fetch
+
+        Returns:
+            List of top post submissions (excluding daily discussions)
+        """
+        if not self.reddit:
+            raise RuntimeError("Reddit instance not initialized")
+
+        try:
+            subreddit = self.reddit.subreddit(subreddit_name)
+            all_top_posts = list(subreddit.top("day", limit=limit))
+
+            # Filter out daily discussions using config keywords
+            top_posts = []
+            for post in all_top_posts:
+                if not subreddit_config.is_daily_discussion(post.title):
+                    top_posts.append(post)
+
+            logger.info(
+                f"📈 Fetched {len(top_posts)} top posts from r/{subreddit_name} "
+                f"(filtered {len(all_top_posts) - len(top_posts)} daily discussions)"
+            )
+
+            return top_posts
+
+        except Exception as e:
+            logger.error(f"❌ Error fetching top posts from r/{subreddit_name}: {e}")
+            return []
 
     def find_threads_by_date(
         self, subreddit_name: str, target_date: datetime
@@ -339,11 +433,269 @@ class RedditScraper:
         row = result.first()
         return row[0] if row else None
 
+    def scrape_posts_bulk(
+        self,
+        db: Session,
+        submissions: list[Submission],
+        tickers: list[Ticker],
+        subreddit_config: SubredditConfig | None = None,
+    ) -> dict[str, int]:
+        """
+        Scrape multiple posts in bulk - MUCH faster than one-by-one.
+
+        Args:
+            db: Database session
+            submissions: List of Reddit submissions
+            tickers: List of tickers for linking
+            subreddit_config: Subreddit configuration
+
+        Returns:
+            Dictionary with scraping statistics
+        """
+        if not submissions:
+            return {
+                "total_comments": 0,
+                "new_comments": 0,
+                "processed_articles": 0,
+                "ticker_links": 0,
+                "batches_saved": 0,
+                "rate_limit_events": 0,
+            }
+
+        start_time = time.time()
+
+        # Get all reddit IDs at once
+        submission_ids = [sub.id for sub in submissions]
+
+        # Batch check: which posts already exist?
+        existing_ids = set(
+            db.execute(
+                select(Article.reddit_id).where(Article.reddit_id.in_(submission_ids))
+            )
+            .scalars()
+            .all()
+        )
+
+        # Filter to only new posts
+        new_submissions = [sub for sub in submissions if sub.id not in existing_ids]
+
+        if not new_submissions:
+            logger.info(f"⏭️  All {len(submissions)} posts already exist, skipping")
+            return {
+                "total_comments": 0,
+                "new_comments": 0,
+                "processed_articles": 0,
+                "ticker_links": 0,
+                "batches_saved": 0,
+                "rate_limit_events": 0,
+            }
+
+        logger.info(
+            f"📦 Bulk processing {len(new_submissions)} new posts (skipped {len(existing_ids)} existing)"
+        )
+
+        # Initialize ticker linker once
+        linker = TickerLinker(tickers, max_scraping_workers=self.max_scraping_workers)
+
+        # Prepare all articles and ticker links
+        articles_to_add = []
+        article_tickers_to_add = []
+
+        for submission in new_submissions:
+            # Create Article for the post
+            published_at = datetime.fromtimestamp(submission.created_utc, tz=UTC)
+
+            article = Article(
+                source="reddit_post",
+                url=f"https://reddit.com{submission.permalink}",
+                published_at=published_at,
+                title=submission.title,
+                text=submission.selftext if submission.selftext else None,
+                lang="en",
+                reddit_id=submission.id,
+                subreddit=submission.subreddit.display_name,
+                author=submission.author.name if submission.author else "[deleted]",
+                upvotes=submission.score,
+                num_comments=submission.num_comments,
+                reddit_url=f"https://reddit.com{submission.permalink}",
+            )
+            articles_to_add.append(article)
+
+        # Bulk insert articles
+        db.bulk_save_objects(articles_to_add, return_defaults=True)
+        db.flush()
+
+        # Now link tickers for all articles
+        total_ticker_links = 0
+        for article in articles_to_add:
+            ticker_links = linker.link_article(article, use_title_only=False)
+
+            for link in ticker_links:
+                article_ticker = ArticleTicker(
+                    article_id=article.id,
+                    ticker=link.ticker,
+                    confidence=link.confidence,
+                    matched_terms=link.matched_terms,
+                )
+                article_tickers_to_add.append(article_ticker)
+
+            total_ticker_links += len(ticker_links)
+
+        # Bulk insert ticker links
+        if article_tickers_to_add:
+            db.bulk_save_objects(article_tickers_to_add)
+
+        db.commit()
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.info(
+            f"✅ Bulk saved {len(articles_to_add)} posts with {total_ticker_links} ticker links in {duration_ms}ms "
+            f"({duration_ms // len(articles_to_add) if articles_to_add else 0}ms per post)"
+        )
+
+        return {
+            "total_comments": 0,
+            "new_comments": 0,
+            "processed_articles": len(articles_to_add),
+            "ticker_links": total_ticker_links,
+            "batches_saved": 1,
+            "rate_limit_events": 0,
+        }
+
+    def scrape_post_only(
+        self,
+        db: Session,
+        submission: Submission,
+        tickers: list[Ticker],
+        subreddit_config: SubredditConfig | None = None,
+    ) -> dict[str, int]:
+        """
+        Scrape just the post itself (no comments) - fast mode.
+
+        Args:
+            db: Database session
+            submission: Reddit submission
+            tickers: List of tickers for linking
+            subreddit_config: Subreddit configuration
+
+        Returns:
+            Dictionary with scraping statistics
+        """
+        try:
+            start_time = time.time()
+
+            # Check if post already exists
+            existing = db.execute(
+                select(Article).where(Article.reddit_id == submission.id)
+            ).scalar_one_or_none()
+
+            if existing:
+                logger.info(f"⏭️  Post already exists: {submission.title[:60]}...")
+                return {
+                    "total_comments": 0,
+                    "new_comments": 0,
+                    "processed_articles": 0,
+                    "ticker_links": 0,
+                    "batches_saved": 0,
+                    "rate_limit_events": 0,
+                }
+
+            # Determine thread type
+            title_lower = submission.title.lower()
+            if subreddit_config and subreddit_config.is_daily_discussion(
+                submission.title
+            ):
+                if "weekend" in title_lower:
+                    thread_type = "weekend"
+                else:
+                    thread_type = "daily"
+            else:
+                thread_type = "top_post"
+
+            # Create Article for the post itself
+            published_at = datetime.fromtimestamp(submission.created_utc, tz=UTC)
+
+            article = Article(
+                source="reddit_post",
+                url=f"https://reddit.com{submission.permalink}",
+                published_at=published_at,
+                title=submission.title,
+                text=submission.selftext if submission.selftext else None,
+                lang="en",
+                reddit_id=submission.id,
+                subreddit=submission.subreddit.display_name,
+                author=submission.author.name if submission.author else "[deleted]",
+                upvotes=submission.score,
+                num_comments=submission.num_comments,  # Track total comments
+                reddit_url=f"https://reddit.com{submission.permalink}",
+            )
+
+            db.add(article)
+            db.flush()
+
+            # Link tickers
+            linker = TickerLinker(
+                tickers, max_scraping_workers=self.max_scraping_workers
+            )
+            ticker_links = linker.link_article(article, use_title_only=False)
+
+            # Save ticker links
+            for link in ticker_links:
+                article_ticker = ArticleTicker(
+                    article_id=article.id,
+                    ticker=link.ticker,
+                    confidence=link.confidence,
+                    matched_terms=link.matched_terms,
+                )
+                db.add(article_ticker)
+
+            db.commit()
+
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.info(
+                f"✅ Post saved ({thread_type}): {submission.title[:60]}... "
+                f"[{submission.score} upvotes, {submission.num_comments} comments, "
+                f"{len(ticker_links)} tickers] {duration_ms}ms"
+            )
+
+            return {
+                "total_comments": 0,
+                "new_comments": 0,
+                "processed_articles": 1,
+                "ticker_links": len(ticker_links),
+                "batches_saved": 1,
+                "rate_limit_events": 0,
+            }
+
+        except IntegrityError:
+            db.rollback()
+            logger.warning(f"⚠️  Post already exists (duplicate): {submission.id}")
+            return {
+                "total_comments": 0,
+                "new_comments": 0,
+                "processed_articles": 0,
+                "ticker_links": 0,
+                "batches_saved": 0,
+                "rate_limit_events": 0,
+            }
+        except Exception as e:
+            logger.error(f"❌ Error scraping post: {e}")
+            db.rollback()
+            return {
+                "total_comments": 0,
+                "new_comments": 0,
+                "processed_articles": 0,
+                "ticker_links": 0,
+                "batches_saved": 0,
+                "rate_limit_events": 0,
+            }
+
     def scrape_thread(
         self,
         db: Session,
         submission: Submission,
         tickers: list[Ticker],
+        subreddit_config: SubredditConfig | None = None,
         skip_existing: bool = True,
         max_replace_more: int | None = None,
         use_last_seen: bool = True,
@@ -355,13 +707,18 @@ class RedditScraper:
             db: Database session
             submission: Reddit submission
             tickers: List of tickers for linking
+            subreddit_config: Subreddit configuration (for thread type detection)
             skip_existing: Skip comments already in DB
-            max_replace_more: Max "more comments" expansion
+            max_replace_more: Max "more comments" expansion (0 = post only, no comments)
             use_last_seen: Use last_seen timestamp for filtering
 
         Returns:
             Dictionary with scraping statistics
         """
+        # Fast path: If max_replace_more is 0, just scrape the post itself
+        if max_replace_more == 0:
+            return self.scrape_post_only(db, submission, tickers, subreddit_config)
+
         try:
             start_time = time.time()
 
@@ -371,14 +728,24 @@ class RedditScraper:
             ).scalar_one_or_none()
 
             if not thread_record:
-                # Determine thread type
+                # Determine thread type using config keywords
                 title_lower = submission.title.lower()
-                if "daily discussion" in title_lower:
+                if subreddit_config and subreddit_config.is_daily_discussion(
+                    submission.title
+                ):
+                    # Further classify daily vs weekend
+                    if "weekend" in title_lower:
+                        thread_type = "weekend"
+                    else:
+                        thread_type = "daily"
+                elif "daily discussion" in title_lower:
                     thread_type = "daily"
                 elif "weekend discussion" in title_lower:
                     thread_type = "weekend"
                 else:
-                    thread_type = "other"
+                    thread_type = (
+                        "top_post"  # Assume non-discussion threads are top posts
+                    )
 
                 thread_record = RedditThread(
                     reddit_id=submission.id,
@@ -395,10 +762,10 @@ class RedditScraper:
                 )
                 db.add(thread_record)
                 db.flush()
-                logger.info(f"🆕 New thread: {submission.title}")
+                logger.info(f"🆕 New thread ({thread_type}): {submission.title}")
             else:
                 logger.info(
-                    f"📝 Existing thread: {submission.title} "
+                    f"📝 Existing thread ({thread_record.thread_type}): {submission.title} "
                     f"(scraped: {thread_record.scraped_comments}/{thread_record.total_comments})"
                 )
 
@@ -585,61 +952,113 @@ class RedditScraper:
                 "rate_limit_events": 0,
             }
 
-    def scrape_incremental(
+    def scrape_subreddit_incremental(
         self,
-        subreddit_name: str = "wallstreetbets",
-        max_threads: int = 3,
-        max_replace_more: int | None = 32,
+        db: Session,
+        subreddit_config: SubredditConfig,
+        tickers: list[Ticker],
     ) -> ScrapeStats:
         """
-        Run incremental scraping (for 15-min cron).
+        Scrape both daily discussions AND top posts for a single subreddit.
 
         Args:
-            subreddit_name: Subreddit to scrape
-            max_threads: Max threads to process
-            max_replace_more: Max "more comments" expansion
+            db: Database session
+            subreddit_config: Subreddit configuration
+            tickers: List of tickers for linking
 
         Returns:
-            ScrapeStats with results
+            ScrapeStats with combined results
         """
-        if not self.reddit:
-            raise RuntimeError("Reddit instance not initialized")
-
         start_time = time.time()
         stats = ScrapeStats()
+        subreddit_name = subreddit_config.name
 
-        db = SessionLocal()
-        try:
-            # Load tickers
-            tickers = db.execute(select(Ticker)).scalars().all()
-            if not tickers:
-                logger.error("❌ No tickers found in database")
-                return stats
+        logger.info(f"\n{'=' * 60}")
+        logger.info(f"📊 SCRAPING SUBREDDIT: r/{subreddit_name}")
+        logger.info(f"{'=' * 60}")
 
-            # Find latest threads
-            discussion_threads = self.discussion_scraper.find_daily_discussion_threads(
-                subreddit_name, limit=20
-            )
+        # 1. Scrape daily discussions (ALL matching threads)
+        logger.info("\n🗓️  Phase 1: Daily Discussions")
+        discussion_threads = self.discussion_scraper.find_daily_discussion_threads(
+            subreddit_name, limit=20
+        )
 
-            if not discussion_threads:
-                logger.warning(f"⚠️  No discussion threads found in r/{subreddit_name}")
-                return stats
+        # Filter to only threads matching config keywords
+        matching_discussions = []
+        for thread in discussion_threads:
+            if subreddit_config.is_daily_discussion(thread.title):
+                matching_discussions.append(thread)
 
-            # Process threads
-            processed_threads = discussion_threads[:max_threads]
+        logger.info(
+            f"   Found {len(matching_discussions)} discussion threads "
+            f"(filtered from {len(discussion_threads)} total)"
+        )
+
+        # Scrape ALL matching discussions (no limit)
+        for i, thread in enumerate(matching_discussions, 1):
             logger.info(
-                f"🚀 Starting incremental scrape: {len(processed_threads)} threads from r/{subreddit_name}"
+                f"\n   📝 Discussion {i}/{len(matching_discussions)}: {thread.title}"
             )
 
-            for i, thread in enumerate(processed_threads, 1):
-                logger.info(f"\n📊 Thread {i}/{len(processed_threads)}: {thread.title}")
+            thread_stats = self.scrape_thread(
+                db,
+                thread,
+                tickers,
+                subreddit_config=subreddit_config,
+                skip_existing=True,
+                max_replace_more=subreddit_config.limits.daily_discussion_max_comments,
+                use_last_seen=True,
+            )
+
+            # Aggregate stats
+            stats.threads_processed += 1
+            stats.total_comments += thread_stats["total_comments"]
+            stats.new_comments += thread_stats["new_comments"]
+            stats.articles_created += thread_stats["processed_articles"]
+            stats.ticker_links += thread_stats["ticker_links"]
+            stats.batches_saved += thread_stats["batches_saved"]
+            stats.rate_limit_events += thread_stats["rate_limit_events"]
+
+        # 2. Scrape top posts (up to limit)
+        logger.info("\n📈 Phase 2: Top Posts")
+        top_posts = self.fetch_top_posts(
+            subreddit_name,
+            subreddit_config,
+            limit=subreddit_config.limits.max_top_posts_per_run,
+        )
+
+        logger.info(f"   Processing {len(top_posts)} top posts...")
+
+        # Check if we should use bulk processing (when max_comments is 0)
+        if subreddit_config.limits.regular_post_max_comments == 0 and top_posts:
+            # FAST PATH: Bulk process all posts at once
+            thread_stats = self.scrape_posts_bulk(
+                db,
+                top_posts,
+                tickers,
+                subreddit_config=subreddit_config,
+            )
+
+            # Aggregate stats
+            stats.threads_processed += len(top_posts)
+            stats.total_comments += thread_stats["total_comments"]
+            stats.new_comments += thread_stats["new_comments"]
+            stats.articles_created += thread_stats["processed_articles"]
+            stats.ticker_links += thread_stats["ticker_links"]
+            stats.batches_saved += thread_stats["batches_saved"]
+            stats.rate_limit_events += thread_stats["rate_limit_events"]
+        else:
+            # SLOW PATH: Process posts one-by-one (when scraping comments)
+            for i, post in enumerate(top_posts, 1):
+                logger.info(f"\n   📌 Post {i}/{len(top_posts)}: {post.title[:60]}...")
 
                 thread_stats = self.scrape_thread(
                     db,
-                    thread,
-                    list(tickers),
+                    post,
+                    tickers,
+                    subreddit_config=subreddit_config,
                     skip_existing=True,
-                    max_replace_more=max_replace_more,
+                    max_replace_more=subreddit_config.limits.regular_post_max_comments,
                     use_last_seen=True,
                 )
 
@@ -652,7 +1071,112 @@ class RedditScraper:
                 stats.batches_saved += thread_stats["batches_saved"]
                 stats.rate_limit_events += thread_stats["rate_limit_events"]
 
-            stats.duration_ms = int((time.time() - start_time) * 1000)
+        stats.duration_ms = int((time.time() - start_time) * 1000)
+
+        logger.info(f"\n✅ r/{subreddit_name} complete:")
+        logger.info(f"   Discussions: {len(matching_discussions)}")
+        logger.info(f"   Top posts: {len(top_posts)}")
+        logger.info(
+            f"   Comments: {stats.new_comments} new / {stats.total_comments} total"
+        )
+        logger.info(f"   Articles: {stats.articles_created}")
+        logger.info(f"   Ticker links: {stats.ticker_links}")
+
+        return stats
+
+    def scrape_incremental(
+        self,
+        subreddit_name: str | None = None,
+        max_threads: int = 3,
+        max_replace_more: int | None = 32,
+    ) -> ScrapeStats:
+        """
+        Run incremental scraping for all enabled subreddits (or specific one).
+
+        Args:
+            subreddit_name: Specific subreddit (if None, scrape all enabled)
+            max_threads: DEPRECATED - no longer used (kept for backwards compat)
+            max_replace_more: DEPRECATED - use config instead (kept for backwards compat)
+
+        Returns:
+            ScrapeStats with combined results
+        """
+        if not self.reddit:
+            raise RuntimeError("Reddit instance not initialized")
+
+        start_time = time.time()
+        overall_stats = ScrapeStats()
+
+        db = SessionLocal()
+        try:
+            # Load tickers
+            tickers = db.execute(select(Ticker)).scalars().all()
+            if not tickers:
+                logger.error("❌ No tickers found in database")
+                return overall_stats
+
+            # Determine which subreddits to scrape
+            if subreddit_name:
+                # Specific subreddit requested (backwards compatibility)
+                subreddit_config = self.config.get_subreddit_config(subreddit_name)
+                if not subreddit_config:
+                    logger.warning(
+                        f"⚠️  Subreddit r/{subreddit_name} not in config, using defaults"
+                    )
+                    # Create default config for this subreddit
+                    from .reddit_config import SubredditConfig, SubredditLimits
+
+                    subreddit_config = SubredditConfig(
+                        name=subreddit_name,
+                        enabled=True,
+                        daily_discussion_keywords=[
+                            "daily discussion",
+                            "weekend discussion",
+                            "moves tomorrow",
+                        ],
+                        limits=SubredditLimits(
+                            daily_discussion_max_comments=None,
+                            regular_post_max_comments=100,
+                            max_top_posts_per_run=100,
+                        ),
+                    )
+                subreddits_to_scrape = [subreddit_config]
+            else:
+                # Scrape all enabled subreddits from config
+                subreddits_to_scrape = self.config.get_enabled_subreddits()
+
+            if not subreddits_to_scrape:
+                logger.warning("⚠️  No enabled subreddits to scrape")
+                return overall_stats
+
+            logger.info(
+                f"🚀 Starting incremental scrape for {len(subreddits_to_scrape)} subreddit(s): "
+                f"{', '.join(sub.name for sub in subreddits_to_scrape)}"
+            )
+
+            # Scrape each subreddit
+            for sub_config in subreddits_to_scrape:
+                try:
+                    sub_stats = self.scrape_subreddit_incremental(
+                        db, sub_config, list(tickers)
+                    )
+
+                    # Aggregate stats
+                    overall_stats.threads_processed += sub_stats.threads_processed
+                    overall_stats.total_comments += sub_stats.total_comments
+                    overall_stats.new_comments += sub_stats.new_comments
+                    overall_stats.articles_created += sub_stats.articles_created
+                    overall_stats.ticker_links += sub_stats.ticker_links
+                    overall_stats.batches_saved += sub_stats.batches_saved
+                    overall_stats.rate_limit_events += sub_stats.rate_limit_events
+
+                except Exception as e:
+                    logger.error(
+                        f"❌ Error scraping r/{sub_config.name}: {e}", exc_info=True
+                    )
+                    continue
+
+            overall_stats.duration_ms = int((time.time() - start_time) * 1000)
 
             # Update scraping status
             scraping_status = db.execute(
@@ -661,7 +1185,7 @@ class RedditScraper:
 
             if scraping_status:
                 scraping_status.last_scrape_at = datetime.now(UTC)
-                scraping_status.items_scraped = stats.new_comments
+                scraping_status.items_scraped = overall_stats.new_comments
                 scraping_status.status = "success"
                 scraping_status.error_message = None
                 scraping_status.updated_at = datetime.now(UTC)
@@ -669,7 +1193,7 @@ class RedditScraper:
                 scraping_status = ScrapingStatus(
                     source="reddit",
                     last_scrape_at=datetime.now(UTC),
-                    items_scraped=stats.new_comments,
+                    items_scraped=overall_stats.new_comments,
                     status="success",
                     error_message=None,
                     updated_at=datetime.now(UTC),
@@ -678,19 +1202,20 @@ class RedditScraper:
 
             db.commit()
 
-            logger.info("\n🎉 Incremental scrape complete:")
-            logger.info(f"   Threads: {stats.threads_processed}")
+            logger.info("\n🎉 ALL SUBREDDITS COMPLETE:")
+            logger.info(f"   Subreddits: {len(subreddits_to_scrape)}")
+            logger.info(f"   Threads: {overall_stats.threads_processed}")
             logger.info(
-                f"   Comments: {stats.new_comments} new / {stats.total_comments} total"
+                f"   Comments: {overall_stats.new_comments} new / {overall_stats.total_comments} total"
             )
-            logger.info(f"   Articles: {stats.articles_created}")
-            logger.info(f"   Ticker links: {stats.ticker_links}")
-            logger.info(f"   Duration: {stats.duration_ms}ms")
+            logger.info(f"   Articles: {overall_stats.articles_created}")
+            logger.info(f"   Ticker links: {overall_stats.ticker_links}")
+            logger.info(f"   Duration: {overall_stats.duration_ms}ms")
 
-            return stats
+            return overall_stats
 
         except Exception as e:
-            logger.error(f"❌ Error in incremental scrape: {e}")
+            logger.error(f"❌ Error in incremental scrape: {e}", exc_info=True)
             db.rollback()
 
             # Update scraping status to error
@@ -717,7 +1242,7 @@ class RedditScraper:
             except Exception as status_error:
                 logger.error(f"Failed to update scraping status: {status_error}")
 
-            return stats
+            return overall_stats
         finally:
             db.close()
 

@@ -23,6 +23,7 @@ dependencies = [
     "requests>=2.31.0",
     "httpx>=0.25.0",
     "yfinance>=0.2.66",
+    "pyyaml>=6.0.0",
 ]
 
 [build-system]

@@ -169,8 +169,8 @@
                 setupHomePageFiltering();
             }
             
-            // Ticker page functionality  
-            if (articlesList) {
+            // Ticker page functionality - only enable client-side filtering if no server-side form
+            if (articlesList && !document.getElementById('ticker-filters-form')) {
                 setupTickerPageFiltering();
             }
             

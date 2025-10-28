@@ -67,23 +67,47 @@ add-reddit-columns: ## Add Reddit-specific columns to article table
 add-reddit-thread-table: ## Add RedditThread table for tracking scraping progress
 	uv run python -m app.scripts.add_reddit_thread_table
 
-# Production Reddit Scraper (unified, comprehensive)
-# NOTE: Legacy targets (reddit-ingest, reddit-wsb, reddit-stocks, reddit-investing)
-# have been removed. They used the deprecated ingest/reddit.py general post scraper.
-# Use the production scraper below for discussion thread scraping.
-reddit-scrape-incremental: ## Production incremental scraper (for 15-min cron)
+# Production Reddit Scraper (Multi-Subreddit + Top Posts)
+# Supports multiple subreddits via YAML config, scrapes both daily discussions and top posts
+# Config: jobs/config/reddit_scraper_config.yaml
+
+reddit-scrape-incremental: ## Production scraper - all enabled subreddits (discussions + top posts)
 	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental
 
-reddit-scrape-backfill: ## Production backfill scraper (requires START and END dates)
-	@if [ -z "$(START)" ] || [ -z "$(END)" ]; then \
-		echo "❌ Error: START and END dates required"; \
-		echo "Usage: make reddit-scrape-backfill START=2025-09-01 END=2025-09-30"; \
+reddit-scrape-wsb: ## Scrape wallstreetbets only (discussions + top posts)
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental --subreddit wallstreetbets
+
+reddit-scrape-stocks: ## Scrape r/stocks only (discussions + top posts)
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental --subreddit stocks
+
+reddit-scrape-investing: ## Scrape r/investing only (discussions + top posts)
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental --subreddit investing
+
+reddit-scrape-custom-config: ## Scrape with custom config file (CONFIG=path/to/config.yaml)
+	@if [ -z "$(CONFIG)" ]; then \
+		echo "❌ Error: CONFIG path required"; \
+		echo "Usage: make reddit-scrape-custom-config CONFIG=my_config.yaml"; \
 		exit 1; \
 	fi
-	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode backfill --start $(START) --end $(END)
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental --config $(CONFIG)
 
-reddit-scrape-status: ## Show production scraper status
+reddit-scrape-backfill: ## Backfill historical data (requires SUBREDDIT, START, END)
+	@if [ -z "$(SUBREDDIT)" ] || [ -z "$(START)" ] || [ -z "$(END)" ]; then \
+		echo "❌ Error: SUBREDDIT, START and END dates required"; \
+		echo "Usage: make reddit-scrape-backfill SUBREDDIT=wallstreetbets START=2025-09-01 END=2025-09-30"; \
+		exit 1; \
+	fi
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode backfill --subreddit $(SUBREDDIT) --start $(START) --end $(END)
+
+reddit-scrape-status: ## Show scraping status for wallstreetbets
 	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode status
+
+reddit-scrape-status-all: ## Show scraping status for specific subreddit (SUB=name)
+	@if [ -z "$(SUB)" ]; then \
+		cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode status; \
+	else \
+		cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode status --subreddit $(SUB); \
+	fi
 
 # Sentiment Analysis Jobs (LLM by default)
 analyze-sentiment: ## Run sentiment analysis on articles without sentiment
