@@ -256,6 +256,10 @@ jobs:
         if: steps.changes.outputs.terraform_changed == 'true'
         id: terraform-plan
         working-directory: infrastructure/terraform
+        env:
+          TF_VAR_vpc_id: ${{ secrets.TF_VAR_VPC_ID }}
+          TF_VAR_private_subnet_ids: ${{ secrets.TF_VAR_PRIVATE_SUBNET_IDS }}
+          TF_VAR_postgres_security_group_id: ${{ secrets.TF_VAR_POSTGRES_SECURITY_GROUP_ID }}
         run: |
           echo "Running Terraform plan..."
           terraform plan -out=tfplan -no-color | tee plan-output.txt
@@ -269,6 +273,10 @@ jobs:
         if: steps.changes.outputs.terraform_changed == 'true' && github.event.inputs.dry_run != 'true'
         id: terraform-apply
         working-directory: infrastructure/terraform
+        env:
+          TF_VAR_vpc_id: ${{ secrets.TF_VAR_VPC_ID }}
+          TF_VAR_private_subnet_ids: ${{ secrets.TF_VAR_PRIVATE_SUBNET_IDS }}
+          TF_VAR_postgres_security_group_id: ${{ secrets.TF_VAR_POSTGRES_SECURITY_GROUP_ID }}
         run: |
           echo "Applying Terraform changes..."
           terraform apply -auto-approve tfplan
