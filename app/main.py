@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -1160,9 +1160,9 @@ async def ticker_page(
         StockPriceHistory,
         Ticker,
     )
-    from app.db.session import SessionLocal
+    from app.db.session import get_db as _get_db
 
-    db = SessionLocal()
+    # db is already injected via Depends(get_db)
     try:
         # Get ticker info
         ticker_obj = db.query(Ticker).filter(Ticker.symbol == ticker.upper()).first()
@@ -1379,31 +1379,8 @@ async def ticker_page(
                     chart_data = None
 
         if not ticker_obj:
-            # Return 404 or redirect to home
-            return templates.TemplateResponse(
-                "ticker.html",
-                {
-                    "request": request,
-                    "ticker": ticker,
-                    "articles": [],
-                    "ticker_obj": None,
-                    "stock_data": stock_data,
-                    "chart_data": chart_data,
-                    "total_article_count": unfiltered_total_article_count,
-                    "today_article_count": today_article_count,
-                    "article_change": today_article_count - yesterday_article_count,
-                    "article_change_percent": article_change_percent,
-                    "unique_users_today": unique_users_today,
-                    "users_change": users_change,
-                    "users_change_percent": users_change_percent,
-                    "pagination": {
-                        "page": 1,
-                        "total_pages": 1,
-                        "has_next": False,
-                        "has_prev": False,
-                    },
-                },
-            )
+            # Ticker doesn't exist - return 404
+            raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
 
         # Pagination settings
         articles_per_page = 50
