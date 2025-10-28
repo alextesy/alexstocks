@@ -74,6 +74,9 @@ add-reddit-thread-table: ## Add RedditThread table for tracking scraping progres
 reddit-scrape-incremental: ## Production scraper - all enabled subreddits (discussions + top posts)
 	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental
 
+reddit-scrape-ecs: ## Production scraper (matches ECS task definition exactly)
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental --config config/reddit_scraper_config.yaml
+
 reddit-scrape-wsb: ## Scrape wallstreetbets only (discussions + top posts)
 	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental --subreddit wallstreetbets
 
