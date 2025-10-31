@@ -1,0 +1,15 @@
+---
+description: Auto-run linters and formatters after code changes
+globs:
+  - "**/*.py"
+alwaysApply: true
+---
+
+- After ANY code change to Python files, automatically run these commands in sequence:
+  1. `uv run ruff check --fix .` (auto-fixes linting issues)
+  2. `uv run black .` (formats code)
+  3. `uv run mypy .` (type checking - no fix option, but must pass)
+
+- If any of these commands fail, fix the issues before proceeding.
+- Run all three commands even if only one file was changed (they're fast).
+- Only skip if the user explicitly requests otherwise.
