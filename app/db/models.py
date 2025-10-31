@@ -274,6 +274,142 @@ class ScrapingStatus(Base):
     )
 
 
+class User(Base):
+    """Core user table with authentication and soft-delete support."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(
+        BigIntegerCompat, primary_key=True, autoincrement=True
+    )
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    auth_provider_id: Mapped[str | None] = mapped_column(
+        String(255), unique=True, nullable=True
+    )  # OAuth provider ID (e.g., Google sub)
+    auth_provider: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # e.g., 'google', 'github'
+    is_active: Mapped[bool] = mapped_column(default=True)
+    is_deleted: Mapped[bool] = mapped_column(default=False)  # Soft delete
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Relationships
+    profile: Mapped["UserProfile"] = relationship(
+        "UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+    notification_channels: Mapped[list["UserNotificationChannel"]] = relationship(
+        "UserNotificationChannel", back_populates="user", cascade="all, delete-orphan"
+    )
+    ticker_follows: Mapped[list["UserTickerFollow"]] = relationship(
+        "UserTickerFollow", back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class UserProfile(Base):
+    """Extended user profile information."""
+
+    __tablename__ = "user_profiles"
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    timezone: Mapped[str] = mapped_column(String(50), nullable=False, default="UTC")
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    preferences: Mapped[dict | None] = mapped_column(
+        JSONBCompat, nullable=True
+    )  # Flexible JSON field for user preferences
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="profile")
+
+
+class UserNotificationChannel(Base):
+    """User notification channel preferences."""
+
+    __tablename__ = "user_notification_channels"
+
+    id: Mapped[int] = mapped_column(
+        BigIntegerCompat, primary_key=True, autoincrement=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    channel_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # 'email', 'sms', 'push', 'webhook'
+    channel_value: Mapped[str] = mapped_column(
+        String(500), nullable=False
+    )  # email address, phone number, device token, webhook URL
+    is_verified: Mapped[bool] = mapped_column(default=False)
+    is_enabled: Mapped[bool] = mapped_column(default=True)
+    preferences: Mapped[dict | None] = mapped_column(
+        JSONBCompat, nullable=True
+    )  # Channel-specific settings
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="notification_channels")
+
+
+class UserTickerFollow(Base):
+    """Track which tickers a user follows with notification preferences."""
+
+    __tablename__ = "user_ticker_follows"
+
+    id: Mapped[int] = mapped_column(
+        BigIntegerCompat, primary_key=True, autoincrement=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    ticker: Mapped[str] = mapped_column(
+        String, ForeignKey("ticker.symbol"), nullable=False
+    )
+    notify_on_signals: Mapped[bool] = mapped_column(
+        default=True
+    )  # Notify on new signals
+    notify_on_price_change: Mapped[bool] = mapped_column(
+        default=False
+    )  # Notify on significant price changes
+    price_change_threshold: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )  # Percentage threshold for price alerts
+    custom_alerts: Mapped[dict | None] = mapped_column(
+        JSONBCompat, nullable=True
+    )  # Custom alert conditions
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="ticker_follows")
+    ticker_obj: Mapped["Ticker"] = relationship("Ticker")
+
+
 # Indexes for performance
 Index("article_published_at_idx", Article.published_at.desc())
 Index("article_ticker_ticker_idx", ArticleTicker.ticker)
@@ -300,3 +436,15 @@ Index(
 Index("stock_price_history_date_idx", StockPriceHistory.date.desc())
 Index("stock_data_collection_started_idx", StockDataCollection.started_at.desc())
 Index("stock_data_collection_type_idx", StockDataCollection.collection_type)
+# User indexes
+Index("user_email_idx", User.email)
+Index("user_auth_provider_id_idx", User.auth_provider_id)
+Index("user_is_deleted_idx", User.is_deleted)
+Index("user_created_at_idx", User.created_at.desc())
+# UserNotificationChannel indexes
+Index("user_notification_channel_user_idx", UserNotificationChannel.user_id)
+Index("user_notification_channel_type_idx", UserNotificationChannel.channel_type)
+# UserTickerFollow indexes
+Index("user_ticker_follow_user_idx", UserTickerFollow.user_id)
+Index("user_ticker_follow_ticker_idx", UserTickerFollow.ticker)
+Index("user_ticker_follow_user_ticker_idx", UserTickerFollow.user_id, UserTickerFollow.ticker, unique=True)
