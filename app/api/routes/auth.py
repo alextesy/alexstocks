@@ -122,8 +122,9 @@ async def auth_callback(
             email=user.email,
         )
 
-        # Redirect to home with session cookie
-        response = RedirectResponse(url="/", status_code=302)
+        # Redirect to home with session cookie, adding GTM login event data
+        # The frontend will pick this up and send to GA
+        response = RedirectResponse(url="/?login_event=true", status_code=302)
         response.set_cookie(
             key="session_token",
             value=session_token,
@@ -181,7 +182,7 @@ async def auth_callback(
 @router.get("/logout")
 async def logout(request: Request):
     """Log out the current user by invalidating session cookie."""
-    response = RedirectResponse(url="/", status_code=302)
+    response = RedirectResponse(url="/?logout_event=true", status_code=302)
     response.delete_cookie(key="session_token")
 
     logger.info("user_logged_out")
