@@ -1,13 +1,11 @@
 """Tests for user repository."""
 
-from datetime import UTC, datetime
-
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db.models import Base, Ticker, User, UserProfile
+from app.db.models import Base, Ticker
 from app.models.dto import (
     UserCreateDTO,
     UserNotificationChannelCreateDTO,
@@ -125,9 +123,7 @@ def test_get_user_by_email(user_repo):
 
 def test_get_user_by_auth_provider_id(user_repo):
     """Test getting user by OAuth provider ID."""
-    user_dto = UserCreateDTO(
-        email="test@example.com", auth_provider_id="google_123"
-    )
+    user_dto = UserCreateDTO(email="test@example.com", auth_provider_id="google_123")
     created = user_repo.create_user(user_dto)
 
     retrieved = user_repo.get_user_by_auth_provider_id("google_123")
@@ -380,9 +376,7 @@ def test_create_ticker_follow_validates_ticker():
 def test_create_ticker_follow_validates_threshold():
     """Test that price change threshold is validated."""
     with pytest.raises(ValueError, match="price_change_threshold must be positive"):
-        UserTickerFollowCreateDTO(
-            user_id=1, ticker="AAPL", price_change_threshold=-1.0
-        )
+        UserTickerFollowCreateDTO(user_id=1, ticker="AAPL", price_change_threshold=-1.0)
 
 
 def test_create_ticker_follow_updates_existing(user_repo, sample_ticker):
@@ -542,4 +536,3 @@ def test_complete_user_flow(user_repo, test_session):
 
     follows = user_repo.get_ticker_follows(user.id)
     assert len(follows) == 2
-

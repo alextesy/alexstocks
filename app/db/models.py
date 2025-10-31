@@ -303,7 +303,10 @@ class User(Base):
 
     # Relationships
     profile: Mapped["UserProfile"] = relationship(
-        "UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan"
+        "UserProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
     notification_channels: Mapped[list["UserNotificationChannel"]] = relationship(
         "UserNotificationChannel", back_populates="user", cascade="all, delete-orphan"
@@ -447,4 +450,9 @@ Index("user_notification_channel_type_idx", UserNotificationChannel.channel_type
 # UserTickerFollow indexes
 Index("user_ticker_follow_user_idx", UserTickerFollow.user_id)
 Index("user_ticker_follow_ticker_idx", UserTickerFollow.ticker)
-Index("user_ticker_follow_user_ticker_idx", UserTickerFollow.user_id, UserTickerFollow.ticker, unique=True)
+Index(
+    "user_ticker_follow_user_ticker_idx",
+    UserTickerFollow.user_id,
+    UserTickerFollow.ticker,
+    unique=True,
+)

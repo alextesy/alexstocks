@@ -7,11 +7,14 @@ import time
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import pytest
 
 from app.services.stock_data import StockDataService
 
 
+@pytest.mark.asyncio
 async def test_optimization():
     """Test the optimized concurrent fetching."""
 

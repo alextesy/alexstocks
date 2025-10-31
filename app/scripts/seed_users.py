@@ -1,6 +1,7 @@
 """Seed sample users for local testing (disabled in production)."""
 
 import logging
+from typing import Any
 
 from app.config import settings
 from app.db.session import SessionLocal
@@ -28,7 +29,7 @@ def seed_users() -> None:
         repo = UserRepository(session)
 
         # Sample users
-        sample_users = [
+        sample_users: list[dict[str, Any]] = [
             {
                 "email": "alice@example.com",
                 "auth_provider": "google",
@@ -104,7 +105,7 @@ def seed_users() -> None:
                     is_enabled=True,
                 )
             )
-            logger.info(f"     • Created email notification channel")
+            logger.info("     • Created email notification channel")
 
             # Create ticker follows
             for ticker in user_data["follows"]:
@@ -130,4 +131,3 @@ if __name__ == "__main__":
         level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )
     seed_users()
-
