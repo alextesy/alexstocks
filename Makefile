@@ -45,11 +45,38 @@ down: ## Stop all services
 db-init: ## Initialize database schema
 	uv run python -m app.scripts.init_db
 
+# Alembic Migration Commands
+migrate-status: ## Show current migration status
+	uv run alembic current
+
+migrate-history: ## Show migration history
+	uv run alembic history --verbose
+
+migrate-up: ## Run all pending migrations
+	uv run alembic upgrade head
+
+migrate-down: ## Rollback last migration
+	uv run alembic downgrade -1
+
+migrate-create: ## Create new migration (NAME=description)
+	@if [ -z "$(NAME)" ]; then \
+		echo "❌ Error: NAME required"; \
+		echo "Usage: make migrate-create NAME=add_new_column"; \
+		exit 1; \
+	fi
+	uv run alembic revision --autogenerate -m "$(NAME)"
+
+migrate-check: ## Check if migrations are needed (autogenerate dry-run)
+	uv run alembic check
+
 seed-tickers: ## Seed ticker data
 	uv run python -m app.scripts.seed_tickers
 
 seed-sample-data: ## Seed sample articles for demonstration
 	uv run python -m app.scripts.seed_sample_articles
+
+seed-users: ## Seed sample users (disabled in production)
+	uv run python -m app.scripts.seed_users
 
 query-db: ## Query database (use --help for options)
 	uv run python -m app.scripts.query_db
@@ -166,6 +193,9 @@ setup-stock-cron: ## Setup cron job to collect stock prices every 15 minutes
 
 test-stock: ## Run stock-related tests
 	uv run pytest tests/test_stock*.py -v
+
+test-users: ## Run user repository tests
+	uv run pytest tests/db/test_users.py -v
 
 # Smart Stock Collection (filters inactive tickers for faster collection)
 collect-stock-prices-smart: ## Collect current prices (SMART - excludes warrants/units/rights)

@@ -72,6 +72,29 @@ class Settings(BaseSettings):
     # Stock price cache configuration
     STOCK_PRICE_FRESHNESS_MINUTES: int = 15
 
+    # User limits
+    USER_MAX_TICKER_FOLLOWS: int = 100
+
+    # Google OAuth configuration
+    google_client_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GOOGLE_CLIENT_ID", "google_client_id"),
+    )
+    google_client_secret: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GOOGLE_CLIENT_SECRET", "google_client_secret"),
+    )
+    google_redirect_uri: str = Field(
+        default="http://localhost:8000/auth/callback",
+        validation_alias=AliasChoices("GOOGLE_REDIRECT_URI", "google_redirect_uri"),
+    )
+    # Session/JWT configuration
+    session_secret_key: str = Field(
+        default="dev-secret-key-change-in-production",
+        validation_alias=AliasChoices("SESSION_SECRET_KEY", "session_secret_key"),
+    )
+    session_max_age_seconds: int = 86400 * 30  # 30 days
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
