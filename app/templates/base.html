@@ -482,10 +482,12 @@
                 
                 // Send user data to Google Analytics if GTM is loaded
                 if (typeof gtag !== 'undefined') {
+                    {% if settings is defined and settings.gtm_container_id %}
                     // Set user ID for cross-session tracking
-                    gtag('config', '{{ settings.gtm_container_id if settings.gtm_container_id else "GA_MEASUREMENT_ID" }}', {
+                    gtag('config', '{{ settings.gtm_container_id }}', {
                         'user_id': userData.id
                     });
+                    {% endif %}
                     
                     // Set user properties
                     gtag('set', 'user_properties', {

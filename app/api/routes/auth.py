@@ -48,6 +48,7 @@ async def login_page(request: Request):
             "request": request,
             "google_oauth_url": google_oauth_url,
             "state": state,
+            "settings": settings,
         },
     )
 
