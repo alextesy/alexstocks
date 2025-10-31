@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.api.routes import auth
 from app.config import settings
 from app.services.mention_stats import get_mention_stats_service
 from app.services.rate_limit import rate_limit
@@ -24,6 +25,9 @@ app = FastAPI(
     description="Lean MVP for market news analytics",
     version="0.1.0",
 )
+
+# Include routers
+app.include_router(auth.router)
 
 # Setup templates
 templates = Jinja2Templates(directory="app/templates")

@@ -53,7 +53,9 @@
                     <a href="/privacy" class="text-sm text-gray-600 hover:text-gray-900 font-medium">
                         <i class="fas fa-shield-alt mr-1"></i>Privacy
                     </a>
-                    <span class="text-sm text-gray-500">Real-Time Stock Market Analytics</span>
+                    <span class="text-sm text-gray-500 hidden lg:inline">Real-Time Stock Market Analytics</span>
+                    <!-- User Menu -->
+                    <div id="user-menu-container"></div>
                 </div>
                 <!-- Mobile Burger Menu Button -->
                 <div class="flex md:hidden items-center">
@@ -87,6 +89,9 @@
                 <a href="/privacy" class="text-base text-gray-600 hover:text-gray-900 font-medium py-2">
                     <i class="fas fa-shield-alt mr-2"></i>Privacy
                 </a>
+                <div class="pt-4 border-t">
+                    <div id="mobile-user-menu-container"></div>
+                </div>
                 <div class="pt-4 border-t">
                     <span class="text-sm text-gray-500">Real-Time Stock Market Analytics</span>
                 </div>
@@ -371,6 +376,94 @@
         if (mobileMenuBackdrop) {
             mobileMenuBackdrop.addEventListener('click', closeMobileMenu);
         }
+
+        // User authentication menu
+        async function loadUserMenu() {
+            try {
+                const response = await fetch('/auth/me', {
+                    credentials: 'same-origin'
+                });
+                
+                const userMenuContainer = document.getElementById('user-menu-container');
+                const mobileUserMenuContainer = document.getElementById('mobile-user-menu-container');
+                
+                if (response.ok) {
+                    const user = await response.json();
+                    
+                    // Desktop menu
+                    if (userMenuContainer) {
+                        userMenuContainer.innerHTML = `
+                            <div class="relative" id="user-menu-dropdown">
+                                <button id="user-menu-button" class="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900 font-medium focus:outline-none">
+                                    ${user.picture ? `<img src="${user.picture}" alt="${user.name || user.email}" class="h-8 w-8 rounded-full">` : `<i class="fas fa-user-circle text-2xl"></i>`}
+                                    <span class="hidden lg:inline">${user.name || user.email}</span>
+                                    <i class="fas fa-chevron-down text-xs"></i>
+                                </button>
+                                <div id="user-dropdown-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
+                                    <div class="px-4 py-2 text-xs text-gray-500 border-b">
+                                        ${user.email}
+                                    </div>
+                                    <a href="/auth/logout" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                        <i class="fas fa-sign-out-alt mr-2"></i>Sign Out
+                                    </a>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Setup dropdown toggle
+                        const menuButton = document.getElementById('user-menu-button');
+                        const dropdownMenu = document.getElementById('user-dropdown-menu');
+                        
+                        menuButton.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            dropdownMenu.classList.toggle('hidden');
+                        });
+                        
+                        document.addEventListener('click', () => {
+                            dropdownMenu.classList.add('hidden');
+                        });
+                    }
+                    
+                    // Mobile menu
+                    if (mobileUserMenuContainer) {
+                        mobileUserMenuContainer.innerHTML = `
+                            <div class="flex items-center space-x-3 py-2">
+                                ${user.picture ? `<img src="${user.picture}" alt="${user.name || user.email}" class="h-10 w-10 rounded-full">` : `<i class="fas fa-user-circle text-3xl text-gray-600"></i>`}
+                                <div class="flex-1">
+                                    <div class="text-sm font-medium text-gray-900">${user.name || 'User'}</div>
+                                    <div class="text-xs text-gray-500">${user.email}</div>
+                                </div>
+                            </div>
+                            <a href="/auth/logout" class="text-base text-gray-600 hover:text-gray-900 font-medium py-2 block">
+                                <i class="fas fa-sign-out-alt mr-2"></i>Sign Out
+                            </a>
+                        `;
+                    }
+                } else {
+                    // Not logged in - show login link
+                    if (userMenuContainer) {
+                        userMenuContainer.innerHTML = `
+                            <a href="/auth/login" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                                <i class="fas fa-sign-in-alt mr-1"></i>Sign In
+                            </a>
+                        `;
+                    }
+                    
+                    if (mobileUserMenuContainer) {
+                        mobileUserMenuContainer.innerHTML = `
+                            <a href="/auth/login" class="text-base text-blue-600 hover:text-blue-800 font-medium py-2 block">
+                                <i class="fas fa-sign-in-alt mr-2"></i>Sign In
+                            </a>
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading user menu:', error);
+            }
+        }
+        
+        // Load user menu on page load
+        loadUserMenu();
     </script>
     {% if settings is defined and settings.cookie_consent_enabled and settings.gtm_container_id and settings.environment == 'production' %}
     <div id="cookie-banner" class="fixed bottom-4 left-4 right-4 md:right-auto md:max-w-xl bg-white border shadow-lg p-4 rounded hidden">
