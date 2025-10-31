@@ -4,7 +4,7 @@ import logging
 from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db.models import User, UserNotificationChannel, UserProfile, UserTickerFollow
@@ -190,7 +190,9 @@ class UserRepository:
         self.session.flush()
         return self._notification_channel_to_dto(channel)
 
-    def get_notification_channels(self, user_id: int) -> list[UserNotificationChannelDTO]:
+    def get_notification_channels(
+        self, user_id: int
+    ) -> list[UserNotificationChannelDTO]:
         """Get all notification channels for a user."""
         stmt = (
             select(UserNotificationChannel)
@@ -201,7 +203,10 @@ class UserRepository:
         return [self._notification_channel_to_dto(ch) for ch in channels]
 
     def update_notification_channel(
-        self, channel_id: int, is_enabled: bool | None = None, is_verified: bool | None = None
+        self,
+        channel_id: int,
+        is_enabled: bool | None = None,
+        is_verified: bool | None = None,
     ) -> UserNotificationChannelDTO | None:
         """Update notification channel."""
         channel = self.session.get(UserNotificationChannel, channel_id)
@@ -278,7 +283,9 @@ class UserRepository:
         follows = self.session.execute(stmt).scalars().all()
         return [self._ticker_follow_to_dto(f) for f in follows]
 
-    def get_ticker_follow(self, user_id: int, ticker: str) -> UserTickerFollowDTO | None:
+    def get_ticker_follow(
+        self, user_id: int, ticker: str
+    ) -> UserTickerFollowDTO | None:
         """Get a specific ticker follow."""
         stmt = select(UserTickerFollow).where(
             UserTickerFollow.user_id == user_id, UserTickerFollow.ticker == ticker
@@ -360,4 +367,3 @@ class UserRepository:
             created_at=follow.created_at,
             updated_at=follow.updated_at,
         )
-

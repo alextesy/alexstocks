@@ -5,7 +5,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.services.stock_data import StockDataService
 
@@ -59,8 +59,9 @@ async def test_expanded_fields():
             if data.get("day_low")
             else "  Day Low:          N/A"
         )
-        if data.get("volume"):
-            volume_m = data.get("volume") / 1_000_000
+        volume = data.get("volume")
+        if volume:
+            volume_m = volume / 1_000_000
             print(f"  Volume:           {volume_m:.2f}M shares")
         else:
             print("  Volume:           N/A")
@@ -78,32 +79,39 @@ async def test_expanded_fields():
         )
         print(f"  Bid Size:         {data.get('bid_size', 'N/A')}")
         print(f"  Ask Size:         {data.get('ask_size', 'N/A')}")
-        if data.get("bid") and data.get("ask"):
-            spread = data.get("ask") - data.get("bid")
-            spread_pct = (spread / data.get("price", 1)) * 100
+        bid = data.get("bid")
+        ask = data.get("ask")
+        if bid is not None and ask is not None:
+            spread = ask - bid
+            price = data.get("price", 1)
+            spread_pct = (spread / price) * 100
             print(f"  Spread:           ${spread:.2f} ({spread_pct:.3f}%)")
 
         print("\n💼 MARKET METRICS")
-        if data.get("market_cap"):
-            market_cap_b = data.get("market_cap") / 1_000_000_000
+        market_cap = data.get("market_cap")
+        if market_cap:
+            market_cap_b = market_cap / 1_000_000_000
             print(f"  Market Cap:       ${market_cap_b:.2f}B")
         else:
             print("  Market Cap:       N/A")
 
-        if data.get("shares_outstanding"):
-            shares_m = data.get("shares_outstanding") / 1_000_000
+        shares_outstanding = data.get("shares_outstanding")
+        if shares_outstanding:
+            shares_m = shares_outstanding / 1_000_000
             print(f"  Shares Out:       {shares_m:.2f}M")
         else:
             print("  Shares Out:       N/A")
 
-        if data.get("average_volume"):
-            avg_vol_m = data.get("average_volume") / 1_000_000
+        average_volume = data.get("average_volume")
+        if average_volume:
+            avg_vol_m = average_volume / 1_000_000
             print(f"  Avg Volume (3m):  {avg_vol_m:.2f}M")
         else:
             print("  Avg Volume (3m):  N/A")
 
-        if data.get("average_volume_10d"):
-            avg_vol_10d_m = data.get("average_volume_10d") / 1_000_000
+        average_volume_10d = data.get("average_volume_10d")
+        if average_volume_10d:
+            avg_vol_10d_m = average_volume_10d / 1_000_000
             print(f"  Avg Volume (10d): {avg_vol_10d_m:.2f}M")
         else:
             print("  Avg Volume (10d): N/A")
