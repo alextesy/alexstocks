@@ -480,6 +480,23 @@
                 
                 const userData = await meResponse.json();
                 
+                // Send user data to Google Analytics if GTM is loaded
+                if (typeof gtag !== 'undefined') {
+                    {% if settings is defined and settings.gtm_container_id %}
+                    // Set user ID for cross-session tracking
+                    gtag('config', '{{ settings.gtm_container_id }}', {
+                        'user_id': userData.id
+                    });
+                    {% endif %}
+                    
+                    // Set user properties
+                    gtag('set', 'user_properties', {
+                        'timezone': userData.timezone,
+                        'auth_provider': userData.auth_provider,
+                        'user_type': 'authenticated'
+                    });
+                }
+                
                 // Only update if timezone is different from stored one
                 if (userData.timezone !== storedTimezone) {
                     // Send update to server
@@ -503,6 +520,39 @@
         
         // Run timezone update on page load
         updateTimezoneIfNeeded();
+        
+        // Track login event if user just logged in
+        if (window.location.search.includes('login_event=true')) {
+            // Clean up URL
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            
+            // Send login event to Google Analytics
+            if (typeof gtag !== 'undefined') {
+                gtag('event', 'login', {
+                    'method': 'Google',
+                    'event_category': 'authentication',
+                    'event_label': 'successful_login'
+                });
+                console.log('Login event sent to Google Analytics');
+            }
+        }
+        
+        // Track logout event
+        if (window.location.search.includes('logout_event=true')) {
+            // Clean up URL
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            
+            // Send logout event to Google Analytics
+            if (typeof gtag !== 'undefined') {
+                gtag('event', 'logout', {
+                    'event_category': 'authentication',
+                    'event_label': 'user_logout'
+                });
+                console.log('Logout event sent to Google Analytics');
+            }
+        }
     </script>
     {% if settings is defined and settings.cookie_consent_enabled and settings.gtm_container_id and settings.environment == 'production' %}
     <div id="cookie-banner" class="fixed bottom-4 left-4 right-4 md:right-auto md:max-w-xl bg-white border shadow-lg p-4 rounded hidden">
