@@ -522,36 +522,52 @@
         updateTimezoneIfNeeded();
         
         // Track login event if user just logged in
+        console.log('Checking for login event. URL:', window.location.href);
         if (window.location.search.includes('login_event=true')) {
+            console.log('✅ Login event detected in URL!');
+            
             // Clean up URL
             const cleanUrl = window.location.pathname;
             window.history.replaceState({}, document.title, cleanUrl);
             
             // Send login event to Google Analytics
             if (typeof gtag !== 'undefined') {
+                console.log('✅ gtag is available, sending login event...');
                 gtag('event', 'login', {
                     'method': 'Google',
                     'event_category': 'authentication',
                     'event_label': 'successful_login'
                 });
-                console.log('Login event sent to Google Analytics');
+                console.log('✅ Login event sent to Google Analytics');
+            } else {
+                console.log('❌ gtag is NOT defined!');
             }
+        } else {
+            console.log('ℹ️  No login_event in URL');
         }
         
         // Track logout event
+        console.log('Checking for logout event. URL:', window.location.href);
         if (window.location.search.includes('logout_event=true')) {
+            console.log('✅ Logout event detected in URL!');
+            
             // Clean up URL
             const cleanUrl = window.location.pathname;
             window.history.replaceState({}, document.title, cleanUrl);
             
             // Send logout event to Google Analytics
             if (typeof gtag !== 'undefined') {
+                console.log('✅ gtag is available, sending logout event...');
                 gtag('event', 'logout', {
                     'event_category': 'authentication',
                     'event_label': 'user_logout'
                 });
-                console.log('Logout event sent to Google Analytics');
+                console.log('✅ Logout event sent to Google Analytics');
+            } else {
+                console.log('❌ gtag is NOT defined!');
             }
+        } else {
+            console.log('ℹ️  No logout_event in URL');
         }
     </script>
     {% if settings is defined and settings.cookie_consent_enabled and settings.gtm_container_id and settings.environment == 'production' %}
