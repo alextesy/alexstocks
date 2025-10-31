@@ -7,9 +7,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import pytest
+
 from app.services.stock_data import StockDataService
 
 
+@pytest.mark.asyncio
 async def test_expanded_fields():
     """Test fetching stock data with all the new fields."""
 
