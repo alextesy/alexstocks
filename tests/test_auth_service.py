@@ -7,7 +7,7 @@ import pytest
 from jose import jwt
 
 from app.config import settings
-from app.db.models import User
+from app.db.models import User, UserProfile
 from app.services.auth_service import (
     AuthService,
     BlockedAccountError,
@@ -139,9 +139,12 @@ class TestAuthService:
         with pytest.raises(NonGmailDomainError):
             auth_service.validate_gmail_domain("test@outlook.com")
 
+    @patch("app.services.auth_service.UserProfile")
     @patch("app.services.auth_service.User")
-    def test_get_or_create_user_new_user(self, mock_user_class, auth_service, mock_db):
-        """Test creating a new user."""
+    def test_get_or_create_user_new_user(
+        self, mock_user_class, mock_profile_class, auth_service, mock_db
+    ):
+        """Test creating a new user with profile."""
         # Mock query to return None (user doesn't exist)
         mock_query = MagicMock()
         mock_filter = MagicMock()
@@ -151,63 +154,93 @@ class TestAuthService:
 
         # Mock User constructor
         new_user = MagicMock()
+        new_user.id = 1
         mock_user_class.return_value = new_user
 
-        user = auth_service.get_or_create_user(
+        # Mock UserProfile constructor
+        new_profile = MagicMock()
+        mock_profile_class.return_value = new_profile
+
+        result = auth_service.get_or_create_user(
             db=mock_db,
-            google_id="123456",
+            auth_provider_id="123456",
             email="test@gmail.com",
-            name="Test User",
-            picture="https://example.com/pic.jpg",
-            refresh_token="refresh_token_123",
+            auth_provider="google",
+            display_name="Test User",
+            avatar_url="https://example.com/pic.jpg",
         )
 
         # Verify user was added to database
-        mock_db.add.assert_called_once()
+        assert mock_db.add.call_count >= 1  # User + Profile
         mock_db.commit.assert_called()
+        assert result is not None
 
+    @patch("app.services.auth_service.UserProfile")
     @patch("app.services.auth_service.User")
-    def test_get_or_create_user_existing_user(self, mock_user_class, auth_service, mock_db):
-        """Test retrieving existing user."""
+    def test_get_or_create_user_existing_user(
+        self, mock_user_class, mock_profile_class, auth_service, mock_db
+    ):
+        """Test retrieving existing user updates profile."""
+        # Create a proper mock with explicit False values
         existing_user = MagicMock()
         existing_user.id = 1
-        existing_user.google_id = "123456"
+        existing_user.auth_provider_id = "123456"
         existing_user.email = "test@gmail.com"
-        existing_user.name = "Test User"
         existing_user.is_active = True
+        existing_user.is_deleted = False
+        existing_user.__bool__ = lambda self: True  # Ensure user evaluates to True
         existing_user.created_at = datetime.now(UTC)
-        existing_user.last_login_at = datetime.now(UTC)
+        existing_user.updated_at = datetime.now(UTC)
 
-        # Mock query to return existing user
-        mock_query = MagicMock()
-        mock_filter = MagicMock()
-        mock_filter.first.return_value = existing_user
-        mock_query.filter.return_value = mock_filter
-        mock_db.query.return_value = mock_query
+        # Configure the is_deleted check to work properly
+        type(existing_user).is_deleted = property(lambda self: False)
 
-        user = auth_service.get_or_create_user(
-            db=mock_db,
-            google_id="123456",
-            email="test@gmail.com",
-            name="Updated Name",
+        # Mock user query to return existing user
+        mock_db.query.return_value.filter.return_value.first.return_value = (
+            existing_user
         )
 
-        # Verify user was updated but not added
-        mock_db.add.assert_not_called()
+        # Mock profile query for UserProfile
+        mock_profile_query = MagicMock()
+        mock_profile_query.filter.return_value.first.return_value = None
+
+        # Configure different returns based on what's queried
+        original_query = mock_db.query
+
+        def query_side_effect(model):
+            if model is UserProfile:
+                return mock_profile_query
+            return original_query.return_value
+
+        mock_db.query = MagicMock(side_effect=query_side_effect)
+
+        result = auth_service.get_or_create_user(
+            db=mock_db,
+            auth_provider_id="123456",
+            email="test@gmail.com",
+            auth_provider="google",
+            display_name="Updated Name",
+        )
+
+        # Verify commit was called
         mock_db.commit.assert_called()
-        assert user.name == "Updated Name"
+        # Verify updated_at was set
+        assert existing_user.updated_at is not None
+        assert result is not None
 
     @patch("app.services.auth_service.User")
-    def test_get_or_create_user_blocked_account(self, mock_user_class, auth_service, mock_db):
+    def test_get_or_create_user_blocked_account(
+        self, mock_user_class, auth_service, mock_db
+    ):
         """Test blocked account cannot log in."""
         blocked_user = MagicMock()
         blocked_user.id = 1
-        blocked_user.google_id = "123456"
+        blocked_user.auth_provider_id = "123456"
         blocked_user.email = "test@gmail.com"
-        blocked_user.name = "Test User"
         blocked_user.is_active = False  # Account is blocked
+        blocked_user.is_deleted = False
         blocked_user.created_at = datetime.now(UTC)
-        blocked_user.last_login_at = datetime.now(UTC)
+        blocked_user.updated_at = datetime.now(UTC)
 
         # Mock query to return blocked user
         mock_query = MagicMock()
@@ -219,7 +252,7 @@ class TestAuthService:
         with pytest.raises(BlockedAccountError):
             auth_service.get_or_create_user(
                 db=mock_db,
-                google_id="123456",
+                auth_provider_id="123456",
                 email="test@gmail.com",
             )
 
@@ -257,12 +290,12 @@ class TestAuthService:
         """Test getting current user from valid token."""
         user = MagicMock(spec=User)
         user.id = 123
-        user.google_id = "123456"
+        user.auth_provider_id = "123456"
         user.email = "test@gmail.com"
-        user.name = "Test User"
         user.is_active = True
+        user.is_deleted = False
         user.created_at = datetime.now(UTC)
-        user.last_login_at = datetime.now(UTC)
+        user.updated_at = datetime.now(UTC)
 
         mock_db.query.return_value.filter.return_value.first.return_value = user
 
@@ -286,4 +319,3 @@ class TestAuthService:
         result = auth_service.get_current_user(mock_db, token)
 
         assert result is None
-

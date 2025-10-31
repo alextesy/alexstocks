@@ -9,7 +9,7 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db.models import User
+from app.db.models import User, UserProfile
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,9 @@ class AuthService:
                 "google_token_exchange_failed",
                 extra={"error": str(e)},
             )
-            raise InvalidCredentialsError("Failed to exchange authorization code") from e
+            raise InvalidCredentialsError(
+                "Failed to exchange authorization code"
+            ) from e
 
     async def get_user_info(self, access_token: str) -> dict[str, Any]:
         """Fetch user profile information from Google.
@@ -171,39 +173,49 @@ class AuthService:
         if not email.lower().endswith("@gmail.com"):
             logger.warning(
                 "non_gmail_login_attempt",
-                extra={"email_domain": email.split("@")[-1] if "@" in email else "unknown"},
+                extra={
+                    "email_domain": email.split("@")[-1] if "@" in email else "unknown"
+                },
             )
             raise NonGmailDomainError("Only Gmail accounts are currently supported")
 
     def get_or_create_user(
         self,
         db: Session,
-        google_id: str,
+        auth_provider_id: str,
         email: str,
-        name: str | None = None,
-        picture: str | None = None,
-        refresh_token: str | None = None,
+        auth_provider: str = "google",
+        display_name: str | None = None,
+        avatar_url: str | None = None,
     ) -> User:
-        """Get existing user or create new user record.
+        """Get existing user or create new user record with profile.
 
         Args:
             db: Database session
-            google_id: Google user ID
+            auth_provider_id: OAuth provider's user ID
             email: User email
-            name: User full name
-            picture: User profile picture URL
-            refresh_token: OAuth refresh token (optional)
+            auth_provider: OAuth provider name (e.g., 'google')
+            display_name: User display name (stored in profile)
+            avatar_url: User avatar URL (stored in profile)
 
         Returns:
             User object (new or existing)
 
         Raises:
-            BlockedAccountError: If user account is inactive
+            BlockedAccountError: If user account is inactive or deleted
         """
         # Try to find existing user
-        user = db.query(User).filter(User.google_id == google_id).first()
+        user = db.query(User).filter(User.auth_provider_id == auth_provider_id).first()
 
         if user:
+            # Check if account is deleted
+            if user.is_deleted:
+                logger.warning(
+                    "deleted_account_login_attempt",
+                    extra={"user_id": user.id, "email": user.email},
+                )
+                raise BlockedAccountError("Account has been deleted")
+
             # Check if account is active
             if not user.is_active:
                 logger.warning(
@@ -212,14 +224,12 @@ class AuthService:
                 )
                 raise BlockedAccountError("Account is inactive")
 
-            # Update last login and potentially refresh token
-            user.last_login_at = datetime.now(UTC)
-            if refresh_token:
-                user.refresh_token = refresh_token
-            if name:
-                user.name = name
-            if picture:
-                user.picture = picture
+            # Update last login time via updated_at
+            user.updated_at = datetime.now(UTC)
+
+            # Update or create profile if name/avatar provided
+            if display_name or avatar_url:
+                self._update_or_create_profile(db, user.id, display_name, avatar_url)
 
             db.commit()
             db.refresh(user)
@@ -231,16 +241,21 @@ class AuthService:
         else:
             # Create new user
             user = User(
-                google_id=google_id,
+                auth_provider_id=auth_provider_id,
                 email=email,
-                name=name,
-                picture=picture,
-                refresh_token=refresh_token,
+                auth_provider=auth_provider,
                 is_active=True,
+                is_deleted=False,
                 created_at=datetime.now(UTC),
-                last_login_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
             db.add(user)
+            db.flush()  # Flush to get user.id
+
+            # Create profile if name/avatar provided
+            if display_name or avatar_url:
+                self._create_profile(db, user.id, display_name, avatar_url)
+
             db.commit()
             db.refresh(user)
 
@@ -250,6 +265,47 @@ class AuthService:
             )
 
         return user
+
+    def _create_profile(
+        self,
+        db: Session,
+        user_id: int,
+        display_name: str | None = None,
+        avatar_url: str | None = None,
+    ) -> None:
+        """Create user profile."""
+        profile = UserProfile(
+            user_id=user_id,
+            display_name=display_name,
+            timezone="UTC",
+            avatar_url=avatar_url,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        db.add(profile)
+        db.flush()
+
+    def _update_or_create_profile(
+        self,
+        db: Session,
+        user_id: int,
+        display_name: str | None = None,
+        avatar_url: str | None = None,
+    ) -> None:
+        """Update existing profile or create if doesn't exist."""
+        profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+
+        if profile:
+            # Update existing profile
+            if display_name:
+                profile.display_name = display_name
+            if avatar_url:
+                profile.avatar_url = avatar_url
+            profile.updated_at = datetime.now(UTC)
+            db.flush()
+        else:
+            # Create new profile
+            self._create_profile(db, user_id, display_name, avatar_url)
 
     def create_session_token(self, user_id: int, email: str) -> str:
         """Create JWT session token for authenticated user.
@@ -324,7 +380,15 @@ class AuthService:
             if not user_id:
                 return None
 
-            user = db.query(User).filter(User.id == user_id, User.is_active == True).first()  # noqa: E712
+            user = (
+                db.query(User)
+                .filter(
+                    User.id == user_id,
+                    User.is_active == True,  # noqa: E712
+                    User.is_deleted == False,  # noqa: E712
+                )
+                .first()
+            )
             return user
         except (InvalidCredentialsError, ValueError):
             return None
@@ -333,4 +397,3 @@ class AuthService:
 def get_auth_service() -> AuthService:
     """Dependency to get auth service instance."""
     return AuthService()
-

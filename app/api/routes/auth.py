@@ -2,6 +2,7 @@
 
 import logging
 import secrets
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request
@@ -9,6 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.db.models import UserProfile
 from app.db.session import get_db
 from app.services.auth_service import (
     AuthError,
@@ -74,7 +76,7 @@ async def auth_callback(
             extra={"error": error},
         )
         return RedirectResponse(
-            url=f"/auth/login?error=oauth_error",
+            url="/auth/login?error=oauth_error",
             status_code=302,
         )
 
@@ -84,7 +86,7 @@ async def auth_callback(
         # Exchange code for token
         token_response = await auth_service.exchange_code_for_token(code)
         access_token = token_response.get("access_token")
-        refresh_token = token_response.get("refresh_token")
+        # Note: refresh_token available if needed: token_response.get("refresh_token")
 
         if not access_token:
             raise InvalidCredentialsError("No access token received")
@@ -93,21 +95,25 @@ async def auth_callback(
         user_info = await auth_service.get_user_info(access_token)
 
         email = user_info.get("email")
-        google_id = user_info.get("id")
-        name = user_info.get("name")
-        picture = user_info.get("picture")
+        auth_provider_id = user_info.get("id")
+        display_name = user_info.get("name")
+        avatar_url = user_info.get("picture")
+
+        # Ensure required fields are present
+        if not email or not auth_provider_id:
+            raise MissingProfileDataError("Email and provider ID are required")
 
         # Validate Gmail domain
         auth_service.validate_gmail_domain(email)
 
-        # Get or create user
+        # Get or create user (with profile)
         user = auth_service.get_or_create_user(
             db=db,
-            google_id=google_id,
+            auth_provider_id=auth_provider_id,
             email=email,
-            name=name,
-            picture=picture,
-            refresh_token=refresh_token,
+            auth_provider="google",
+            display_name=display_name,
+            avatar_url=avatar_url,
         )
 
         # Create session token
@@ -188,7 +194,7 @@ async def get_current_user_info(
     session_token: Annotated[str | None, Cookie()] = None,
     db: Session = Depends(get_db),
 ):
-    """Get current authenticated user information."""
+    """Get current authenticated user information with profile."""
     if not session_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
@@ -198,12 +204,70 @@ async def get_current_user_info(
     if not user:
         raise HTTPException(status_code=401, detail="Invalid session")
 
-    return {
+    # Get user profile
+    profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+
+    response = {
         "id": user.id,
         "email": user.email,
-        "name": user.name,
-        "picture": user.picture,
+        "auth_provider": user.auth_provider,
+        "is_active": user.is_active,
         "created_at": user.created_at.isoformat(),
-        "last_login_at": user.last_login_at.isoformat(),
+        "updated_at": user.updated_at.isoformat(),
     }
 
+    # Add profile data if exists
+    if profile:
+        response["name"] = profile.display_name
+        response["picture"] = profile.avatar_url
+        response["timezone"] = profile.timezone
+    else:
+        response["name"] = None
+        response["picture"] = None
+        response["timezone"] = "UTC"
+
+    return response
+
+
+@router.post("/update-timezone")
+async def update_timezone(
+    request: Request,
+    session_token: Annotated[str | None, Cookie()] = None,
+    db: Session = Depends(get_db),
+):
+    """Update user's timezone preference.
+
+    Called automatically by the frontend after login to set the user's
+    detected timezone (e.g., "Asia/Jerusalem", "America/New_York").
+    """
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # Get timezone from request body
+    body = await request.json()
+    timezone = body.get("timezone")
+
+    if not timezone:
+        raise HTTPException(status_code=400, detail="Timezone required")
+
+    auth_service = get_auth_service()
+    user = auth_service.get_current_user(db, session_token)
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    # Update user profile timezone
+    profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+    if profile:
+        profile.timezone = timezone
+        profile.updated_at = datetime.now(UTC)
+        db.commit()
+
+        logger.info(
+            "user_timezone_updated",
+            extra={"user_id": user.id, "timezone": timezone},
+        )
+
+        return {"success": True, "timezone": timezone}
+
+    raise HTTPException(status_code=404, detail="Profile not found")

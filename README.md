@@ -155,8 +155,12 @@ market-pulse-v2/
 
 3. **Configure environment**
    ```bash
-   cp env.example .env
-   # Populate DATABASE_URL / POSTGRES_URL, Reddit keys, Redis URL, GTM, etc.
+   cp .env.example .env
+   # Edit .env and add your credentials:
+   # - GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (required for authentication)
+   # - DATABASE_URL (defaults to local PostgreSQL)
+   # - REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET (optional, for social data)
+   # - Other settings have sensible defaults
    ```
 
 4. **Start services (Postgres + API)**

@@ -1,13 +1,12 @@
 """Integration tests for authentication flow."""
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.config import settings
-from app.db.models import Base, User
+from app.db.models import Base, User, UserProfile
 from app.main import app
 
 
@@ -23,22 +22,30 @@ def client(test_engine):
 @pytest.fixture
 def mock_google_oauth():
     """Mock Google OAuth responses."""
-    with patch("app.services.auth_service.AuthService.exchange_code_for_token") as mock_exchange, \
-         patch("app.services.auth_service.AuthService.get_user_info") as mock_user_info:
+    with (
+        patch(
+            "app.services.auth_service.AuthService.exchange_code_for_token"
+        ) as mock_exchange,
+        patch("app.services.auth_service.AuthService.get_user_info") as mock_user_info,
+    ):
 
         # Mock successful token exchange
-        mock_exchange.return_value = AsyncMock(return_value={
-            "access_token": "test_access_token",
-            "refresh_token": "test_refresh_token",
-        })
+        mock_exchange.return_value = AsyncMock(
+            return_value={
+                "access_token": "test_access_token",
+                "refresh_token": "test_refresh_token",
+            }
+        )
 
         # Mock successful user info retrieval
-        mock_user_info.return_value = AsyncMock(return_value={
-            "id": "google_123456",
-            "email": "test@gmail.com",
-            "name": "Test User",
-            "picture": "https://example.com/pic.jpg",
-        })
+        mock_user_info.return_value = AsyncMock(
+            return_value={
+                "id": "google_123456",
+                "email": "test@gmail.com",
+                "name": "Test User",
+                "picture": "https://example.com/pic.jpg",
+            }
+        )
 
         yield {
             "exchange": mock_exchange,
@@ -65,11 +72,21 @@ class TestAuthIntegration:
         assert b"Only Gmail accounts are supported" in response.content
 
     @pytest.mark.asyncio
-    async def test_auth_callback_success_new_user(self, client, db_session, mock_google_oauth):
+    async def test_auth_callback_success_new_user(
+        self, client, db_session, mock_google_oauth
+    ):
         """Test successful OAuth callback creating new user."""
         # Mock the exchange and user info methods to be async
-        with patch("app.services.auth_service.AuthService.exchange_code_for_token", new_callable=AsyncMock) as mock_exchange, \
-             patch("app.services.auth_service.AuthService.get_user_info", new_callable=AsyncMock) as mock_user_info:
+        with (
+            patch(
+                "app.services.auth_service.AuthService.exchange_code_for_token",
+                new_callable=AsyncMock,
+            ) as mock_exchange,
+            patch(
+                "app.services.auth_service.AuthService.get_user_info",
+                new_callable=AsyncMock,
+            ) as mock_user_info,
+        ):
 
             mock_exchange.return_value = {
                 "access_token": "test_access_token",
@@ -102,28 +119,61 @@ class TestAuthIntegration:
             # Verify user was created in database
             user = db_session.query(User).filter(User.email == "test@gmail.com").first()
             assert user is not None
-            assert user.google_id == "google_123456"
-            assert user.name == "Test User"
+            assert user.auth_provider_id == "google_123456"
+            assert user.auth_provider == "google"
             assert user.is_active is True
+            assert user.is_deleted is False
+
+            # Verify profile was created
+            profile = (
+                db_session.query(UserProfile)
+                .filter(UserProfile.user_id == user.id)
+                .first()
+            )
+            assert profile is not None
+            assert profile.display_name == "Test User"
+            assert profile.avatar_url == "https://example.com/pic.jpg"
 
     @pytest.mark.asyncio
     async def test_auth_callback_existing_user(self, client, db_session):
-        """Test OAuth callback with existing user updates login time."""
+        """Test OAuth callback with existing user updates profile."""
         # Create existing user
         existing_user = User(
-            google_id="google_123456",
+            auth_provider_id="google_123456",
             email="test@gmail.com",
-            name="Old Name",
+            auth_provider="google",
             is_active=True,
+            is_deleted=False,
             created_at=datetime.now(UTC),
-            last_login_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         db_session.add(existing_user)
-        db_session.commit()
-        old_login_time = existing_user.last_login_at
+        db_session.flush()
 
-        with patch("app.services.auth_service.AuthService.exchange_code_for_token", new_callable=AsyncMock) as mock_exchange, \
-             patch("app.services.auth_service.AuthService.get_user_info", new_callable=AsyncMock) as mock_user_info:
+        # Create existing profile
+        existing_profile = UserProfile(
+            user_id=existing_user.id,
+            display_name="Old Name",
+            timezone="UTC",
+            avatar_url="https://example.com/old.jpg",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        db_session.add(existing_profile)
+        db_session.commit()
+
+        old_updated_time = existing_user.updated_at
+
+        with (
+            patch(
+                "app.services.auth_service.AuthService.exchange_code_for_token",
+                new_callable=AsyncMock,
+            ) as mock_exchange,
+            patch(
+                "app.services.auth_service.AuthService.get_user_info",
+                new_callable=AsyncMock,
+            ) as mock_user_info,
+        ):
 
             mock_exchange.return_value = {
                 "access_token": "test_access_token",
@@ -148,14 +198,24 @@ class TestAuthIntegration:
 
             # Verify user was updated
             db_session.refresh(existing_user)
-            assert existing_user.name == "Updated Name"
-            assert existing_user.last_login_at > old_login_time
+            db_session.refresh(existing_profile)
+            assert existing_profile.display_name == "Updated Name"
+            assert existing_profile.avatar_url == "https://example.com/pic.jpg"
+            assert existing_user.updated_at > old_updated_time
 
     @pytest.mark.asyncio
     async def test_auth_callback_non_gmail_rejected(self, client):
         """Test OAuth callback rejects non-Gmail accounts."""
-        with patch("app.services.auth_service.AuthService.exchange_code_for_token", new_callable=AsyncMock) as mock_exchange, \
-             patch("app.services.auth_service.AuthService.get_user_info", new_callable=AsyncMock) as mock_user_info:
+        with (
+            patch(
+                "app.services.auth_service.AuthService.exchange_code_for_token",
+                new_callable=AsyncMock,
+            ) as mock_exchange,
+            patch(
+                "app.services.auth_service.AuthService.get_user_info",
+                new_callable=AsyncMock,
+            ) as mock_user_info,
+        ):
 
             mock_exchange.return_value = {
                 "access_token": "test_access_token",
@@ -182,18 +242,27 @@ class TestAuthIntegration:
         """Test OAuth callback rejects blocked accounts."""
         # Create blocked user
         blocked_user = User(
-            google_id="google_123456",
+            auth_provider_id="google_123456",
             email="blocked@gmail.com",
-            name="Blocked User",
+            auth_provider="google",
             is_active=False,  # Blocked
+            is_deleted=False,
             created_at=datetime.now(UTC),
-            last_login_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         db_session.add(blocked_user)
         db_session.commit()
 
-        with patch("app.services.auth_service.AuthService.exchange_code_for_token", new_callable=AsyncMock) as mock_exchange, \
-             patch("app.services.auth_service.AuthService.get_user_info", new_callable=AsyncMock) as mock_user_info:
+        with (
+            patch(
+                "app.services.auth_service.AuthService.exchange_code_for_token",
+                new_callable=AsyncMock,
+            ) as mock_exchange,
+            patch(
+                "app.services.auth_service.AuthService.get_user_info",
+                new_callable=AsyncMock,
+            ) as mock_user_info,
+        ):
 
             mock_exchange.return_value = {
                 "access_token": "test_access_token",
@@ -244,16 +313,27 @@ class TestAuthIntegration:
 
         # Create user
         user = User(
-            id=1,
-            google_id="google_123456",
+            auth_provider_id="google_123456",
             email="test@gmail.com",
-            name="Test User",
-            picture="https://example.com/pic.jpg",
+            auth_provider="google",
             is_active=True,
+            is_deleted=False,
             created_at=datetime.now(UTC),
-            last_login_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         db_session.add(user)
+        db_session.flush()
+
+        # Create profile
+        profile = UserProfile(
+            user_id=user.id,
+            display_name="Test User",
+            timezone="UTC",
+            avatar_url="https://example.com/pic.jpg",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        db_session.add(profile)
         db_session.commit()
 
         # Create valid session token
@@ -267,9 +347,10 @@ class TestAuthIntegration:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == 1
+        assert data["id"] == user.id
         assert data["email"] == "test@gmail.com"
         assert data["name"] == "Test User"
+        assert data["picture"] == "https://example.com/pic.jpg"
 
     def test_get_current_user_unauthenticated(self, client):
         """Test /auth/me endpoint returns 401 when not authenticated."""
@@ -287,4 +368,3 @@ class TestAuthIntegration:
 
         assert response.status_code == 401
         assert response.json()["detail"] == "Invalid session"
-
