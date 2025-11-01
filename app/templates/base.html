@@ -3,6 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Get real-time stock market analytics, sentiment tracking, and the latest market news to stay updated and make informed investment decisions.">
+    <meta name="keywords" content="stock market, market analytics, sentiment analysis, stock news, investment, trading, financial news">
+    <meta name="author" content="AlexStocks">
+    <meta name="robots" content="index, follow">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{% block og_url %}{% if request %}{{ request.url|url_string }}{% endif %}{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}AlexStocks - Real-Time Stock Market Analytics{% endblock %}">
+    <meta property="og:description" content="Get real-time stock market analytics, sentiment tracking, and the latest market news to stay updated and make informed investment decisions.">
+    <meta property="og:image" content="{% block og_image %}{% if request %}{{ request.base_url }}static/logo.png{% else %}/static/logo.png{% endif %}{% endblock %}">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{% block twitter_url %}{% if request %}{{ request.url|url_string }}{% endif %}{% endblock %}">
+    <meta name="twitter:title" content="{% block twitter_title %}AlexStocks - Real-Time Stock Market Analytics{% endblock %}">
+    <meta name="twitter:description" content="Get real-time stock market analytics, sentiment tracking, and the latest market news to stay updated and make informed investment decisions.">
+    <meta name="twitter:image" content="{% block twitter_image %}{% if request %}{{ request.base_url }}static/logo.png{% else %}/static/logo.png{% endif %}{% endblock %}">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icon.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icon.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/static/icon.png">
+    
     <title>{% block title %}AlexStocks{% endblock %}</title>
     {% if settings is defined and settings.gtm_container_id and settings.environment == 'production' %}
     <script>

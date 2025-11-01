@@ -3,7 +3,7 @@
 import logging
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -27,6 +27,17 @@ app = FastAPI(
 templates = Jinja2Templates(directory="app/templates")
 # Expose runtime settings to templates (for GTM/env-gated features)
 templates.env.globals["settings"] = settings
+
+
+# Add custom filter for URL string conversion
+def url_string(url_obj) -> str:
+    """Convert URL object to string safely for Jinja2 templates."""
+    if url_obj is None:
+        return ""
+    return str(url_obj)
+
+
+templates.env.filters["url_string"] = url_string
 
 # Mount static files for logo and assets
 app.mount("/static", StaticFiles(directory="app/artifacts"), name="static")
@@ -170,6 +181,12 @@ def get_sentiment_over_time_data(db, ticker: str, days: int = 30) -> dict:
 async def health() -> dict[str, bool]:
     """Health check endpoint."""
     return {"ok": True}
+
+
+@app.get("/robots.txt")
+async def robots_txt():
+    """Serve robots.txt file."""
+    return FileResponse("app/artifacts/robots.txt", media_type="text/plain")
 
 
 @app.get("/about", response_class=HTMLResponse)
