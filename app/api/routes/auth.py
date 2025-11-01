@@ -56,7 +56,7 @@ async def login_page(request: Request):
 @router.get("/callback")
 async def auth_callback(
     request: Request,
-    code: str = Query(..., description="Authorization code from Google"),
+    code: str | None = Query(None, description="Authorization code from Google"),
     state: str = Query(None, description="CSRF state token"),
     error: str = Query(None, description="Error from OAuth provider"),
     db: Session = Depends(get_db),
@@ -78,6 +78,12 @@ async def auth_callback(
         )
         return RedirectResponse(
             url="/auth/login?error=oauth_error",
+            status_code=302,
+        )
+    if not code:
+        logger.error("oauth_callback_missing_code", extra={"state": state})
+        return RedirectResponse(
+            url="/auth/login?error=auth_failed",
             status_code=302,
         )
 

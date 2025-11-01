@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 from jose import JWTError, jwt
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -266,6 +267,58 @@ class AuthService:
 
         return user
 
+    def _generate_unique_display_name(
+        self,
+        db: Session,
+        user_id: int,
+        desired_name: str | None,
+        current_name: str | None = None,
+    ) -> str | None:
+        """Generate a unique display name based on desired name.
+
+        Args:
+            db: Database session
+            user_id: ID of user owning the profile
+            desired_name: Preferred display name (may be None/empty)
+            current_name: Existing display name (used to avoid unnecessary changes)
+
+        Returns:
+            Unique display name or None if no name provided
+        """
+        if not desired_name:
+            return current_name
+
+        base = desired_name.strip()
+        if not base:
+            return current_name
+
+        # If unchanged (case-insensitive), keep current name
+        if current_name and base.lower() == current_name.lower():
+            return current_name
+
+        max_length = 100
+        base = base[:max_length]
+        candidate = base
+        counter = 2
+
+        while (
+            db.query(UserProfile)
+            .filter(
+                func.lower(UserProfile.display_name) == candidate.lower(),
+                UserProfile.user_id != user_id,
+            )
+            .first()
+        ):
+            suffix = f"-{counter}"
+            allowed_length = max_length - len(suffix)
+            trimmed = base[:allowed_length] if allowed_length > 0 else ""
+            if not trimmed:
+                trimmed = f"user-{user_id}"[:allowed_length] if allowed_length > 0 else ""
+            candidate = f"{trimmed}{suffix}"
+            counter += 1
+
+        return candidate
+
     def _create_profile(
         self,
         db: Session,
@@ -276,7 +329,11 @@ class AuthService:
         """Create user profile."""
         profile = UserProfile(
             user_id=user_id,
-            display_name=display_name,
+            display_name=self._generate_unique_display_name(
+                db=db,
+                user_id=user_id,
+                desired_name=display_name,
+            ),
             timezone="UTC",
             avatar_url=avatar_url,
             created_at=datetime.now(UTC),
@@ -298,7 +355,12 @@ class AuthService:
         if profile:
             # Update existing profile
             if display_name:
-                profile.display_name = display_name
+                profile.display_name = self._generate_unique_display_name(
+                    db=db,
+                    user_id=user_id,
+                    desired_name=display_name,
+                    current_name=profile.display_name,
+                )
             if avatar_url:
                 profile.avatar_url = avatar_url
             profile.updated_at = datetime.now(UTC)

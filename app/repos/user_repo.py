@@ -3,7 +3,7 @@
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -172,6 +172,86 @@ class UserRepository:
         """Get user profile."""
         profile = self.session.get(UserProfile, user_id)
         return self._profile_to_dto(profile) if profile else None
+
+    def check_nickname_unique(
+        self, nickname: str, exclude_user_id: int | None = None
+    ) -> bool:
+        """Check if nickname is unique (case-insensitive).
+
+        Args:
+            nickname: Nickname to check
+            exclude_user_id: User ID to exclude from check (for updates)
+
+        Returns:
+            True if nickname is available, False if already taken
+        """
+        stmt = select(UserProfile).where(
+            func.lower(UserProfile.display_name) == func.lower(nickname)
+        )
+        if exclude_user_id:
+            stmt = stmt.where(UserProfile.user_id != exclude_user_id)
+
+        existing = self.session.execute(stmt).scalar_one_or_none()
+        return existing is None
+
+    def update_profile(
+        self,
+        user_id: int,
+        nickname: str | None = None,
+        avatar_url: str | None = None,
+        timezone: str | None = None,
+        notification_defaults: dict | None = None,
+    ) -> UserProfileDTO | None:
+        """Update user profile with partial fields.
+
+        Args:
+            user_id: User ID to update
+            nickname: New nickname (display_name), validated for uniqueness
+            avatar_url: New avatar URL (optional, not exposed in UI for now)
+            timezone: New timezone
+            notification_defaults: Notification preferences (merged into profile.preferences)
+                Expected keys: notify_on_surges, notify_on_most_discussed
+
+        Returns:
+            Updated profile DTO or None if user not found
+
+        Raises:
+            ValueError: If nickname is already taken
+        """
+        profile = self.session.get(UserProfile, user_id)
+        if not profile:
+            return None
+
+        updated = False
+
+        if nickname is not None:
+            # Check uniqueness (case-insensitive)
+            if not self.check_nickname_unique(nickname, exclude_user_id=user_id):
+                raise ValueError(f"Nickname '{nickname}' is already taken")
+
+            profile.display_name = nickname
+            updated = True
+
+        if avatar_url is not None:
+            profile.avatar_url = avatar_url
+            updated = True
+
+        if timezone is not None:
+            profile.timezone = timezone
+            updated = True
+
+        if notification_defaults is not None:
+            # Merge notification defaults into preferences
+            if profile.preferences is None:
+                profile.preferences = {}
+            profile.preferences["notification_defaults"] = notification_defaults
+            updated = True
+
+        if updated:
+            profile.updated_at = datetime.now(UTC)
+            self.session.flush()
+
+        return self._profile_to_dto(profile)
 
     # UserNotificationChannel operations
     def create_notification_channel(

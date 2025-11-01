@@ -536,3 +536,187 @@ def test_complete_user_flow(user_repo, test_session):
 
     follows = user_repo.get_ticker_follows(user.id)
     assert len(follows) == 2
+
+
+# Profile Update and Nickname Uniqueness Tests
+
+
+def test_check_nickname_unique_available(user_repo):
+    """Test nickname uniqueness check when available."""
+    user_dto = UserCreateDTO(email="test@example.com")
+    user = user_repo.create_user(user_dto)
+
+    # Create profile with nickname
+    profile_dto = UserProfileCreateDTO(
+        user_id=user.id, display_name="ExistingNick", timezone="UTC"
+    )
+    user_repo.create_profile(profile_dto)
+
+    # Check different nickname (should be available)
+    assert user_repo.check_nickname_unique("NewNick") is True
+
+
+def test_check_nickname_unique_taken(user_repo):
+    """Test nickname uniqueness check when taken."""
+    user_dto = UserCreateDTO(email="test@example.com")
+    user = user_repo.create_user(user_dto)
+
+    # Create profile with nickname
+    profile_dto = UserProfileCreateDTO(
+        user_id=user.id, display_name="ExistingNick", timezone="UTC"
+    )
+    user_repo.create_profile(profile_dto)
+
+    # Check same nickname (should be taken)
+    assert user_repo.check_nickname_unique("ExistingNick") is False
+
+
+def test_check_nickname_unique_case_insensitive(user_repo):
+    """Test nickname uniqueness is case-insensitive."""
+    user_dto = UserCreateDTO(email="test@example.com")
+    user = user_repo.create_user(user_dto)
+
+    # Create profile with nickname
+    profile_dto = UserProfileCreateDTO(
+        user_id=user.id, display_name="ExistingNick", timezone="UTC"
+    )
+    user_repo.create_profile(profile_dto)
+
+    # Check same nickname with different case (should be taken)
+    assert user_repo.check_nickname_unique("existingnick") is False
+    assert user_repo.check_nickname_unique("EXISTINGNICK") is False
+
+
+def test_check_nickname_unique_exclude_user(user_repo):
+    """Test nickname uniqueness check excludes specified user."""
+    user1_dto = UserCreateDTO(email="user1@example.com")
+    user1 = user_repo.create_user(user1_dto)
+
+    # Create profile for user1
+    profile_dto = UserProfileCreateDTO(
+        user_id=user1.id, display_name="MyNick", timezone="UTC"
+    )
+    user_repo.create_profile(profile_dto)
+
+    # User2 should be able to check same nickname (exclude user1)
+    assert user_repo.check_nickname_unique("MyNick", exclude_user_id=user1.id) is True
+
+    # But without exclude, it should be taken
+    assert user_repo.check_nickname_unique("MyNick") is False
+
+
+def test_update_profile_nickname(user_repo):
+    """Test updating profile nickname."""
+    user_dto = UserCreateDTO(email="test@example.com")
+    user = user_repo.create_user(user_dto)
+
+    # Create profile
+    profile_dto = UserProfileCreateDTO(
+        user_id=user.id, display_name="OldNick", timezone="UTC"
+    )
+    user_repo.create_profile(profile_dto)
+
+    # Update nickname
+    updated = user_repo.update_profile(user.id, nickname="NewNick")
+    assert updated is not None
+    assert updated.display_name == "NewNick"
+
+
+def test_update_profile_nickname_uniqueness_violation(user_repo):
+    """Test updating nickname fails if already taken."""
+    user1_dto = UserCreateDTO(email="user1@example.com")
+    user1 = user_repo.create_user(user1_dto)
+
+    user2_dto = UserCreateDTO(email="user2@example.com")
+    user2 = user_repo.create_user(user2_dto)
+
+    # Create profiles with different nicknames
+    user_repo.create_profile(
+        UserProfileCreateDTO(user_id=user1.id, display_name="Nick1", timezone="UTC")
+    )
+    user_repo.create_profile(
+        UserProfileCreateDTO(user_id=user2.id, display_name="Nick2", timezone="UTC")
+    )
+
+    # Try to update user2's nickname to user1's nickname
+    with pytest.raises(ValueError, match="already taken"):
+        user_repo.update_profile(user2.id, nickname="Nick1")
+
+
+def test_update_profile_timezone(user_repo):
+    """Test updating profile timezone."""
+    user_dto = UserCreateDTO(email="test@example.com")
+    user = user_repo.create_user(user_dto)
+
+    profile_dto = UserProfileCreateDTO(user_id=user.id, timezone="UTC")
+    user_repo.create_profile(profile_dto)
+
+    # Update timezone
+    updated = user_repo.update_profile(user.id, timezone="America/New_York")
+    assert updated.timezone == "America/New_York"
+
+
+def test_update_profile_notification_defaults(user_repo):
+    """Test updating notification defaults."""
+    user_dto = UserCreateDTO(email="test@example.com")
+    user = user_repo.create_user(user_dto)
+
+    profile_dto = UserProfileCreateDTO(user_id=user.id, timezone="UTC", preferences={})
+    user_repo.create_profile(profile_dto)
+
+    # Update notification defaults
+    defaults = {"notify_on_surge": True, "email_enabled": False}
+    updated = user_repo.update_profile(user.id, notification_defaults=defaults)
+    assert updated.preferences is not None
+    assert updated.preferences["notification_defaults"] == defaults
+
+
+def test_update_profile_multiple_fields(user_repo):
+    """Test updating multiple profile fields at once."""
+    user_dto = UserCreateDTO(email="test@example.com")
+    user = user_repo.create_user(user_dto)
+
+    profile_dto = UserProfileCreateDTO(
+        user_id=user.id,
+        display_name="OldName",
+        timezone="UTC",
+    )
+    user_repo.create_profile(profile_dto)
+
+    # Update multiple fields
+    updated = user_repo.update_profile(
+        user.id,
+        nickname="NewName",
+        timezone="Europe/London",
+        notification_defaults={
+            "notify_on_surges": True,
+            "notify_on_most_discussed": False,
+        },
+    )
+
+    assert updated.display_name == "NewName"
+    assert updated.timezone == "Europe/London"
+    assert updated.preferences["notification_defaults"] == {
+        "notify_on_surges": True,
+        "notify_on_most_discussed": False,
+    }
+
+
+def test_update_profile_no_changes(user_repo):
+    """Test updating profile with no changes."""
+    user_dto = UserCreateDTO(email="test@example.com")
+    user = user_repo.create_user(user_dto)
+
+    profile_dto = UserProfileCreateDTO(user_id=user.id, timezone="UTC")
+    original_profile = user_repo.create_profile(profile_dto)
+
+    # Update with None values (no changes)
+    updated = user_repo.update_profile(user.id)
+    assert updated.display_name == original_profile.display_name
+    assert updated.timezone == original_profile.timezone
+
+
+def test_update_profile_not_found(user_repo):
+    """Test updating profile when user doesn't exist."""
+    result = user_repo.update_profile(999999, nickname="Test")
+    assert result is None
