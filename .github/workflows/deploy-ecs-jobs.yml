@@ -63,10 +63,21 @@ jobs:
           echo "Changed files:"
           echo "$CHANGED_FILES"
           
+          # Check if workflow file itself changed
+          WORKFLOW_CHANGED=false
+          if echo "$CHANGED_FILES" | grep -q "^\.github/workflows/deploy-ecs-jobs\.yml"; then
+            WORKFLOW_CHANGED=true
+            echo "✅ Workflow file changed - will trigger full pipeline"
+          fi
+          
           # Check if terraform files changed
           if echo "$CHANGED_FILES" | grep -q "^infrastructure/terraform/"; then
             echo "terraform_changed=true" >> $GITHUB_OUTPUT
             echo "✅ Terraform files changed"
+          elif [ "$WORKFLOW_CHANGED" = "true" ]; then
+            # If workflow changed, also check terraform (for safety)
+            echo "terraform_changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Terraform check triggered due to workflow change"
           else
             echo "terraform_changed=false" >> $GITHUB_OUTPUT
             echo "ℹ️  No terraform changes"
@@ -76,6 +87,10 @@ jobs:
           if echo "$CHANGED_FILES" | grep -qE "^(jobs/|app/|ingest/)"; then
             echo "jobs_changed=true" >> $GITHUB_OUTPUT
             echo "✅ Job/app files changed"
+          elif [ "$WORKFLOW_CHANGED" = "true" ]; then
+            # If workflow changed, also check jobs (for safety)
+            echo "jobs_changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Jobs check triggered due to workflow change"
           else
             echo "jobs_changed=false" >> $GITHUB_OUTPUT
             echo "ℹ️  No job/app changes"
