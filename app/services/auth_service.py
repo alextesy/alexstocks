@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db.models import User, UserProfile
+from app.services.slack_service import get_slack_service
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +265,34 @@ class AuthService:
                 "user_created",
                 extra={"user_id": user.id, "email": user.email},
             )
+
+            # Send Slack notification for new user (non-blocking)
+            try:
+                total_users = (
+                    db.query(func.count(User.id))
+                    .filter(User.is_deleted == False)  # noqa: E712
+                    .scalar()
+                    or 0
+                )
+
+                profile = (
+                    db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+                )
+                display_name = profile.display_name if profile else None
+
+                slack = get_slack_service()
+                slack.notify_user_created(
+                    user_id=user.id,
+                    email=user.email,
+                    display_name=display_name,
+                    total_users=total_users,
+                )
+            except Exception as e:
+                # Don't fail login if Slack notification fails
+                logger.warning(
+                    "slack_user_notification_failed",
+                    extra={"user_id": user.id, "error": str(e)},
+                )
 
         return user
 

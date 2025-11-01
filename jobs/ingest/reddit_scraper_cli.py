@@ -16,8 +16,11 @@ import argparse
 import logging
 import sys
 from datetime import UTC, datetime
+from typing import Any
 
 from dotenv import load_dotenv
+
+from jobs.jobs.slack_wrapper import run_with_slack
 
 from .reddit_discussion_scraper import get_reddit_credentials
 from .reddit_scraper import RedditScraper
@@ -43,7 +46,7 @@ def run_incremental(
     max_threads: int = 3,
     max_replace_more: int | None = 32,
     verbose: bool = False,
-) -> None:
+) -> dict[str, Any]:
     """
     Run incremental scraping (for 15-min cron jobs).
 
@@ -95,9 +98,21 @@ def run_incremental(
 
         print("\n✅ Incremental scraping completed successfully")
 
+        # Return stats for Slack summary
+        return {
+            "threads_processed": stats.threads_processed,
+            "total_comments": stats.total_comments,
+            "new_comments": stats.new_comments,
+            "articles_created": stats.articles_created,
+            "ticker_links": stats.ticker_links,
+            "batches_saved": stats.batches_saved,
+            "success": stats.new_comments,
+            "duration": stats.duration_ms / 1000.0,
+        }
+
     except Exception as e:
         logger.error(f"❌ Fatal error: {e}", exc_info=True)
-        sys.exit(1)
+        raise
 
 
 def run_backfill(
@@ -107,7 +122,7 @@ def run_backfill(
     config_path: str | None = None,
     max_replace_more: int | None = 32,
     verbose: bool = False,
-) -> None:
+) -> dict[str, Any]:
     """
     Run backfill for date range.
 
@@ -172,9 +187,21 @@ def run_backfill(
 
         print("\n✅ Backfill completed successfully")
 
+        # Return stats for Slack summary
+        return {
+            "threads_processed": stats.threads_processed,
+            "total_comments": stats.total_comments,
+            "new_comments": stats.new_comments,
+            "articles_created": stats.articles_created,
+            "ticker_links": stats.ticker_links,
+            "batches_saved": stats.batches_saved,
+            "success": stats.new_comments,
+            "duration": stats.duration_ms / 1000.0,
+        }
+
     except Exception as e:
         logger.error(f"❌ Fatal error: {e}", exc_info=True)
-        sys.exit(1)
+        raise
 
 
 def show_status(
@@ -334,25 +361,50 @@ Examples:
 
     # Route to appropriate handler
     if args.mode == "incremental":
-        run_incremental(
-            config_path=args.config,
-            subreddit=args.subreddit,
-            max_threads=args.max_threads,
-            max_replace_more=max_replace_more,
-            verbose=args.verbose,
+
+        def run_job():
+            return run_incremental(
+                config_path=args.config,
+                subreddit=args.subreddit,
+                max_threads=args.max_threads,
+                max_replace_more=max_replace_more,
+                verbose=args.verbose,
+            )
+
+        run_with_slack(
+            job_name="reddit_scraper",
+            job_func=run_job,
+            metadata={
+                "mode": "incremental",
+                "subreddit": args.subreddit or "all",
+            },
         )
     elif args.mode == "backfill":
         if not args.subreddit:
             parser.error("--mode backfill requires --subreddit")
-        run_backfill(
-            subreddit=args.subreddit,
-            start_date=args.start,
-            end_date=args.end,
-            config_path=args.config,
-            max_replace_more=max_replace_more,
-            verbose=args.verbose,
+
+        def run_job():
+            return run_backfill(
+                subreddit=args.subreddit,
+                start_date=args.start,
+                end_date=args.end,
+                config_path=args.config,
+                max_replace_more=max_replace_more,
+                verbose=args.verbose,
+            )
+
+        run_with_slack(
+            job_name="reddit_scraper_backfill",
+            job_func=run_job,
+            metadata={
+                "mode": "backfill",
+                "subreddit": args.subreddit,
+                "start_date": args.start,
+                "end_date": args.end,
+            },
         )
     elif args.mode == "status":
+        # Status check doesn't need Slack notifications
         show_status(
             config_path=args.config,
             subreddit=args.subreddit or "wallstreetbets",

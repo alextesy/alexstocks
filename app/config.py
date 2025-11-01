@@ -95,6 +95,20 @@ class Settings(BaseSettings):
     )
     session_max_age_seconds: int = 86400 * 30  # 30 days
 
+    # Slack configuration
+    slack_bot_token: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SLACK_BOT_TOKEN", "slack_bot_token"),
+    )
+    slack_default_channel: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SLACK_DEFAULT_CHANNEL", "slack_default_channel"),
+    )
+    slack_users_channel: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SLACK_USERS_CHANNEL", "slack_users_channel"),
+    )
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
