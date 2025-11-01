@@ -163,12 +163,14 @@ class UserTickerFollowDTO:
     id: int
     user_id: int
     ticker: str
-    notify_on_signals: bool
-    notify_on_price_change: bool
-    price_change_threshold: float | None
-    custom_alerts: dict | None
-    created_at: datetime
-    updated_at: datetime
+    ticker_name: str | None = None  # Ticker full name
+    order: int = 0  # Display order in watchlist
+    notify_on_signals: bool = True
+    notify_on_price_change: bool = False
+    price_change_threshold: float | None = None
+    custom_alerts: dict | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 @dataclass

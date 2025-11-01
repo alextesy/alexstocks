@@ -401,6 +401,9 @@ class UserTickerFollow(Base):
     custom_alerts: Mapped[dict | None] = mapped_column(
         JSONBCompat, nullable=True
     )  # Custom alert conditions
+    order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )  # Display order in watchlist (lower = higher priority)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )

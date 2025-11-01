@@ -97,6 +97,52 @@
         </div>
     </div>
 
+    <!-- Watchlist Section -->
+    <div class="bg-white rounded-lg shadow-sm border p-8 mb-6">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-6">Watchlist</h2>
+        <p class="text-sm text-gray-600 mb-6">Manage the tickers you follow. You can search for tickers, add them to your watchlist, and reorder them.</p>
+        
+        <!-- Add Ticker Picker -->
+        <div class="mb-6">
+            <label for="ticker-search-input" class="block text-sm font-medium text-gray-700 mb-2">
+                Add Ticker
+            </label>
+            <div class="relative">
+                <input 
+                    type="text" 
+                    id="ticker-search-input" 
+                    placeholder="Search for a ticker (e.g., AAPL, TSLA)"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    autocomplete="off"
+                >
+                <div id="ticker-search-results" class="hidden absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <!-- Search results will appear here -->
+                </div>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">Type to search for tickers by symbol or company name</p>
+        </div>
+
+        <!-- Watchlist List -->
+        <div id="watchlist-container">
+            <div id="watchlist-loading" class="text-center py-8">
+                <i class="fas fa-spinner fa-spin text-gray-400 text-2xl"></i>
+                <p class="text-sm text-gray-500 mt-2">Loading watchlist...</p>
+            </div>
+            
+            <!-- Empty State -->
+            <div id="watchlist-empty" class="hidden text-center py-12">
+                <i class="fas fa-star text-gray-300 text-5xl mb-4"></i>
+                <p class="text-lg text-gray-600 mb-2">Your watchlist is empty</p>
+                <p class="text-sm text-gray-500">Start by searching for and adding tickers above</p>
+            </div>
+
+            <!-- Ticker List -->
+            <ul id="watchlist-list" class="hidden space-y-2">
+                <!-- Ticker items will be rendered here -->
+            </ul>
+        </div>
+    </div>
+
     <!-- Notification Preferences Section -->
     <div class="bg-white rounded-lg shadow-sm border p-8 mb-6">
         <h2 class="text-2xl font-semibold text-gray-900 mb-6">Notification Preferences</h2>
@@ -142,6 +188,9 @@
 <script>
 let profileData = null;
 let isSaving = false;
+let watchlistData = [];
+let searchTimeout = null;
+let isReordering = false;
 
 // Load profile data on page load
 async function loadProfile() {
@@ -312,7 +361,368 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+    
+    // Watchlist functionality
+    setupWatchlist();
 });
+
+// ===== Watchlist Functions =====
+
+async function setupWatchlist() {
+    await loadWatchlist();
+    setupTickerSearch();
+}
+
+async function loadWatchlist() {
+    try {
+        const response = await fetch('/api/users/me/follows', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+                window.location.href = '/auth/login';
+                return;
+            }
+            throw new Error('Failed to load watchlist');
+        }
+        
+        watchlistData = await response.json();
+        renderWatchlist();
+    } catch (error) {
+        showError('Failed to load watchlist. Please refresh the page.');
+        console.error('Error loading watchlist:', error);
+        document.getElementById('watchlist-loading').classList.add('hidden');
+        document.getElementById('watchlist-empty').classList.remove('hidden');
+    }
+}
+
+function renderWatchlist() {
+    const loadingEl = document.getElementById('watchlist-loading');
+    const emptyEl = document.getElementById('watchlist-empty');
+    const listEl = document.getElementById('watchlist-list');
+    
+    loadingEl.classList.add('hidden');
+    
+    if (watchlistData.length === 0) {
+        emptyEl.classList.remove('hidden');
+        listEl.classList.add('hidden');
+        return;
+    }
+    
+    emptyEl.classList.add('hidden');
+    listEl.classList.remove('hidden');
+    
+    // Sort by order
+    const sorted = [...watchlistData].sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    listEl.innerHTML = sorted.map((item, index) => `
+        <li 
+            class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            data-ticker="${item.ticker}"
+            data-order="${item.order || index}"
+        >
+            <div class="flex items-center space-x-3 flex-1">
+                <button 
+                    class="text-gray-400 hover:text-gray-600 cursor-move"
+                    title="Drag to reorder"
+                    onmousedown="startDrag(event, '${item.ticker}')"
+                >
+                    <i class="fas fa-grip-vertical"></i>
+                </button>
+                <div class="flex-1">
+                    <div class="font-semibold text-gray-900">${item.ticker}</div>
+                    ${item.ticker_name ? `<div class="text-sm text-gray-500">${item.ticker_name}</div>` : ''}
+                </div>
+            </div>
+            <button 
+                onclick="removeTicker('${item.ticker}')"
+                class="ml-4 text-red-600 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 rounded p-2"
+                title="Remove from watchlist"
+            >
+                <i class="fas fa-times"></i>
+            </button>
+        </li>
+    `).join('');
+}
+
+function setupTickerSearch() {
+    const searchInput = document.getElementById('ticker-search-input');
+    const resultsContainer = document.getElementById('ticker-search-results');
+    
+    // Get current watchlist tickers to prevent duplicates
+    const currentTickers = new Set(watchlistData.map(f => f.ticker.toUpperCase()));
+    
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        
+        clearTimeout(searchTimeout);
+        
+        if (!query || query.length < 1) {
+            resultsContainer.classList.add('hidden');
+            return;
+        }
+        
+        searchTimeout = setTimeout(async () => {
+            try {
+                const response = await fetch(`/api/users/me/follows/search?q=${encodeURIComponent(query)}&limit=10`, {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Search failed');
+                }
+                
+                const results = await response.json();
+                
+                // Filter out already-followed tickers
+                const available = results.filter(t => !currentTickers.has(t.symbol.toUpperCase()));
+                
+                if (available.length === 0) {
+                    resultsContainer.innerHTML = `
+                        <div class="px-4 py-3 text-sm text-gray-500">
+                            ${results.length > 0 ? 'Already in watchlist or no results' : 'No tickers found'}
+                        </div>
+                    `;
+                    resultsContainer.classList.remove('hidden');
+                    return;
+                }
+                
+                resultsContainer.innerHTML = available.map(ticker => `
+                    <button 
+                        class="w-full text-left px-4 py-3 hover:bg-gray-100 border-b border-gray-100 last:border-b-0 focus:outline-none focus:bg-gray-100"
+                        onclick="addTicker('${ticker.symbol}')"
+                    >
+                        <div class="font-semibold text-gray-900">${ticker.symbol}</div>
+                        <div class="text-sm text-gray-500">${ticker.name || ''} ${ticker.exchange ? `(${ticker.exchange})` : ''}</div>
+                    </button>
+                `).join('');
+                
+                resultsContainer.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error searching tickers:', error);
+                resultsContainer.classList.add('hidden');
+            }
+        }, 300); // Debounce 300ms
+    });
+    
+    // Hide results when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#ticker-search-input') && !e.target.closest('#ticker-search-results')) {
+            resultsContainer.classList.add('hidden');
+        }
+    });
+    
+    // Handle keyboard navigation in search results
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+            const buttons = resultsContainer.querySelectorAll('button');
+            if (buttons.length === 0) return;
+            
+            e.preventDefault();
+            
+            const current = resultsContainer.querySelector('button:focus');
+            let next;
+            
+            if (e.key === 'ArrowDown') {
+                next = current ? current.nextElementSibling : buttons[0];
+                if (!next) next = buttons[0];
+            } else if (e.key === 'ArrowUp') {
+                next = current ? current.previousElementSibling : buttons[buttons.length - 1];
+                if (!next) next = buttons[buttons.length - 1];
+            } else if (e.key === 'Enter' && current) {
+                current.click();
+                return;
+            }
+            
+            if (next) {
+                buttons.forEach(b => b.classList.remove('bg-gray-100'));
+                next.focus();
+                next.classList.add('bg-gray-100');
+            }
+        }
+    });
+}
+
+async function addTicker(symbol) {
+    // Hide search results
+    document.getElementById('ticker-search-results').classList.add('hidden');
+    document.getElementById('ticker-search-input').value = '';
+    
+    try {
+        const response = await fetch('/api/users/me/follows', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                ticker: symbol,
+                notify_on_signals: true,
+            }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Failed to add ticker' }));
+            throw new Error(errorData.detail || 'Failed to add ticker');
+        }
+        
+        const added = await response.json();
+        watchlistData.push(added);
+        
+        // Re-render watchlist
+        renderWatchlist();
+        
+        // Show success message briefly
+        const msg = document.createElement('div');
+        msg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+        msg.textContent = `Added ${symbol} to watchlist`;
+        document.body.appendChild(msg);
+        setTimeout(() => msg.remove(), 3000);
+        
+    } catch (error) {
+        showError(error.message || 'Failed to add ticker. Please try again.');
+        console.error('Error adding ticker:', error);
+    }
+}
+
+async function removeTicker(symbol) {
+    if (!confirm(`Remove ${symbol} from your watchlist?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/users/me/follows/${encodeURIComponent(symbol)}`, {
+            method: 'DELETE',
+            credentials: 'include',
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to remove ticker');
+        }
+        
+        // Remove from local data
+        watchlistData = watchlistData.filter(f => f.ticker !== symbol);
+        
+        // Re-render watchlist
+        renderWatchlist();
+        
+        // Show success message
+        const msg = document.createElement('div');
+        msg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+        msg.textContent = `Removed ${symbol} from watchlist`;
+        document.body.appendChild(msg);
+        setTimeout(() => msg.remove(), 3000);
+        
+    } catch (error) {
+        showError('Failed to remove ticker. Please try again.');
+        console.error('Error removing ticker:', error);
+    }
+}
+
+// Drag and drop functionality
+let draggedElement = null;
+let draggedTicker = null;
+
+function startDrag(e, ticker) {
+    e.preventDefault();
+    draggedElement = e.target.closest('li');
+    draggedTicker = ticker;
+    draggedElement.style.opacity = '0.5';
+}
+
+document.addEventListener('mousemove', (e) => {
+    if (!draggedElement) return;
+    
+    const listEl = document.getElementById('watchlist-list');
+    const items = Array.from(listEl.querySelectorAll('li'));
+    const afterElement = getDragAfterElement(listEl, e.clientY);
+    
+    if (afterElement == null) {
+        listEl.appendChild(draggedElement);
+    } else {
+        listEl.insertBefore(draggedElement, afterElement);
+    }
+});
+
+document.addEventListener('mouseup', async () => {
+    if (!draggedElement) return;
+    
+    draggedElement.style.opacity = '1';
+    
+    // Get new order
+    const listEl = document.getElementById('watchlist-list');
+    const items = Array.from(listEl.querySelectorAll('li'));
+    const tickerOrders = {};
+    
+    items.forEach((item, index) => {
+        const ticker = item.getAttribute('data-ticker');
+        tickerOrders[ticker] = index;
+    });
+    
+    // Only reorder if order changed
+    const oldOrder = watchlistData.find(f => f.ticker === draggedTicker)?.order || 0;
+    if (tickerOrders[draggedTicker] !== oldOrder) {
+        await reorderWatchlist(tickerOrders);
+    }
+    
+    draggedElement = null;
+    draggedTicker = null;
+});
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('li')];
+    
+    return draggableElements.reduce((closest, child) => {
+        if (child === draggedElement) {
+            return closest;
+        }
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+async function reorderWatchlist(tickerOrders) {
+    if (isReordering) return;
+    isReordering = true;
+    
+    try {
+        const response = await fetch('/api/users/me/follows/reorder', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                ticker_orders: tickerOrders,
+            }),
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to reorder watchlist');
+        }
+        
+        const updated = await response.json();
+        watchlistData = updated;
+        
+        // Re-render to ensure consistency
+        renderWatchlist();
+        
+    } catch (error) {
+        showError('Failed to reorder watchlist. Please try again.');
+        console.error('Error reordering watchlist:', error);
+        // Reload to get correct order
+        await loadWatchlist();
+    } finally {
+        isReordering = false;
+    }
+}
 </script>
 {% endblock %}
 

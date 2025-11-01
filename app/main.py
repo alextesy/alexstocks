@@ -931,6 +931,25 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "status": scraping_status.status,
             }
 
+        # Get user's followed tickers if authenticated
+        followed_tickers: list[str] = []
+        session_token = request.cookies.get("session_token")
+        if session_token:
+            try:
+                from app.services.auth_service import get_auth_service
+
+                auth_service = get_auth_service()
+                user = auth_service.get_current_user(db, session_token)
+                if user:
+                    from app.repos.user_repo import UserRepository
+
+                    repo = UserRepository(db)
+                    follows = repo.get_ticker_follows(user.id)
+                    followed_tickers = [f.ticker for f in follows]
+            except Exception:
+                # If auth fails, just continue without followed tickers
+                pass
+
         return templates.TemplateResponse(
             "home.html",
             {
@@ -940,6 +959,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "overall_lean": overall_lean,
                 "scraping_status": scraping_info,
                 "default_mention_symbols": default_mention_symbols,
+                "followed_tickers": followed_tickers,
             },
         )
     finally:
@@ -1542,6 +1562,25 @@ async def ticker_page(
             .all()
         ]
 
+        # Get user's followed tickers if authenticated
+        is_following = False
+        session_token = request.cookies.get("session_token")
+        if session_token:
+            try:
+                from app.services.auth_service import get_auth_service
+
+                auth_service = get_auth_service()
+                user = auth_service.get_current_user(db, session_token)
+                if user:
+                    from app.repos.user_repo import UserRepository
+
+                    repo = UserRepository(db)
+                    follow = repo.get_ticker_follow(user.id, ticker.upper())
+                    is_following = follow is not None
+            except Exception:
+                # If auth fails, just continue without follow status
+                pass
+
         return templates.TemplateResponse(
             "ticker.html",
             {
@@ -1565,6 +1604,7 @@ async def ticker_page(
                 "start": start,
                 "end": end,
                 "sources_available": sources_available,
+                "is_following": is_following,
             },
         )
     finally:
