@@ -72,7 +72,6 @@ COMMON_WORD_TICKERS = {
     "UP",
     "WE",
     # Pronouns
-    "YOU",
     "SHE",
     "HIM",
     "HER",
@@ -327,6 +326,11 @@ REQUIRE_CASHTAG_ONLY = {
     "OPEN",
     "AI",
     "WTF",
+    "EOD",
+    "YOU",
+    "ON",
+    "GO",
+    "FOR",
 }
 
 # Additional common words that collide with tickers and should only link when
@@ -368,6 +372,19 @@ COMMON_WORD_TICKERS.update(
         "EDIT",
         "FLY",
         "SON",
+        "TECH",
+        "GAP",
+        "LUCK",
+        "FILL",
+        "BAR",
+        "DARE",
+        "FACT",
+        "MIN",
+        "SIZE",
+        "EM",
+        "ICE",
+        "SORA",
+        "VOTE",
     }
 )
 
