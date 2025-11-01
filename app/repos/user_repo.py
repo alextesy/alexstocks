@@ -4,10 +4,15 @@ import logging
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
-from app.db.models import User, UserNotificationChannel, UserProfile, UserTickerFollow
+from app.db.models import (
+    User,
+    UserNotificationChannel,
+    UserProfile,
+    UserTickerFollow,
+)
 from app.models.dto import (
     UserCreateDTO,
     UserDTO,
@@ -333,6 +338,13 @@ class UserRepository:
             self.session.flush()
             return self._ticker_follow_to_dto(existing)
 
+        # Get max order for this user to append at end
+        max_order_stmt = select(func.max(UserTickerFollow.order)).where(
+            UserTickerFollow.user_id == follow_dto.user_id
+        )
+        max_order_result = self.session.execute(max_order_stmt).scalar()
+        next_order = (max_order_result if max_order_result is not None else -1) + 1
+
         # Create new follow
         follow = UserTickerFollow(
             user_id=follow_dto.user_id,
@@ -341,6 +353,7 @@ class UserRepository:
             notify_on_price_change=follow_dto.notify_on_price_change,
             price_change_threshold=follow_dto.price_change_threshold,
             custom_alerts=follow_dto.custom_alerts,
+            order=next_order,
         )
         self.session.add(follow)
         self.session.flush()
@@ -349,18 +362,19 @@ class UserRepository:
     def get_ticker_follows(
         self, user_id: int, limit: int = 100, offset: int = 0
     ) -> list[UserTickerFollowDTO]:
-        """Get all ticker follows for a user with pagination."""
+        """Get all ticker follows for a user with pagination, ordered by order field."""
         max_limit = getattr(settings, "MAX_LIMIT_TICKERS", 100)
         limit = min(limit, max_limit)
 
         stmt = (
             select(UserTickerFollow)
+            .options(joinedload(UserTickerFollow.ticker_obj))
             .where(UserTickerFollow.user_id == user_id)
-            .order_by(UserTickerFollow.created_at.desc())
+            .order_by(UserTickerFollow.order.asc(), UserTickerFollow.created_at.asc())
             .limit(limit)
             .offset(offset)
         )
-        follows = self.session.execute(stmt).scalars().all()
+        follows = self.session.execute(stmt).unique().scalars().all()
         return [self._ticker_follow_to_dto(f) for f in follows]
 
     def get_ticker_follow(
@@ -374,7 +388,7 @@ class UserRepository:
         return self._ticker_follow_to_dto(follow) if follow else None
 
     def delete_ticker_follow(self, user_id: int, ticker: str) -> bool:
-        """Delete a ticker follow."""
+        """Delete a ticker follow and reorder remaining follows."""
         stmt = select(UserTickerFollow).where(
             UserTickerFollow.user_id == user_id, UserTickerFollow.ticker == ticker
         )
@@ -382,9 +396,57 @@ class UserRepository:
         if not follow:
             return False
 
+        deleted_order = follow.order
+
         self.session.delete(follow)
         self.session.flush()
+
+        # Reorder remaining follows: shift down orders > deleted_order
+        reorder_stmt = (
+            select(UserTickerFollow)
+            .where(
+                UserTickerFollow.user_id == user_id,
+                UserTickerFollow.order > deleted_order,
+            )
+            .order_by(UserTickerFollow.order.asc())
+        )
+        remaining_follows = self.session.execute(reorder_stmt).scalars().all()
+        for remaining in remaining_follows:
+            remaining.order -= 1
+            remaining.updated_at = datetime.now(UTC)
+        self.session.flush()
+
         return True
+
+    def reorder_ticker_follows(
+        self, user_id: int, ticker_orders: dict[str, int]
+    ) -> list[UserTickerFollowDTO]:
+        """Reorder ticker follows for a user.
+
+        Args:
+            user_id: User ID
+            ticker_orders: Dictionary mapping ticker symbols to their new order positions
+
+        Returns:
+            List of updated ticker follow DTOs in new order
+        """
+        # Get all follows for this user
+        stmt = select(UserTickerFollow).where(
+            UserTickerFollow.user_id == user_id,
+            UserTickerFollow.ticker.in_(list(ticker_orders.keys())),
+        )
+        follows = self.session.execute(stmt).scalars().all()
+
+        # Update orders
+        for follow in follows:
+            if follow.ticker in ticker_orders:
+                follow.order = ticker_orders[follow.ticker]
+                follow.updated_at = datetime.now(UTC)
+
+        self.session.flush()
+
+        # Return all follows in order
+        return self.get_ticker_follows(user_id)
 
     # Helper methods to convert models to DTOs
     @staticmethod
@@ -436,10 +498,19 @@ class UserRepository:
     @staticmethod
     def _ticker_follow_to_dto(follow: UserTickerFollow) -> UserTickerFollowDTO:
         """Convert UserTickerFollow model to DTO."""
+        # Get ticker name if relationship is loaded
+        ticker_name = None
+        if follow.ticker_obj:
+            ticker_name = follow.ticker_obj.name
+        elif hasattr(follow, "ticker_obj") and follow.ticker_obj is not None:
+            ticker_name = follow.ticker_obj.name
+
         return UserTickerFollowDTO(
             id=follow.id,
             user_id=follow.user_id,
             ticker=follow.ticker,
+            ticker_name=ticker_name,
+            order=follow.order,
             notify_on_signals=follow.notify_on_signals,
             notify_on_price_change=follow.notify_on_price_change,
             price_change_threshold=follow.price_change_threshold,
