@@ -269,7 +269,8 @@ def test_update_profile_nickname_case_insensitive(
 def test_update_profile_nickname_empty(authenticated_client, test_user_with_profile):
     """Test nickname cannot be empty."""
     response = authenticated_client.put("/api/users/me", json={"nickname": "   "})
-    assert response.status_code == 400
+    # FastAPI returns 422 for Pydantic validation errors
+    assert response.status_code == 422
 
 
 def test_update_profile_nickname_too_long(authenticated_client, test_user_with_profile):
@@ -278,7 +279,8 @@ def test_update_profile_nickname_too_long(authenticated_client, test_user_with_p
     response = authenticated_client.put(
         "/api/users/me", json={"nickname": long_nickname}
     )
-    assert response.status_code == 400
+    # FastAPI returns 422 for Pydantic validation errors
+    assert response.status_code == 422
 
 
 def test_update_profile_own_nickname(authenticated_client, test_user_with_profile):
@@ -298,7 +300,8 @@ def test_update_profile_invalid_nickname(authenticated_client, test_user_with_pr
     response = authenticated_client.put(
         "/api/users/me", json={"nickname": long_nickname}
     )
-    assert response.status_code == 400
+    # FastAPI returns 422 for Pydantic validation errors
+    assert response.status_code == 422
 
 
 def test_auth_service_generates_unique_display_name(test_session):

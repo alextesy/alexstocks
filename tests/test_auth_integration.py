@@ -8,8 +8,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
 from app.db.models import Base, User, UserProfile
-from app.main import app
 from app.db.session import get_db
+from app.main import app
 
 
 @pytest.fixture

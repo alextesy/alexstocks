@@ -63,6 +63,8 @@ async def get_current_user_profile(
         profile = repo.create_profile(profile_dto)
         db.commit()
         profile = repo.get_profile(user_id)
+        if not profile:
+            raise HTTPException(status_code=500, detail="Failed to create profile")
 
     # Extract notification defaults from preferences
     notification_defaults = {}

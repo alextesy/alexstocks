@@ -313,7 +313,9 @@ class AuthService:
             allowed_length = max_length - len(suffix)
             trimmed = base[:allowed_length] if allowed_length > 0 else ""
             if not trimmed:
-                trimmed = f"user-{user_id}"[:allowed_length] if allowed_length > 0 else ""
+                trimmed = (
+                    f"user-{user_id}"[:allowed_length] if allowed_length > 0 else ""
+                )
             candidate = f"{trimmed}{suffix}"
             counter += 1
 
