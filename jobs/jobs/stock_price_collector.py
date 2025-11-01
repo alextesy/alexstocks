@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Article, ArticleTicker, StockPrice
 from app.db.session import SessionLocal
 from app.services.stock_data import StockDataService
-from jobs.jobs.slack_wrapper import run_with_slack
+from jobs.slack_wrapper import run_with_slack
 
 # Set up logging
 logging.basicConfig(
