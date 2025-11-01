@@ -19,6 +19,7 @@ from app.db.models import Article  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
 from app.services.llm_sentiment import get_llm_sentiment_service  # noqa: E402
 from app.services.sentiment import get_sentiment_service_hybrid  # noqa: E402
+from jobs.jobs.slack_wrapper import run_with_slack  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -317,8 +318,8 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    try:
-        run_sentiment_analysis(
+    def run_job():
+        return run_sentiment_analysis(
             max_articles=args.max_articles,
             source_filter=args.source,
             hours_back=args.hours_back,
@@ -326,6 +327,17 @@ def main() -> None:
             batch_size=args.batch_size,
             use_llm_only=args.llm_only,
             verbose=args.verbose,
+        )
+
+    try:
+        run_with_slack(
+            job_name="analyze_sentiment",
+            job_func=run_job,
+            metadata={
+                "source": args.source or "all",
+                "max_workers": args.max_workers,
+                "max_articles": args.max_articles or "unlimited",
+            },
         )
     except KeyboardInterrupt:
         logger.info("Sentiment analysis interrupted by user")

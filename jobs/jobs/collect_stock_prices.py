@@ -10,6 +10,7 @@ sys.path.append(".")
 
 from app.collectors.stock_price_collector import StockPriceCollector
 from app.db.session import SessionLocal
+from jobs.jobs.slack_wrapper import run_with_slack
 
 # Set up logging
 logging.basicConfig(
@@ -93,10 +94,26 @@ if __name__ == "__main__":
         start_time = datetime.now()
 
         if args.type in ["current", "both"]:
-            await collect_current_prices()
+
+            async def run_current():
+                return await collect_current_prices()
+
+            run_with_slack(
+                job_name="collect_stock_prices",
+                job_func=run_current,
+                metadata={"type": "current"},
+            )
 
         if args.type in ["historical", "both"]:
-            await collect_historical_data()
+
+            async def run_historical():
+                return await collect_historical_data()
+
+            run_with_slack(
+                job_name="collect_stock_prices_historical",
+                job_func=run_historical,
+                metadata={"type": "historical"},
+            )
 
         total_time = (datetime.now() - start_time).total_seconds()
         logger.info(f"Total job time: {total_time:.2f}s")

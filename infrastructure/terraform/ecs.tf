@@ -128,6 +128,14 @@ resource "aws_ecs_task_definition" "reddit_scraper" {
       {
         name      = "REDDIT_USER_AGENT"
         valueFrom = data.aws_secretsmanager_secret.reddit_user_agent.arn
+      },
+      {
+        name      = "SLACK_BOT_TOKEN"
+        valueFrom = data.aws_secretsmanager_secret.slack_bot_token.arn
+      },
+      {
+        name      = "SLACK_DEFAULT_CHANNEL"
+        valueFrom = data.aws_secretsmanager_secret.slack_default_channel.arn
       }
     ]
 
@@ -239,6 +247,14 @@ resource "aws_ecs_task_definition" "daily_status" {
       {
         name      = "REDDIT_USER_AGENT"
         valueFrom = data.aws_secretsmanager_secret.reddit_user_agent.arn
+      },
+      {
+        name      = "SLACK_BOT_TOKEN"
+        valueFrom = data.aws_secretsmanager_secret.slack_bot_token.arn
+      },
+      {
+        name      = "SLACK_DEFAULT_CHANNEL"
+        valueFrom = data.aws_secretsmanager_secret.slack_default_channel.arn
       }
     ]
 

@@ -14,3 +14,15 @@ data "aws_secretsmanager_secret" "reddit_client_secret" {
 data "aws_secretsmanager_secret" "reddit_user_agent" {
   name = "${var.project_name}/reddit-user-agent"
 }
+
+data "aws_secretsmanager_secret" "slack_bot_token" {
+  name = "${var.project_name}/slack-bot-token"
+}
+
+data "aws_secretsmanager_secret" "slack_default_channel" {
+  name = "${var.project_name}/slack-default-channel"
+}
+
+data "aws_secretsmanager_secret" "slack_users_channel" {
+  name = "${var.project_name}/slack-users-channel"
+}
