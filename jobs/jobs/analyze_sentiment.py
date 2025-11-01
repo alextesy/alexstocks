@@ -6,6 +6,7 @@ import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from dotenv import load_dotenv
 from sqlalchemy import select, update
@@ -14,6 +15,9 @@ from tqdm import tqdm
 
 # Load .env BEFORE importing app modules that use settings
 load_dotenv()
+
+# Add project root to path
+sys.path.append(".")
 
 from app.db.models import Article  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
@@ -219,7 +223,7 @@ def run_sentiment_analysis(
     batch_size: int = 100,
     use_llm_only: bool = False,
     verbose: bool = False,
-) -> None:
+) -> dict[str, Any]:
     """Run sentiment analysis on articles without sentiment data.
 
     Args:
@@ -229,6 +233,9 @@ def run_sentiment_analysis(
         max_workers: Maximum number of parallel workers
         batch_size: Batch size for database updates
         verbose: Enable verbose logging
+
+    Returns:
+        Dictionary with stats for Slack notification
     """
     setup_logging(verbose)
 
@@ -252,7 +259,11 @@ def run_sentiment_analysis(
 
         if not articles:
             logger.info("No articles found without sentiment analysis")
-            return
+            return {
+                "processed": 0,
+                "success": 0,
+                "failed": 0,
+            }
 
         logger.info(f"Found {len(articles)} articles to process")
 
@@ -264,12 +275,22 @@ def run_sentiment_analysis(
             use_llm_only=use_llm_only,
         )
 
+        failed_count = len(articles) - successful_count
+
         logger.info(
             f"Sentiment analysis complete: {successful_count}/{len(articles)} articles processed successfully"
         )
 
+        # Return stats for Slack notification
+        return {
+            "processed": len(articles),
+            "success": successful_count,
+            "failed": failed_count,
+        }
+
     except Exception as e:
         logger.error(f"Error during sentiment analysis: {e}")
+        raise
     finally:
         db.close()
 
