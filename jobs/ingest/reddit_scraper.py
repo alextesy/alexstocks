@@ -1468,7 +1468,7 @@ class RedditScraper:
             }
 
         except Exception as e:
-            logger.error(f"Error getting scraping status: {e}")
+            logger.error(f"Bummer Error getting scraping status: {e}")
             return {"error": str(e)}
         finally:
             db.close()

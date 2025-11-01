@@ -341,6 +341,20 @@ jobs:
           import_resource "aws_iam_role" "eventbridge_scheduler" "$PROJECT_NAME-eventbridge-scheduler" || true
           import_resource "aws_iam_role" "eventbridge_ecs" "$PROJECT_NAME-eventbridge-ecs" || true
           
+          # Import security group rule (if security group exists)
+          if [ -n "$SG_ID" ] && [ "$SG_ID" != "None" ]; then
+            # Security group rule format: sg-xxx_ingress_tcp_5432_5432_sg-yyy
+            POSTGRES_SG_ID="${{ secrets.TF_VAR_POSTGRES_SECURITY_GROUP_ID }}"
+            RULE_ID="${POSTGRES_SG_ID}_ingress_tcp_5432_5432_${SG_ID}"
+            import_resource "aws_security_group_rule" "ecs_to_postgres" "$RULE_ID" || true
+          fi
+          
+          # Import EventBridge Scheduler schedules
+          import_resource "aws_scheduler_schedule" "reddit_scraper" "default/$PROJECT_NAME-reddit-scraper" || true
+          import_resource "aws_scheduler_schedule" "sentiment_analysis" "default/$PROJECT_NAME-sentiment-analysis" || true
+          import_resource "aws_scheduler_schedule" "daily_status" "default/$PROJECT_NAME-daily-status" || true
+          import_resource "aws_scheduler_schedule" "stock_price_collector" "default/$PROJECT_NAME-stock-price-collector" || true
+          
           echo "Import step completed. Continuing with plan..."
 
       - name: Terraform Plan
