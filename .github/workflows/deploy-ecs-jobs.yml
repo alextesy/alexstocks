@@ -252,6 +252,82 @@ jobs:
           echo "Initializing Terraform..."
           terraform init
 
+      - name: Import Existing Resources
+        if: steps.changes.outputs.terraform_changed == 'true'
+        working-directory: infrastructure/terraform
+        env:
+          TF_VAR_vpc_id: ${{ secrets.TF_VAR_VPC_ID }}
+          TF_VAR_private_subnet_ids: ${{ secrets.TF_VAR_PRIVATE_SUBNET_IDS }}
+          TF_VAR_postgres_security_group_id: ${{ secrets.TF_VAR_POSTGRES_SECURITY_GROUP_ID }}
+        run: |
+          echo "Attempting to import existing resources into Terraform state..."
+          
+          # Function to safely import a resource
+          import_resource() {
+            local resource_type=$1
+            local resource_name=$2
+            local resource_id=$3
+            
+            echo "Checking if $resource_name needs import..."
+            
+            # Check if resource already in state
+            if terraform state show "$resource_type.$resource_name" &>/dev/null; then
+              echo "✅ $resource_name already in state, skipping import"
+              return 0
+            fi
+            
+            # Try to import
+            if terraform import "$resource_type.$resource_name" "$resource_id" 2>&1 | tee -a import.log; then
+              echo "✅ Successfully imported $resource_name"
+              return 0
+            else
+              # Check if error is because resource doesn't exist (we'll create it)
+              if grep -q "does not exist\|not found" import.log; then
+                echo "ℹ️  $resource_name doesn't exist, will be created"
+                return 0
+              elif grep -q "already managed\|already imported" import.log; then
+                echo "✅ $resource_name already managed by Terraform"
+                return 0
+              else
+                echo "⚠️  Failed to import $resource_name (will try to create)"
+                return 0  # Continue anyway
+              fi
+            fi
+          }
+          
+          # Get AWS account ID and region for resource IDs
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          REGION="${AWS_REGION:-us-east-1}"
+          PROJECT_NAME="market-pulse"
+          
+          # Import ECR repository
+          import_resource "aws_ecr_repository" "jobs" "$PROJECT_NAME-jobs" || true
+          
+          # Import ECS cluster
+          import_resource "aws_ecs_cluster" "jobs" "$PROJECT_NAME-jobs" || true
+          
+          # Import security group (need to find it first)
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=$PROJECT_NAME-ecs-tasks" "Name=vpc-id,Values=${{ secrets.TF_VAR_VPC_ID }}" \
+            --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "")
+          if [ -n "$SG_ID" ] && [ "$SG_ID" != "None" ]; then
+            import_resource "aws_security_group" "ecs_tasks" "$SG_ID" || true
+          fi
+          
+          # Import CloudWatch log groups
+          import_resource "aws_cloudwatch_log_group" "reddit_scraper" "/ecs/$PROJECT_NAME-jobs/reddit-scraper" || true
+          import_resource "aws_cloudwatch_log_group" "sentiment_analysis" "/ecs/$PROJECT_NAME-jobs/sentiment-analysis" || true
+          import_resource "aws_cloudwatch_log_group" "daily_status" "/ecs/$PROJECT_NAME-jobs/daily-status" || true
+          import_resource "aws_cloudwatch_log_group" "stock_price_collector" "/ecs/$PROJECT_NAME-jobs/stock-price-collector" || true
+          
+          # Import IAM roles
+          import_resource "aws_iam_role" "ecs_task_execution" "$PROJECT_NAME-ecs-task-execution" || true
+          import_resource "aws_iam_role" "ecs_task" "$PROJECT_NAME-ecs-task" || true
+          import_resource "aws_iam_role" "eventbridge_scheduler" "$PROJECT_NAME-eventbridge-scheduler" || true
+          import_resource "aws_iam_role" "eventbridge_ecs" "$PROJECT_NAME-eventbridge-ecs" || true
+          
+          echo "Import step completed. Continuing with plan..."
+
       - name: Terraform Plan
         if: steps.changes.outputs.terraform_changed == 'true'
         id: terraform-plan
