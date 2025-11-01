@@ -33,6 +33,16 @@ async def login_page(request: Request):
 
     templates = Jinja2Templates(directory="app/templates")
 
+    # Add custom filter for URL string conversion (required by base.html)
+    def url_string(url_obj) -> str:
+        """Convert URL object to string safely for Jinja2 templates."""
+        if url_obj is None:
+            return ""
+        return str(url_obj)
+
+    templates.env.filters["url_string"] = url_string
+    templates.env.globals["settings"] = settings
+
     # Generate CSRF state token
     state = secrets.token_urlsafe(32)
 
