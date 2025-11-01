@@ -23,7 +23,7 @@ from app.db.models import Article  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
 from app.services.llm_sentiment import get_llm_sentiment_service  # noqa: E402
 from app.services.sentiment import get_sentiment_service_hybrid  # noqa: E402
-from jobs.jobs.slack_wrapper import run_with_slack  # noqa: E402
+from .slack_wrapper import run_with_slack  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
