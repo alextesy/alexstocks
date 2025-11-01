@@ -198,6 +198,14 @@ async def robots_txt():
     return FileResponse("app/artifacts/robots.txt", media_type="text/plain")
 
 
+@app.get("/manifest.json")
+async def manifest():
+    """Serve web manifest file."""
+    return FileResponse(
+        "app/artifacts/manifest.json", media_type="application/manifest+json"
+    )
+
+
 @app.get("/about", response_class=HTMLResponse)
 async def about(request: Request):
     """About page."""
