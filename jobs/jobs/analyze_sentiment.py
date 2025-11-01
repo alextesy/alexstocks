@@ -23,7 +23,8 @@ from app.db.models import Article  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
 from app.services.llm_sentiment import get_llm_sentiment_service  # noqa: E402
 from app.services.sentiment import get_sentiment_service_hybrid  # noqa: E402
-from jobs.slack_wrapper import run_with_slack  # noqa: E402
+
+from .slack_wrapper import run_with_slack  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -350,21 +351,15 @@ def main() -> None:
             verbose=args.verbose,
         )
 
-    try:
-        run_with_slack(
-            job_name="analyze_sentiment",
-            job_func=run_job,
-            metadata={
-                "source": args.source or "all",
-                "max_workers": args.max_workers,
-                "max_articles": args.max_articles or "unlimited",
-            },
-        )
-    except KeyboardInterrupt:
-        logger.info("Sentiment analysis interrupted by user")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        sys.exit(1)
+    run_with_slack(
+        job_name="analyze_sentiment",
+        job_func=run_job,
+        metadata={
+            "source": args.source or "all",
+            "max_workers": args.max_workers,
+            "max_articles": args.max_articles or "unlimited",
+        },
+    )
 
 
 if __name__ == "__main__":

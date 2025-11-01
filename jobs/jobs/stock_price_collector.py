@@ -6,12 +6,16 @@ Runs every 15 minutes to keep homepage stock prices fresh.
 
 import asyncio
 import logging
+import sys
 from datetime import UTC, datetime, timedelta
 
 # Load environment variables FIRST
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Add project root to path
+sys.path.append(".")
 
 # Now import app modules
 from sqlalchemy import func
@@ -20,6 +24,8 @@ from sqlalchemy.orm import Session
 from app.db.models import Article, ArticleTicker, StockPrice
 from app.db.session import SessionLocal
 from app.services.stock_data import StockDataService
+
+from .slack_wrapper import run_with_slack
 
 # Set up logging
 logging.basicConfig(
@@ -265,6 +271,9 @@ class StockPriceCollector:
             logger.info(f"Stock price collection completed in {duration:.2f}s")
             logger.info("=" * 80)
 
+            # Add duration to result for Slack notifications
+            result["duration"] = duration
+
             return result
 
         except Exception as e:
@@ -275,5 +284,14 @@ class StockPriceCollector:
 
 
 if __name__ == "__main__":
-    collector = StockPriceCollector()
-    asyncio.run(collector.run())
+
+    def run_job():
+        """Wrapper function for Slack integration."""
+        collector = StockPriceCollector()
+        return asyncio.run(collector.run())
+
+    run_with_slack(
+        job_name="stock_price_collector",
+        job_func=run_job,
+        metadata={},
+    )
