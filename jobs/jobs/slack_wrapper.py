@@ -84,3 +84,77 @@ def run_with_slack(
             error=error_msg,
             thread_ts=thread_ts,
         )
+
+
+async def run_with_slack_async(
+    job_name: str,
+    job_func: Callable[[], Any] | Callable[[], Awaitable[Any]],
+    metadata: dict[str, Any] | None = None,
+) -> Any:
+    """Run a job function with Slack start/complete notifications (async version).
+
+    Use this when calling from an async context.
+
+    Args:
+        job_name: Name of the job for Slack notifications
+        job_func: Job function (sync or async)
+        metadata: Optional metadata to include in start message
+
+    Returns:
+        Result from job function
+    """
+    import asyncio
+
+    slack = get_slack_service()
+    start_time = datetime.now(UTC)
+
+    # Send start notification
+    thread_ts = slack.notify_job_start(job_name, metadata=metadata)
+
+    status = "success"
+    error_msg: str | None = None
+    summary: dict[str, Any] | None = None
+
+    try:
+        # Execute job
+        if asyncio.iscoroutinefunction(job_func):
+            result = await job_func()
+        else:
+            result = job_func()
+
+        # Extract summary from result if it's a dict
+        if isinstance(result, dict):
+            summary = {
+                k: v
+                for k, v in result.items()
+                if k
+                in (
+                    "success",
+                    "failed",
+                    "processed",
+                    "count",
+                    "duration",
+                    "new_comments",
+                    "articles_created",
+                )
+            }
+
+        return result
+
+    except Exception as e:
+        status = "error"
+        error_msg = str(e)
+        logger.exception(f"Job {job_name} failed")
+        raise
+
+    finally:
+        # Send completion notification
+        duration = (datetime.now(UTC) - start_time).total_seconds()
+        slack.notify_job_complete(
+            job_name=job_name,
+            status=status,
+            duration_seconds=duration,
+            summary=summary,
+            error=error_msg,
+            thread_ts=thread_ts,
+        )
