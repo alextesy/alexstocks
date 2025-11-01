@@ -350,21 +350,15 @@ def main() -> None:
             verbose=args.verbose,
         )
 
-    try:
-        run_with_slack(
-            job_name="analyze_sentiment",
-            job_func=run_job,
-            metadata={
-                "source": args.source or "all",
-                "max_workers": args.max_workers,
-                "max_articles": args.max_articles or "unlimited",
-            },
-        )
-    except KeyboardInterrupt:
-        logger.info("Sentiment analysis interrupted by user")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        sys.exit(1)
+    run_with_slack(
+        job_name="analyze_sentiment",
+        job_func=run_job,
+        metadata={
+            "source": args.source or "all",
+            "max_workers": args.max_workers,
+            "max_articles": args.max_articles or "unlimited",
+        },
+    )
 
 
 if __name__ == "__main__":
