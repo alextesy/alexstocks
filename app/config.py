@@ -52,6 +52,49 @@ class Settings(BaseSettings):
     )
     cookie_consent_enabled: bool = True
 
+    # Redis / Rate limiting configuration
+    redis_url: str = Field(
+        default="redis://localhost:6379/0",
+        validation_alias=AliasChoices("REDIS_URL", "redis_url"),
+    )
+    # Default budgets are per-IP, per-endpoint
+    rl_requests_per_minute: int = 60
+    rl_window_seconds: int = 60
+
+    # Parameter caps to protect the API from abuse
+    MAX_LIMIT_ARTICLES: int = 100
+    MAX_LIMIT_TICKERS: int = 100
+    MAX_DAYS_TIME_SERIES: int = 90
+    MAX_HOURS_MENTIONS: int = 168
+    # Prevent deep scans; applies to (page-1)*limit derived offset
+    MAX_OFFSET_ITEMS: int = 5000
+
+    # Stock price cache configuration
+    STOCK_PRICE_FRESHNESS_MINUTES: int = 15
+
+    # User limits
+    USER_MAX_TICKER_FOLLOWS: int = 100
+
+    # Google OAuth configuration
+    google_client_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GOOGLE_CLIENT_ID", "google_client_id"),
+    )
+    google_client_secret: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GOOGLE_CLIENT_SECRET", "google_client_secret"),
+    )
+    google_redirect_uri: str = Field(
+        default="http://localhost:8000/auth/callback",
+        validation_alias=AliasChoices("GOOGLE_REDIRECT_URI", "google_redirect_uri"),
+    )
+    # Session/JWT configuration
+    session_secret_key: str = Field(
+        default="dev-secret-key-change-in-production",
+        validation_alias=AliasChoices("SESSION_SECRET_KEY", "session_secret_key"),
+    )
+    session_max_age_seconds: int = 86400 * 30  # 30 days
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

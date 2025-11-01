@@ -111,7 +111,8 @@ resource "aws_iam_role_policy" "eventbridge_ecs" {
         Resource = [
           aws_ecs_task_definition.reddit_scraper.arn,
           aws_ecs_task_definition.sentiment_analysis.arn,
-          aws_ecs_task_definition.daily_status.arn
+          aws_ecs_task_definition.daily_status.arn,
+          aws_ecs_task_definition.stock_price_collector.arn
         ]
       },
       {

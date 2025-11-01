@@ -1,0 +1,728 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - AlexStocks{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Profile & Settings</h1>
+        <p class="text-lg text-gray-600">Manage your profile information and notification preferences</p>
+    </div>
+
+    <!-- Error Alert -->
+    <div id="error-alert" class="hidden bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
+        <div class="flex items-center">
+            <i class="fas fa-exclamation-circle mr-2"></i>
+            <span id="error-message"></span>
+        </div>
+    </div>
+
+    <!-- Success Alert -->
+    <div id="success-alert" class="hidden bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-6">
+        <div class="flex items-center">
+            <i class="fas fa-check-circle mr-2"></i>
+            <span>Profile updated successfully!</span>
+        </div>
+    </div>
+
+    <!-- Profile Section -->
+    <div class="bg-white rounded-lg shadow-sm border p-8 mb-6">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-6">Profile Information</h2>
+        
+        <div class="space-y-6">
+            <!-- Avatar (Read-only, from Gmail) -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Avatar</label>
+                <div class="flex items-center space-x-4">
+                    <div id="avatar-preview" class="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                        <img id="avatar-img" src="" alt="Avatar" class="w-full h-full object-cover hidden">
+                        <i class="fas fa-user text-gray-400 text-3xl" id="avatar-placeholder"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-600">Your avatar is managed by your Google account and cannot be changed here.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nickname -->
+            <div>
+                <label for="nickname" class="block text-sm font-medium text-gray-700 mb-2">
+                    Nickname <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    id="nickname" 
+                    maxlength="100"
+                    placeholder="Enter your nickname"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                <p class="text-sm text-gray-500 mt-1">Your display name (must be unique)</p>
+                <p id="nickname-error" class="text-sm text-red-600 mt-1 hidden"></p>
+            </div>
+
+            <!-- Email (Read-only) -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    readonly
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
+                >
+                <p class="text-sm text-gray-500 mt-1">Email cannot be changed</p>
+            </div>
+
+            <!-- Timezone -->
+            <div>
+                <label for="timezone" class="block text-sm font-medium text-gray-700 mb-2">Timezone</label>
+                <select 
+                    id="timezone" 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                    <option value="UTC">UTC</option>
+                    <option value="America/New_York">Eastern Time (ET)</option>
+                    <option value="America/Chicago">Central Time (CT)</option>
+                    <option value="America/Denver">Mountain Time (MT)</option>
+                    <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                    <option value="Europe/London">London (GMT)</option>
+                    <option value="Europe/Paris">Paris (CET)</option>
+                    <option value="Asia/Tokyo">Tokyo (JST)</option>
+                    <option value="Asia/Shanghai">Shanghai (CST)</option>
+                    <option value="Asia/Dubai">Dubai (GST)</option>
+                    <option value="Asia/Jerusalem">Jerusalem (IST)</option>
+                    <option value="Australia/Sydney">Sydney (AEDT)</option>
+                </select>
+                <p class="text-sm text-gray-500 mt-1">Select your timezone for date/time displays</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Watchlist Section -->
+    <div class="bg-white rounded-lg shadow-sm border p-8 mb-6">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-6">Watchlist</h2>
+        <p class="text-sm text-gray-600 mb-6">Manage the tickers you follow. You can search for tickers, add them to your watchlist, and reorder them.</p>
+        
+        <!-- Add Ticker Picker -->
+        <div class="mb-6">
+            <label for="ticker-search-input" class="block text-sm font-medium text-gray-700 mb-2">
+                Add Ticker
+            </label>
+            <div class="relative">
+                <input 
+                    type="text" 
+                    id="ticker-search-input" 
+                    placeholder="Search for a ticker (e.g., AAPL, TSLA)"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    autocomplete="off"
+                >
+                <div id="ticker-search-results" class="hidden absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <!-- Search results will appear here -->
+                </div>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">Type to search for tickers by symbol or company name</p>
+        </div>
+
+        <!-- Watchlist List -->
+        <div id="watchlist-container">
+            <div id="watchlist-loading" class="text-center py-8">
+                <i class="fas fa-spinner fa-spin text-gray-400 text-2xl"></i>
+                <p class="text-sm text-gray-500 mt-2">Loading watchlist...</p>
+            </div>
+            
+            <!-- Empty State -->
+            <div id="watchlist-empty" class="hidden text-center py-12">
+                <i class="fas fa-star text-gray-300 text-5xl mb-4"></i>
+                <p class="text-lg text-gray-600 mb-2">Your watchlist is empty</p>
+                <p class="text-sm text-gray-500">Start by searching for and adding tickers above</p>
+            </div>
+
+            <!-- Ticker List -->
+            <ul id="watchlist-list" class="hidden space-y-2">
+                <!-- Ticker items will be rendered here -->
+            </ul>
+        </div>
+    </div>
+
+    <!-- Notification Preferences Section -->
+    <div class="bg-white rounded-lg shadow-sm border p-8 mb-6">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-6">Notification Preferences</h2>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="flex items-center">
+                    <input 
+                        type="checkbox" 
+                        id="notify-on-surges" 
+                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    >
+                    <span class="ml-2 text-sm font-medium text-gray-700">Notify on surges of followed stocks</span>
+                </label>
+                <p class="text-sm text-gray-500 ml-6 mt-1">Receive alerts when tickers you follow have unusual discussion activity (surges)</p>
+            </div>
+
+            <div>
+                <label class="flex items-center">
+                    <input 
+                        type="checkbox" 
+                        id="notify-on-most-discussed" 
+                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    >
+                    <span class="ml-2 text-sm font-medium text-gray-700">Notify about most discussed stocks</span>
+                </label>
+                <p class="text-sm text-gray-500 ml-6 mt-1">Get notified when new stocks become the most discussed on the platform</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Button -->
+    <div class="flex justify-end space-x-4">
+        <button 
+            id="save-button" 
+            class="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+            <i class="fas fa-save mr-2"></i>Save Changes
+        </button>
+    </div>
+</div>
+
+<script>
+let profileData = null;
+let isSaving = false;
+let watchlistData = [];
+let searchTimeout = null;
+let isReordering = false;
+
+// Load profile data on page load
+async function loadProfile() {
+    try {
+        const response = await fetch('/api/users/me', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+                window.location.href = '/auth/login';
+                return;
+            }
+            throw new Error('Failed to load profile');
+        }
+        
+        profileData = await response.json();
+        populateForm(profileData);
+    } catch (error) {
+        showError('Failed to load profile data. Please refresh the page.');
+        console.error('Error loading profile:', error);
+    }
+}
+
+// Populate form with profile data
+function populateForm(data) {
+    document.getElementById('email').value = data.email || '';
+    document.getElementById('nickname').value = data.nickname || '';
+    document.getElementById('timezone').value = data.timezone || 'UTC';
+    
+    // Avatar (read-only, from Gmail)
+    if (data.avatar_url) {
+        updateAvatarPreview(data.avatar_url);
+    } else {
+        updateAvatarPreview(null);
+    }
+    
+    // Notification defaults
+    const defaults = data.notification_defaults || {};
+    document.getElementById('notify-on-surges').checked = defaults.notify_on_surges === true;
+    document.getElementById('notify-on-most-discussed').checked = defaults.notify_on_most_discussed === true;
+}
+
+// Update avatar preview
+function updateAvatarPreview(url) {
+    const img = document.getElementById('avatar-img');
+    const placeholder = document.getElementById('avatar-placeholder');
+    
+    if (url) {
+        img.src = url;
+        img.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+    } else {
+        img.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+    }
+}
+
+// Show error message
+function showError(message) {
+    const alert = document.getElementById('error-alert');
+    const messageEl = document.getElementById('error-message');
+    messageEl.textContent = message;
+    alert.classList.remove('hidden');
+    setTimeout(() => {
+        alert.classList.add('hidden');
+    }, 5000);
+}
+
+// Show success message
+function showSuccess() {
+    const alert = document.getElementById('success-alert');
+    alert.classList.remove('hidden');
+    setTimeout(() => {
+        alert.classList.add('hidden');
+    }, 3000);
+}
+
+// Save profile
+async function saveProfile() {
+    if (isSaving) return;
+    
+    const nickname = document.getElementById('nickname').value.trim();
+    if (!nickname) {
+        showError('Nickname is required');
+        return;
+    }
+    
+    isSaving = true;
+    const saveButton = document.getElementById('save-button');
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+    
+    try {
+        const updateData = {
+            nickname: nickname,
+            timezone: document.getElementById('timezone').value,
+            notification_defaults: {
+                notify_on_surges: document.getElementById('notify-on-surges').checked,
+                notify_on_most_discussed: document.getElementById('notify-on-most-discussed').checked,
+            }
+        };
+        
+        const response = await fetch('/api/users/me', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(updateData),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Failed to update profile' }));
+            throw new Error(errorData.detail || 'Failed to update profile');
+        }
+        
+        const updated = await response.json();
+        profileData = updated;
+        showSuccess();
+    } catch (error) {
+        showError(error.message || 'Failed to save changes. Please try again.');
+        console.error('Error saving profile:', error);
+    } finally {
+        isSaving = false;
+        saveButton.disabled = false;
+        saveButton.innerHTML = '<i class="fas fa-save mr-2"></i>Save Changes';
+    }
+}
+
+// Event listeners
+document.addEventListener('DOMContentLoaded', () => {
+    loadProfile();
+    
+    document.getElementById('save-button').addEventListener('click', saveProfile);
+    
+    // Nickname uniqueness check (debounced)
+    let nicknameTimeout;
+    document.getElementById('nickname').addEventListener('input', (e) => {
+        clearTimeout(nicknameTimeout);
+        const errorEl = document.getElementById('nickname-error');
+        errorEl.classList.add('hidden');
+        
+        const nickname = e.target.value.trim();
+        if (!nickname) return;
+        
+        nicknameTimeout = setTimeout(async () => {
+            // Check if nickname changed from current
+            if (profileData && nickname === profileData.nickname) {
+                return;
+            }
+            
+            // Basic validation
+            if (nickname.length > 100) {
+                errorEl.textContent = 'Nickname must be 100 characters or less';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+        }, 500);
+    });
+    
+    // Allow Enter key to save (but not in textarea fields)
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'SELECT') {
+            if (document.activeElement === e.target && e.target.type !== 'checkbox') {
+                e.preventDefault();
+                saveProfile();
+            }
+        }
+    });
+    
+    // Watchlist functionality
+    setupWatchlist();
+});
+
+// ===== Watchlist Functions =====
+
+async function setupWatchlist() {
+    await loadWatchlist();
+    setupTickerSearch();
+}
+
+async function loadWatchlist() {
+    try {
+        const response = await fetch('/api/users/me/follows', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+                window.location.href = '/auth/login';
+                return;
+            }
+            throw new Error('Failed to load watchlist');
+        }
+        
+        watchlistData = await response.json();
+        renderWatchlist();
+    } catch (error) {
+        showError('Failed to load watchlist. Please refresh the page.');
+        console.error('Error loading watchlist:', error);
+        document.getElementById('watchlist-loading').classList.add('hidden');
+        document.getElementById('watchlist-empty').classList.remove('hidden');
+    }
+}
+
+function renderWatchlist() {
+    const loadingEl = document.getElementById('watchlist-loading');
+    const emptyEl = document.getElementById('watchlist-empty');
+    const listEl = document.getElementById('watchlist-list');
+    
+    loadingEl.classList.add('hidden');
+    
+    if (watchlistData.length === 0) {
+        emptyEl.classList.remove('hidden');
+        listEl.classList.add('hidden');
+        return;
+    }
+    
+    emptyEl.classList.add('hidden');
+    listEl.classList.remove('hidden');
+    
+    // Sort by order
+    const sorted = [...watchlistData].sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    listEl.innerHTML = sorted.map((item, index) => `
+        <li 
+            class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            data-ticker="${item.ticker}"
+            data-order="${item.order || index}"
+        >
+            <div class="flex items-center space-x-3 flex-1">
+                <button 
+                    class="text-gray-400 hover:text-gray-600 cursor-move"
+                    title="Drag to reorder"
+                    onmousedown="startDrag(event, '${item.ticker}')"
+                >
+                    <i class="fas fa-grip-vertical"></i>
+                </button>
+                <div class="flex-1">
+                    <div class="font-semibold text-gray-900">${item.ticker}</div>
+                    ${item.ticker_name ? `<div class="text-sm text-gray-500">${item.ticker_name}</div>` : ''}
+                </div>
+            </div>
+            <button 
+                onclick="removeTicker('${item.ticker}')"
+                class="ml-4 text-red-600 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 rounded p-2"
+                title="Remove from watchlist"
+            >
+                <i class="fas fa-times"></i>
+            </button>
+        </li>
+    `).join('');
+}
+
+function setupTickerSearch() {
+    const searchInput = document.getElementById('ticker-search-input');
+    const resultsContainer = document.getElementById('ticker-search-results');
+    
+    // Get current watchlist tickers to prevent duplicates
+    const currentTickers = new Set(watchlistData.map(f => f.ticker.toUpperCase()));
+    
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        
+        clearTimeout(searchTimeout);
+        
+        if (!query || query.length < 1) {
+            resultsContainer.classList.add('hidden');
+            return;
+        }
+        
+        searchTimeout = setTimeout(async () => {
+            try {
+                const response = await fetch(`/api/users/me/follows/search?q=${encodeURIComponent(query)}&limit=10`, {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Search failed');
+                }
+                
+                const results = await response.json();
+                
+                // Filter out already-followed tickers
+                const available = results.filter(t => !currentTickers.has(t.symbol.toUpperCase()));
+                
+                if (available.length === 0) {
+                    resultsContainer.innerHTML = `
+                        <div class="px-4 py-3 text-sm text-gray-500">
+                            ${results.length > 0 ? 'Already in watchlist or no results' : 'No tickers found'}
+                        </div>
+                    `;
+                    resultsContainer.classList.remove('hidden');
+                    return;
+                }
+                
+                resultsContainer.innerHTML = available.map(ticker => `
+                    <button 
+                        class="w-full text-left px-4 py-3 hover:bg-gray-100 border-b border-gray-100 last:border-b-0 focus:outline-none focus:bg-gray-100"
+                        onclick="addTicker('${ticker.symbol}')"
+                    >
+                        <div class="font-semibold text-gray-900">${ticker.symbol}</div>
+                        <div class="text-sm text-gray-500">${ticker.name || ''} ${ticker.exchange ? `(${ticker.exchange})` : ''}</div>
+                    </button>
+                `).join('');
+                
+                resultsContainer.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error searching tickers:', error);
+                resultsContainer.classList.add('hidden');
+            }
+        }, 300); // Debounce 300ms
+    });
+    
+    // Hide results when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#ticker-search-input') && !e.target.closest('#ticker-search-results')) {
+            resultsContainer.classList.add('hidden');
+        }
+    });
+    
+    // Handle keyboard navigation in search results
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+            const buttons = resultsContainer.querySelectorAll('button');
+            if (buttons.length === 0) return;
+            
+            e.preventDefault();
+            
+            const current = resultsContainer.querySelector('button:focus');
+            let next;
+            
+            if (e.key === 'ArrowDown') {
+                next = current ? current.nextElementSibling : buttons[0];
+                if (!next) next = buttons[0];
+            } else if (e.key === 'ArrowUp') {
+                next = current ? current.previousElementSibling : buttons[buttons.length - 1];
+                if (!next) next = buttons[buttons.length - 1];
+            } else if (e.key === 'Enter' && current) {
+                current.click();
+                return;
+            }
+            
+            if (next) {
+                buttons.forEach(b => b.classList.remove('bg-gray-100'));
+                next.focus();
+                next.classList.add('bg-gray-100');
+            }
+        }
+    });
+}
+
+async function addTicker(symbol) {
+    // Hide search results
+    document.getElementById('ticker-search-results').classList.add('hidden');
+    document.getElementById('ticker-search-input').value = '';
+    
+    try {
+        const response = await fetch('/api/users/me/follows', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                ticker: symbol,
+                notify_on_signals: true,
+            }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Failed to add ticker' }));
+            throw new Error(errorData.detail || 'Failed to add ticker');
+        }
+        
+        const added = await response.json();
+        watchlistData.push(added);
+        
+        // Re-render watchlist
+        renderWatchlist();
+        
+        // Show success message briefly
+        const msg = document.createElement('div');
+        msg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+        msg.textContent = `Added ${symbol} to watchlist`;
+        document.body.appendChild(msg);
+        setTimeout(() => msg.remove(), 3000);
+        
+    } catch (error) {
+        showError(error.message || 'Failed to add ticker. Please try again.');
+        console.error('Error adding ticker:', error);
+    }
+}
+
+async function removeTicker(symbol) {
+    if (!confirm(`Remove ${symbol} from your watchlist?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/users/me/follows/${encodeURIComponent(symbol)}`, {
+            method: 'DELETE',
+            credentials: 'include',
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to remove ticker');
+        }
+        
+        // Remove from local data
+        watchlistData = watchlistData.filter(f => f.ticker !== symbol);
+        
+        // Re-render watchlist
+        renderWatchlist();
+        
+        // Show success message
+        const msg = document.createElement('div');
+        msg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+        msg.textContent = `Removed ${symbol} from watchlist`;
+        document.body.appendChild(msg);
+        setTimeout(() => msg.remove(), 3000);
+        
+    } catch (error) {
+        showError('Failed to remove ticker. Please try again.');
+        console.error('Error removing ticker:', error);
+    }
+}
+
+// Drag and drop functionality
+let draggedElement = null;
+let draggedTicker = null;
+
+function startDrag(e, ticker) {
+    e.preventDefault();
+    draggedElement = e.target.closest('li');
+    draggedTicker = ticker;
+    draggedElement.style.opacity = '0.5';
+}
+
+document.addEventListener('mousemove', (e) => {
+    if (!draggedElement) return;
+    
+    const listEl = document.getElementById('watchlist-list');
+    const items = Array.from(listEl.querySelectorAll('li'));
+    const afterElement = getDragAfterElement(listEl, e.clientY);
+    
+    if (afterElement == null) {
+        listEl.appendChild(draggedElement);
+    } else {
+        listEl.insertBefore(draggedElement, afterElement);
+    }
+});
+
+document.addEventListener('mouseup', async () => {
+    if (!draggedElement) return;
+    
+    draggedElement.style.opacity = '1';
+    
+    // Get new order
+    const listEl = document.getElementById('watchlist-list');
+    const items = Array.from(listEl.querySelectorAll('li'));
+    const tickerOrders = {};
+    
+    items.forEach((item, index) => {
+        const ticker = item.getAttribute('data-ticker');
+        tickerOrders[ticker] = index;
+    });
+    
+    // Only reorder if order changed
+    const oldOrder = watchlistData.find(f => f.ticker === draggedTicker)?.order || 0;
+    if (tickerOrders[draggedTicker] !== oldOrder) {
+        await reorderWatchlist(tickerOrders);
+    }
+    
+    draggedElement = null;
+    draggedTicker = null;
+});
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('li')];
+    
+    return draggableElements.reduce((closest, child) => {
+        if (child === draggedElement) {
+            return closest;
+        }
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+async function reorderWatchlist(tickerOrders) {
+    if (isReordering) return;
+    isReordering = true;
+    
+    try {
+        const response = await fetch('/api/users/me/follows/reorder', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                ticker_orders: tickerOrders,
+            }),
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to reorder watchlist');
+        }
+        
+        const updated = await response.json();
+        watchlistData = updated;
+        
+        // Re-render to ensure consistency
+        renderWatchlist();
+        
+    } catch (error) {
+        showError('Failed to reorder watchlist. Please try again.');
+        console.error('Error reordering watchlist:', error);
+        // Reload to get correct order
+        await loadWatchlist();
+    } finally {
+        isReordering = false;
+    }
+}
+</script>
+{% endblock %}
+

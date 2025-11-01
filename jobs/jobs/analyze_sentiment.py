@@ -7,14 +7,18 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
 
+from dotenv import load_dotenv
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
-from app.db.models import Article
-from app.db.session import SessionLocal
-from app.services.llm_sentiment import get_llm_sentiment_service
-from app.services.sentiment import get_sentiment_service_hybrid
+# Load .env BEFORE importing app modules that use settings
+load_dotenv()
+
+from app.db.models import Article  # noqa: E402
+from app.db.session import SessionLocal  # noqa: E402
+from app.services.llm_sentiment import get_llm_sentiment_service  # noqa: E402
+from app.services.sentiment import get_sentiment_service_hybrid  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

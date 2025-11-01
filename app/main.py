@@ -2,16 +2,19 @@
 
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.api.routes import auth, users
 from app.config import settings
 from app.services.mention_stats import get_mention_stats_service
+from app.services.rate_limit import rate_limit
 from app.services.sentiment import get_sentiment_service_hybrid
 from app.services.sentiment_analytics import get_sentiment_analytics_service
 from app.services.stock_data import stock_service
+from app.services.stock_price_cache import ensure_fresh_stock_price
 from app.services.velocity import get_velocity_service
 
 logger = logging.getLogger(__name__)
@@ -22,6 +25,10 @@ app = FastAPI(
     description="Lean MVP for market news analytics",
     version="0.1.0",
 )
+
+# Include routers
+app.include_router(auth.router)
+app.include_router(users.router)
 
 # Setup templates
 templates = Jinja2Templates(directory="app/templates")
@@ -107,6 +114,8 @@ def get_sentiment_over_time_data(db, ticker: str, days: int = 30) -> dict:
     from app.db.models import Article, ArticleTicker
 
     try:
+        # Clamp days to configured maximum as a defense-in-depth
+        days = min(days, settings.MAX_DAYS_TIME_SERIES)
         # Get sentiment data grouped by day for the last N days
         cutoff_date = datetime.utcnow() - timedelta(days=days)
 
@@ -201,6 +210,12 @@ async def privacy(request: Request):
     return templates.TemplateResponse("privacy.html", {"request": request})
 
 
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request):
+    """Settings page for user profile and preferences."""
+    return templates.TemplateResponse("settings.html", {"request": request})
+
+
 @app.get("/api/scraping-status")
 async def get_scraping_status():
     """Get the current scraping status for all sources."""
@@ -271,7 +286,13 @@ async def get_sentiment_histogram(ticker: str | None = None):
 
 
 @app.get("/api/sentiment/time-series")
-async def get_sentiment_time_series(ticker: str, days: int = 30):
+async def get_sentiment_time_series(
+    ticker: str,
+    days: int = Query(30, ge=1, le=settings.MAX_DAYS_TIME_SERIES),
+    _: None = Depends(
+        rate_limit("sentiment_time_series", requests=60, window_seconds=60)
+    ),
+):
     """Get sentiment data over time for a specific ticker."""
     from app.db.session import SessionLocal
 
@@ -287,8 +308,231 @@ async def get_sentiment_time_series(ticker: str, days: int = 30):
         return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
+@app.get("/api/ticker/{ticker}/sentiment-timeline")
+async def get_ticker_sentiment_timeline(
+    ticker: str,
+    period: str = Query("month", regex="^(day|week|month)$"),
+    metric: str = Query("comments", regex="^(comments|users)$"),
+    _: None = Depends(rate_limit("sentiment_timeline", requests=60, window_seconds=60)),
+):
+    """Get sentiment timeline data with different time granularities.
+
+    Args:
+        ticker: Ticker symbol
+        period: Time period - "day" (hourly, 24h), "week" (daily, 7d), or "month" (daily, 30d)
+        metric: Metric type - "comments" (count all comments) or "users" (count unique users)
+
+    Returns:
+        Timeline data with positive, negative, neutral, and total counts per time bucket
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import case, func
+
+    from app.db.models import Article, ArticleTicker
+    from app.db.session import SessionLocal
+
+    try:
+        db = SessionLocal()
+        try:
+            # Define sentiment thresholds
+            positive_threshold = 0.05
+            negative_threshold = -0.05
+
+            # Determine time range and grouping
+            if period == "day":
+                hours_back = 24
+                cutoff_date = datetime.now(UTC) - timedelta(hours=hours_back)
+                # Group by hour
+                time_bucket = func.date_trunc("hour", Article.published_at)
+            elif period == "week":
+                days_back = 7
+                cutoff_date = datetime.now(UTC) - timedelta(days=days_back)
+                # Group by day
+                time_bucket = func.date(Article.published_at)
+            else:  # month
+                days_back = 30
+                cutoff_date = datetime.now(UTC) - timedelta(days=days_back)
+                # Group by day
+                time_bucket = func.date(Article.published_at)
+
+            # Query based on metric type
+            if metric == "comments":
+                # Count all comments with sentiment
+                timeline_data = (
+                    db.query(
+                        time_bucket.label("time_bucket"),
+                        func.sum(
+                            case((Article.sentiment >= positive_threshold, 1), else_=0)
+                        ).label("positive"),
+                        func.sum(
+                            case((Article.sentiment <= negative_threshold, 1), else_=0)
+                        ).label("negative"),
+                        func.sum(
+                            case(
+                                (
+                                    (Article.sentiment > negative_threshold)
+                                    & (Article.sentiment < positive_threshold),
+                                    1,
+                                ),
+                                else_=0,
+                            )
+                        ).label("neutral"),
+                        func.count(Article.id).label("total"),
+                    )
+                    .join(ArticleTicker, Article.id == ArticleTicker.article_id)
+                    .filter(
+                        ArticleTicker.ticker == ticker.upper(),
+                        Article.published_at >= cutoff_date,
+                        Article.sentiment.isnot(None),
+                    )
+                    .group_by(time_bucket)
+                    .order_by(time_bucket)
+                    .all()
+                )
+
+                # Create a dictionary for quick lookup
+                data_by_time = {}
+                for row in timeline_data:
+                    data_by_time[row.time_bucket] = {
+                        "positive": int(row.positive or 0),
+                        "negative": int(row.negative or 0),
+                        "neutral": int(row.neutral or 0),
+                        "total": int(row.total or 0),
+                    }
+            else:  # metric == "users"
+                # Get all articles with time bucket and author
+                # We'll process in Python to get latest sentiment per user per bucket
+                articles_data = (
+                    db.query(
+                        time_bucket.label("time_bucket"),
+                        Article.author,
+                        Article.sentiment,
+                        Article.published_at,
+                    )
+                    .join(ArticleTicker, Article.id == ArticleTicker.article_id)
+                    .filter(
+                        ArticleTicker.ticker == ticker.upper(),
+                        Article.published_at >= cutoff_date,
+                        Article.sentiment.isnot(None),
+                        Article.author.isnot(None),
+                        Article.author != "",
+                    )
+                    .order_by(time_bucket, Article.published_at.desc())
+                    .all()
+                )
+
+                # Group by time bucket and author, keeping only latest sentiment
+                from collections import defaultdict
+                from typing import Any
+
+                user_latest_sentiment: defaultdict[Any, dict[str, float]] = defaultdict(
+                    dict
+                )
+
+                for row in articles_data:
+                    bucket = row.time_bucket
+                    author = row.author
+                    # Only keep the first (latest) sentiment for each user in each bucket
+                    if author not in user_latest_sentiment[bucket]:
+                        user_latest_sentiment[bucket][author] = row.sentiment
+
+                # Count sentiment categories per time bucket
+                data_by_time = {}
+                for bucket, users in user_latest_sentiment.items():
+                    positive = sum(1 for s in users.values() if s >= positive_threshold)
+                    negative = sum(1 for s in users.values() if s <= negative_threshold)
+                    neutral = sum(
+                        1
+                        for s in users.values()
+                        if negative_threshold < s < positive_threshold
+                    )
+                    total = len(users)
+
+                    data_by_time[bucket] = {
+                        "positive": positive,
+                        "negative": negative,
+                        "neutral": neutral,
+                        "total": total,
+                    }
+
+            # Fill missing time buckets with zeros for continuous display
+            result_data = []
+            if period == "day":
+                # Generate hourly buckets for last 24 hours
+                current_time = datetime.now(UTC).replace(
+                    minute=0, second=0, microsecond=0
+                )
+                for i in range(24):
+                    bucket_time = current_time - timedelta(hours=(23 - i))
+                    # Try to find the matching bucket in data_by_time
+                    # The key might be a datetime or could have slight timezone differences
+                    data_point = None
+                    for key in data_by_time.keys():
+                        # Compare by converting both to naive UTC
+                        key_naive = (
+                            key.replace(tzinfo=None) if hasattr(key, "tzinfo") else key
+                        )
+                        bucket_time_naive = bucket_time.replace(tzinfo=None)
+                        if key_naive == bucket_time_naive:
+                            data_point = data_by_time[key]
+                            break
+
+                    if data_point is None:
+                        data_point = {
+                            "positive": 0,
+                            "negative": 0,
+                            "neutral": 0,
+                            "total": 0,
+                        }
+
+                    result_data.append(
+                        {"timestamp": bucket_time.isoformat(), **data_point}
+                    )
+            else:
+                # Generate daily buckets
+                days = 7 if period == "week" else 30
+                current_date = datetime.now(UTC).date()
+                for i in range(days):
+                    bucket_date = current_date - timedelta(days=(days - 1 - i))
+                    if bucket_date in data_by_time:
+                        data_point = data_by_time[bucket_date]
+                    else:
+                        data_point = {
+                            "positive": 0,
+                            "negative": 0,
+                            "neutral": 0,
+                            "total": 0,
+                        }
+
+                    result_data.append(
+                        {
+                            "timestamp": datetime.combine(
+                                bucket_date, datetime.min.time(), tzinfo=UTC
+                            ).isoformat(),
+                            **data_point,
+                        }
+                    )
+
+            return {
+                "ticker": ticker.upper(),
+                "period": period,
+                "metric": metric,
+                "data": result_data,
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error in sentiment timeline API: {e}")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
+
+
 @app.get("/api/mentions/hourly")
-async def get_mentions_hourly(tickers: str, hours: int = 24):
+async def get_mentions_hourly(
+    tickers: str,
+    hours: int = Query(24, ge=1, le=settings.MAX_HOURS_MENTIONS),
+    _: None = Depends(rate_limit("mentions_hourly", requests=60, window_seconds=60)),
+):
     """Get hourly mention counts for one or more tickers for the last N hours.
 
     Query params:
@@ -312,7 +556,12 @@ async def get_mentions_hourly(tickers: str, hours: int = 24):
 
 
 @app.get("/api/ticker/{ticker}/articles")
-async def get_ticker_articles(ticker: str, page: int = 1, limit: int = 50):
+async def get_ticker_articles(
+    ticker: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=settings.MAX_LIMIT_ARTICLES),
+    _: None = Depends(rate_limit("ticker_articles", requests=60, window_seconds=60)),
+):
     """Get paginated articles for a specific ticker."""
     from sqlalchemy import desc, func
 
@@ -339,8 +588,17 @@ async def get_ticker_articles(ticker: str, page: int = 1, limit: int = 50):
                 or 0
             )
 
-            # Calculate pagination
+            # Calculate pagination with server-side clamps and offset guard
+            limit = min(limit, settings.MAX_LIMIT_ARTICLES)
             offset = (page - 1) * limit
+            if offset > settings.MAX_OFFSET_ITEMS:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": "Offset too large",
+                        "message": "Requested page exceeds maximum offset.",
+                    },
+                )
             total_pages = (total_count + limit - 1) // limit
 
             # Get paginated articles
@@ -672,7 +930,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "sentiment_lean": lean_map.get(symbol, None),
             }
             tickers.append(ticker_dict)
-            if len(default_mention_symbols) < 10:
+            if len(default_mention_symbols) < 7:
                 default_mention_symbols.append(symbol)
 
         # Get scraping status
@@ -690,6 +948,25 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "status": scraping_status.status,
             }
 
+        # Get user's followed tickers if authenticated
+        followed_tickers: list[str] = []
+        session_token = request.cookies.get("session_token")
+        if session_token:
+            try:
+                from app.services.auth_service import get_auth_service
+
+                auth_service = get_auth_service()
+                user = auth_service.get_current_user(db, session_token)
+                if user:
+                    from app.repos.user_repo import UserRepository
+
+                    repo = UserRepository(db)
+                    follows = repo.get_ticker_follows(user.id)
+                    followed_tickers = [f.ticker for f in follows]
+            except Exception:
+                # If auth fails, just continue without followed tickers
+                pass
+
         return templates.TemplateResponse(
             "home.html",
             {
@@ -699,6 +976,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "overall_lean": overall_lean,
                 "scraping_status": scraping_info,
                 "default_mention_symbols": default_mention_symbols,
+                "followed_tickers": followed_tickers,
             },
         )
     finally:
@@ -707,10 +985,11 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
 
 @app.get("/api/tickers")
 async def get_all_tickers(
-    page: int = 1,
-    limit: int = 50,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=settings.MAX_LIMIT_TICKERS),
     search: str | None = None,
     sort_by: str = "recent_activity",  # recent_activity, alphabetical, total_articles
+    _: None = Depends(rate_limit("tickers_list", requests=60, window_seconds=60)),
 ):
     """Get paginated list of all tickers with optional search and sorting."""
     from datetime import datetime, timedelta
@@ -722,8 +1001,22 @@ async def get_all_tickers(
 
     db = SessionLocal()
     try:
-        # Calculate pagination
+        # Calculate pagination with clamps and offset guard
+        limit = min(limit, settings.MAX_LIMIT_TICKERS)
         offset = (page - 1) * limit
+        if offset > settings.MAX_OFFSET_ITEMS:
+            return {
+                "tickers": [],
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": 0,
+                    "total_pages": 0,
+                    "has_next": False,
+                    "has_prev": page > 1,
+                },
+                "error": "Requested page exceeds maximum offset.",
+            }
 
         # Base query for tickers
         base_query = db.query(
@@ -893,9 +1186,18 @@ async def browse_tickers(
 
 
 @app.get("/t/{ticker}", response_class=HTMLResponse)
-async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLResponse:
+async def ticker_page(
+    request: Request,
+    ticker: str,
+    page: int = 1,
+    sentiment: str | None = Query(default=None),
+    source: str | None = None,
+    start: str | None = None,  # YYYY-MM-DD
+    end: str | None = None,  # YYYY-MM-DD
+    _: None = Depends(rate_limit("ticker_page", requests=60, window_seconds=60)),
+) -> HTMLResponse:
     """Ticker detail page with articles."""
-    from datetime import datetime
+    from datetime import UTC, datetime, timedelta
 
     from sqlalchemy import desc, func
 
@@ -913,13 +1215,99 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
         # Get ticker info
         ticker_obj = db.query(Ticker).filter(Ticker.symbol == ticker.upper()).first()
 
-        # Get total article count for this ticker
-        total_article_count = (
+        # Ensure we have a fresh price cached for this symbol
+        await ensure_fresh_stock_price(
+            db,
+            ticker.upper(),
+            freshness_minutes=settings.STOCK_PRICE_FRESHNESS_MINUTES,
+        )
+
+        # Unfiltered total article count for this ticker (for header metrics)
+        unfiltered_total_article_count = (
             db.query(func.count(ArticleTicker.article_id))
             .filter(ArticleTicker.ticker == ticker.upper())
             .scalar()
             or 0
         )
+
+        # Get today's article count
+        today = datetime.now().date()
+        today_start = datetime.combine(today, datetime.min.time())
+        today_article_count = (
+            db.query(func.count(ArticleTicker.article_id))
+            .join(Article, ArticleTicker.article_id == Article.id)
+            .filter(
+                ArticleTicker.ticker == ticker.upper(),
+                Article.published_at >= today_start,
+            )
+            .scalar()
+            or 0
+        )
+
+        # Get yesterday's article count for comparison
+        yesterday = today - timedelta(days=1)
+        yesterday_start = datetime.combine(yesterday, datetime.min.time())
+        yesterday_end = datetime.combine(today, datetime.min.time())
+        yesterday_article_count = (
+            db.query(func.count(ArticleTicker.article_id))
+            .join(Article, ArticleTicker.article_id == Article.id)
+            .filter(
+                ArticleTicker.ticker == ticker.upper(),
+                Article.published_at >= yesterday_start,
+                Article.published_at < yesterday_end,
+            )
+            .scalar()
+            or 0
+        )
+
+        # Calculate percentage change from yesterday
+        if yesterday_article_count > 0:
+            article_change_percent = (
+                (today_article_count - yesterday_article_count)
+                / yesterday_article_count
+            ) * 100
+        elif today_article_count > 0:
+            article_change_percent = 100.0  # 100% increase from 0
+        else:
+            article_change_percent = 0.0
+
+        # Get unique users talking about this ticker today
+        unique_users_today = (
+            db.query(func.count(func.distinct(Article.author)))
+            .join(ArticleTicker, Article.id == ArticleTicker.article_id)
+            .filter(
+                ArticleTicker.ticker == ticker.upper(),
+                Article.published_at >= today_start,
+                Article.author.isnot(None),
+                Article.author != "",
+            )
+            .scalar()
+            or 0
+        )
+
+        # Get unique users from yesterday for comparison
+        unique_users_yesterday = (
+            db.query(func.count(func.distinct(Article.author)))
+            .join(ArticleTicker, Article.id == ArticleTicker.article_id)
+            .filter(
+                ArticleTicker.ticker == ticker.upper(),
+                Article.published_at >= yesterday_start,
+                Article.published_at < yesterday_end,
+                Article.author.isnot(None),
+                Article.author != "",
+            )
+            .scalar()
+            or 0
+        )
+
+        # Calculate user change
+        users_change = unique_users_today - unique_users_yesterday
+        if unique_users_yesterday > 0:
+            users_change_percent = (users_change / unique_users_yesterday) * 100
+        elif unique_users_today > 0:
+            users_change_percent = 100.0  # 100% increase from 0
+        else:
+            users_change_percent = 0.0
 
         # Get stock data from database
         stock_data = None
@@ -1039,80 +1427,119 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
                     chart_data = None
 
         if not ticker_obj:
-            # Get sentiment histogram even for unknown tickers
-            sentiment_analytics = get_sentiment_analytics_service()
-            ticker_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(
-                db, ticker.upper()
-            )
-
-            # Return 404 or redirect to home
-            return templates.TemplateResponse(
-                "ticker.html",
-                {
-                    "request": request,
-                    "ticker": ticker,
-                    "articles": [],
-                    "ticker_obj": None,
-                    "stock_data": stock_data,
-                    "chart_data": chart_data,
-                    "sentiment_histogram": ticker_sentiment_data,
-                    "total_article_count": total_article_count,
-                    "pagination": {
-                        "page": 1,
-                        "total_pages": 1,
-                        "has_next": False,
-                        "has_prev": False,
-                    },
-                },
-            )
+            # Ticker doesn't exist - return 404
+            raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
 
         # Pagination settings
         articles_per_page = 50
         offset = (page - 1) * articles_per_page
 
-        # Get articles for this ticker with matched terms (paginated)
-        articles_query = (
+        # Build filtered base query for this ticker
+        filtered_query_base = (
             db.query(Article, ArticleTicker.confidence, ArticleTicker.matched_terms)
             .join(ArticleTicker, Article.id == ArticleTicker.article_id)
             .filter(ArticleTicker.ticker == ticker.upper())
-            .order_by(Article.published_at.desc())
-            .offset(offset)
-            .limit(articles_per_page)
         )
 
-        articles_with_confidence = articles_query.all()
+        # Apply server-side filters
+        # Sentiment thresholds (aligned with analytics)
+        positive_threshold = 0.05
+        negative_threshold = -0.05
+        # Normalize sentiment from query: allow empty/invalid -> None
+        if sentiment is not None:
+            sentiment = sentiment.strip().lower()
+            if sentiment == "":
+                sentiment = None
+            elif sentiment not in {"positive", "neutral", "negative"}:
+                sentiment = None
 
-        # Calculate pagination info
-        total_pages = (total_article_count + articles_per_page - 1) // articles_per_page
+        if sentiment:
+            if sentiment == "positive":
+                filtered_query_base = filtered_query_base.filter(
+                    Article.sentiment.isnot(None),
+                    Article.sentiment > positive_threshold,
+                )
+            elif sentiment == "negative":
+                filtered_query_base = filtered_query_base.filter(
+                    Article.sentiment.isnot(None),
+                    Article.sentiment < negative_threshold,
+                )
+            else:  # neutral
+                filtered_query_base = filtered_query_base.filter(
+                    Article.sentiment.isnot(None),
+                    Article.sentiment >= negative_threshold,
+                    Article.sentiment <= positive_threshold,
+                )
+
+        if source:
+            filtered_query_base = filtered_query_base.filter(Article.source == source)
+
+        # Date range filters (inclusive of start, inclusive of end day)
+        if start:
+            try:
+                start_dt = datetime.fromisoformat(start)
+                if start_dt.tzinfo is None:
+                    start_dt = start_dt.replace(tzinfo=UTC)
+                filtered_query_base = filtered_query_base.filter(
+                    Article.published_at >= start_dt
+                )
+            except Exception:
+                logger.warning("invalid_start_date", extra={"value": start})
+
+        if end:
+            try:
+                end_dt = datetime.fromisoformat(end)
+                if end_dt.tzinfo is None:
+                    end_dt = end_dt.replace(tzinfo=UTC)
+                # Add one day to include the entire end date
+                filtered_query_base = filtered_query_base.filter(
+                    Article.published_at < (end_dt + timedelta(days=1))
+                )
+            except Exception:
+                logger.warning("invalid_end_date", extra={"value": end})
+
+        # Compute filtered count AFTER filters for proper pagination
+        filtered_article_count = filtered_query_base.count()
+
+        # Always order newest first, then paginate
+        articles_with_confidence = (
+            filtered_query_base.order_by(Article.published_at.desc())
+            .offset(offset)
+            .limit(articles_per_page)
+            .all()
+        )
+
+        # Calculate pagination info (based on filtered results)
+        total_pages = (
+            filtered_article_count + articles_per_page - 1
+        ) // articles_per_page
         pagination = {
             "page": page,
             "total_pages": total_pages,
             "has_next": page < total_pages,
             "has_prev": page > 1,
-            "total_articles": total_article_count,
+            "total_articles": filtered_article_count,
         }
-
-        # Get sentiment histogram for this ticker
-        sentiment_analytics = get_sentiment_analytics_service()
-        ticker_sentiment_data = sentiment_analytics.get_sentiment_distribution_data(
-            db, ticker.upper()
-        )
-
-        # Get sentiment over time data for visualization
-        sentiment_over_time = get_sentiment_over_time_data(db, ticker.upper())
 
         # Format articles for template
         articles = []
         for article, confidence, matched_terms in articles_with_confidence:
-            # For Reddit comments, use the comment text as title and reddit_url as link
-            if article.source == "reddit_comment":
-                title = (
-                    article.text[:100] + "..."
-                    if len(article.text) > 100
-                    else article.text
-                )
+            # Source-specific shaping
+            if article.source in {"reddit_comment", "reddit_post", "reddit"}:
+                if article.source == "reddit_comment":
+                    title = (
+                        article.text[:100] + "..."
+                        if len(article.text) > 100
+                        else article.text
+                    )
+                else:
+                    title = article.title
                 url = article.reddit_url or article.url
-                author_info = f"u/{article.author}" if article.author else "Unknown"
+                author_info = (
+                    f"u/{article.author}"
+                    if article.author
+                    else ("Unknown" if article.source == "reddit_comment" else "")
+                )
                 subreddit_info = f"r/{article.subreddit}" if article.subreddit else ""
             else:
                 title = article.title
@@ -1131,12 +1558,45 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
                 "confidence": confidence,
                 "author": author_info,
                 "subreddit": subreddit_info,
+                "num_comments": article.num_comments or 0,
                 "full_text": (
-                    article.text if article.source == "reddit_comment" else None
+                    article.text
+                    if article.source in {"reddit_comment", "reddit_post", "reddit"}
+                    else None
                 ),
                 "matched_terms": matched_terms or [],
+                "upvotes": article.upvotes or 0,
             }
             articles.append(article_dict)
+
+        # Build list of distinct sources available for this ticker (for filter dropdown)
+        sources_available = [
+            row[0]
+            for row in db.query(Article.source)
+            .join(ArticleTicker, ArticleTicker.article_id == Article.id)
+            .filter(ArticleTicker.ticker == ticker.upper())
+            .distinct()
+            .all()
+        ]
+
+        # Get user's followed tickers if authenticated
+        is_following = False
+        session_token = request.cookies.get("session_token")
+        if session_token:
+            try:
+                from app.services.auth_service import get_auth_service
+
+                auth_service = get_auth_service()
+                user = auth_service.get_current_user(db, session_token)
+                if user:
+                    from app.repos.user_repo import UserRepository
+
+                    repo = UserRepository(db)
+                    follow = repo.get_ticker_follow(user.id, ticker.upper())
+                    is_following = follow is not None
+            except Exception:
+                # If auth fails, just continue without follow status
+                pass
 
         return templates.TemplateResponse(
             "ticker.html",
@@ -1147,10 +1607,21 @@ async def ticker_page(request: Request, ticker: str, page: int = 1) -> HTMLRespo
                 "articles": articles,
                 "stock_data": stock_data,
                 "chart_data": chart_data,
-                "sentiment_histogram": ticker_sentiment_data,
-                "sentiment_over_time": sentiment_over_time,
-                "total_article_count": total_article_count,
+                "total_article_count": unfiltered_total_article_count,
+                "filtered_article_count": filtered_article_count,
+                "today_article_count": today_article_count,
+                "article_change": today_article_count - yesterday_article_count,
+                "article_change_percent": article_change_percent,
+                "unique_users_today": unique_users_today,
+                "users_change": users_change,
+                "users_change_percent": users_change_percent,
                 "pagination": pagination,
+                "sentiment": sentiment,
+                "source": source,
+                "start": start,
+                "end": end,
+                "sources_available": sources_available,
+                "is_following": is_following,
             },
         )
     finally:

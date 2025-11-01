@@ -4,6 +4,35 @@ help: ## Show this help message
 	@echo "AlexStocks - Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
+redis-up: ## Start Redis (Docker, 200MB, LRU)
+	@if docker ps -a --format '{{.Names}}' | grep -w redis >/dev/null 2>&1; then \
+		echo "➡️  Redis container exists. Starting..."; \
+		docker start redis >/dev/null; \
+	else \
+		echo "➡️  Creating Redis container..."; \
+		docker run -d --name redis -p 6379:6379 redis:7-alpine \
+		  redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru --appendonly no >/dev/null; \
+	fi; \
+	 docker exec -it redis redis-cli ping || true
+
+redis-down: ## Stop and remove Redis container
+	- docker stop redis >/dev/null 2>&1 || true
+	- docker rm redis >/dev/null 2>&1 || true
+	@echo "🛑 Redis stopped and removed (if it existed)."
+
+rate-limit-smoke: ## Hammer an endpoint to observe 429 with Retry-After, and test caps
+	@echo "Note: Ensure the API is running on http://127.0.0.1:8000"
+	@echo "\n➡️  Testing parameter caps (expect 422 or 400):"
+	@echo "- /api/sentiment/time-series with excessive days"
+	@curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:8000/api/sentiment/time-series?ticker=AAPL&days=9999"
+	@echo "- /api/ticker/TSLA/articles with excessive limit"
+	@curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:8000/api/ticker/TSLA/articles?page=1&limit=9999"
+	@echo "\n➡️  Testing rate limiting (expect mix of 200 and 429):"
+	@echo "Sending 80 requests to /api/mentions/hourly ..."
+	@bash -c 'for i in $$(seq 1 80); do \
+		curl -s -o /dev/null -w "%{http_code}\\n" "http://127.0.0.1:8000/api/mentions/hourly?tickers=AAPL&hours=1"; \
+	done | sort | uniq -c'
+
 up: ## Start postgres and api services
 	docker compose up -d postgres
 	@echo "Waiting for postgres to be ready..."
@@ -16,11 +45,38 @@ down: ## Stop all services
 db-init: ## Initialize database schema
 	uv run python -m app.scripts.init_db
 
+# Alembic Migration Commands
+migrate-status: ## Show current migration status
+	uv run alembic current
+
+migrate-history: ## Show migration history
+	uv run alembic history --verbose
+
+migrate-up: ## Run all pending migrations
+	uv run alembic upgrade head
+
+migrate-down: ## Rollback last migration
+	uv run alembic downgrade -1
+
+migrate-create: ## Create new migration (NAME=description)
+	@if [ -z "$(NAME)" ]; then \
+		echo "❌ Error: NAME required"; \
+		echo "Usage: make migrate-create NAME=add_new_column"; \
+		exit 1; \
+	fi
+	uv run alembic revision --autogenerate -m "$(NAME)"
+
+migrate-check: ## Check if migrations are needed (autogenerate dry-run)
+	uv run alembic check
+
 seed-tickers: ## Seed ticker data
 	uv run python -m app.scripts.seed_tickers
 
 seed-sample-data: ## Seed sample articles for demonstration
 	uv run python -m app.scripts.seed_sample_articles
+
+seed-users: ## Seed sample users (disabled in production)
+	uv run python -m app.scripts.seed_users
 
 query-db: ## Query database (use --help for options)
 	uv run python -m app.scripts.query_db
@@ -38,23 +94,50 @@ add-reddit-columns: ## Add Reddit-specific columns to article table
 add-reddit-thread-table: ## Add RedditThread table for tracking scraping progress
 	uv run python -m app.scripts.add_reddit_thread_table
 
-# Production Reddit Scraper (unified, comprehensive)
-# NOTE: Legacy targets (reddit-ingest, reddit-wsb, reddit-stocks, reddit-investing)
-# have been removed. They used the deprecated ingest/reddit.py general post scraper.
-# Use the production scraper below for discussion thread scraping.
-reddit-scrape-incremental: ## Production incremental scraper (for 15-min cron)
+# Production Reddit Scraper (Multi-Subreddit + Top Posts)
+# Supports multiple subreddits via YAML config, scrapes both daily discussions and top posts
+# Config: jobs/config/reddit_scraper_config.yaml
+
+reddit-scrape-incremental: ## Production scraper - all enabled subreddits (discussions + top posts)
 	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental
 
-reddit-scrape-backfill: ## Production backfill scraper (requires START and END dates)
-	@if [ -z "$(START)" ] || [ -z "$(END)" ]; then \
-		echo "❌ Error: START and END dates required"; \
-		echo "Usage: make reddit-scrape-backfill START=2025-09-01 END=2025-09-30"; \
+reddit-scrape-ecs: ## Production scraper (matches ECS task definition exactly)
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental --config config/reddit_scraper_config.yaml
+
+reddit-scrape-wsb: ## Scrape wallstreetbets only (discussions + top posts)
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental --subreddit wallstreetbets
+
+reddit-scrape-stocks: ## Scrape r/stocks only (discussions + top posts)
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental --subreddit stocks
+
+reddit-scrape-investing: ## Scrape r/investing only (discussions + top posts)
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental --subreddit investing
+
+reddit-scrape-custom-config: ## Scrape with custom config file (CONFIG=path/to/config.yaml)
+	@if [ -z "$(CONFIG)" ]; then \
+		echo "❌ Error: CONFIG path required"; \
+		echo "Usage: make reddit-scrape-custom-config CONFIG=my_config.yaml"; \
 		exit 1; \
 	fi
-	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode backfill --start $(START) --end $(END)
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode incremental --config $(CONFIG)
 
-reddit-scrape-status: ## Show production scraper status
+reddit-scrape-backfill: ## Backfill historical data (requires SUBREDDIT, START, END)
+	@if [ -z "$(SUBREDDIT)" ] || [ -z "$(START)" ] || [ -z "$(END)" ]; then \
+		echo "❌ Error: SUBREDDIT, START and END dates required"; \
+		echo "Usage: make reddit-scrape-backfill SUBREDDIT=wallstreetbets START=2025-09-01 END=2025-09-30"; \
+		exit 1; \
+	fi
+	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode backfill --subreddit $(SUBREDDIT) --start $(START) --end $(END)
+
+reddit-scrape-status: ## Show scraping status for wallstreetbets
 	cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode status
+
+reddit-scrape-status-all: ## Show scraping status for specific subreddit (SUB=name)
+	@if [ -z "$(SUB)" ]; then \
+		cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode status; \
+	else \
+		cd jobs && PYTHONPATH=.. uv run python -m ingest.reddit_scraper_cli --mode status --subreddit $(SUB); \
+	fi
 
 # Sentiment Analysis Jobs (LLM by default)
 analyze-sentiment: ## Run sentiment analysis on articles without sentiment
@@ -110,6 +193,9 @@ setup-stock-cron: ## Setup cron job to collect stock prices every 15 minutes
 
 test-stock: ## Run stock-related tests
 	uv run pytest tests/test_stock*.py -v
+
+test-users: ## Run user repository tests
+	uv run pytest tests/db/test_users.py -v
 
 # Smart Stock Collection (filters inactive tickers for faster collection)
 collect-stock-prices-smart: ## Collect current prices (SMART - excludes warrants/units/rights)

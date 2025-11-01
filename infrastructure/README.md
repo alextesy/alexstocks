@@ -26,7 +26,7 @@ make tf-apply
 - **ECS Cluster**: `market-pulse-jobs`
 - **Task Definitions**: 3 tasks (scraper, sentiment, status)
 - **EventBridge Schedules**: 3 schedules (every 15 min + daily)
-- **CloudWatch Log Groups**: 3 log groups with 7-day retention
+- **CloudWatch Log Groups**: 3 log groups with 3-day retention
 - **IAM Roles**: Task execution, task runtime, EventBridge scheduler
 - **SQS Queues**: 3 dead-letter queues for failed invocations
 - **Security Groups**: ECS task security group with Postgres access
@@ -179,7 +179,7 @@ Secrets are injected into ECS tasks at runtime via the `secrets` field in task d
 | Resource | Monthly Cost |
 |----------|--------------|
 | ECS Fargate Spot (0.25 vCPU, 512 MB) | $1-2 |
-| CloudWatch Logs (7-day retention) | $0.50 |
+| CloudWatch Logs (3-day retention) | ~$0.20 |
 | Secrets Manager (4 secrets) | $1.60 |
 | EventBridge Scheduler | < $0.01 |
 | SQS (DLQs) | < $0.01 |

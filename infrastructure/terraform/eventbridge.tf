@@ -137,8 +137,8 @@ resource "aws_scheduler_schedule" "daily_status" {
   description = "Run daily status check at 4:00 UTC"
 }
 
-# EventBridge Scheduler: Stock Price Collector (every 15 minutes during market hours)
-# Runs Mon-Fri, 9:30 AM - 4:15 PM ET (14:30-21:15 UTC)
+# EventBridge Scheduler: Stock Price Collector (every 15 minutes)
+# Runs continuously and job code enforces market-hour logic
 resource "aws_scheduler_schedule" "stock_price_collector" {
   name       = "${var.project_name}-stock-price-collector"
   group_name = "default"
@@ -147,9 +147,9 @@ resource "aws_scheduler_schedule" "stock_price_collector" {
     mode = "OFF"
   }
 
-  # Run every 15 minutes, but only during market hours (Mon-Fri 14:30-21:15 UTC)
-  # This translates to 9:30 AM - 4:15 PM ET (includes 15-min buffer after market close)
-  schedule_expression = "cron(0/15 14-21 ? * MON-FRI *)"
+  schedule_expression_timezone = "America/New_York"
+  # Fire every 15 minutes on business days; job code enforces the exact 9:30–16:15 ET window
+  schedule_expression          = "cron(0/15 9-16 ? * MON-FRI *)"
 
   target {
     arn      = aws_ecs_cluster.jobs.arn
@@ -183,34 +183,34 @@ resource "aws_scheduler_schedule" "stock_price_collector" {
     }
   }
 
-  description = "Collect stock prices for top 50 tickers every 15 minutes"
+  description = "Collect stock prices for top tickers every 15 minutes during market hours"
 }
 
 # Dead Letter Queues for failed task invocations
 resource "aws_sqs_queue" "reddit_scraper_dlq" {
   name                      = "${var.project_name}-reddit-scraper-dlq"
-  message_retention_seconds = 1209600 # 14 days
+  message_retention_seconds = 259200 # 3 days
 
   tags = local.common_tags
 }
 
 resource "aws_sqs_queue" "sentiment_analysis_dlq" {
   name                      = "${var.project_name}-sentiment-analysis-dlq"
-  message_retention_seconds = 1209600 # 14 days
+  message_retention_seconds = 259200 # 3 days
 
   tags = local.common_tags
 }
 
 resource "aws_sqs_queue" "daily_status_dlq" {
   name                      = "${var.project_name}-daily-status-dlq"
-  message_retention_seconds = 1209600 # 14 days
+  message_retention_seconds = 259200 # 3 days
 
   tags = local.common_tags
 }
 
 resource "aws_sqs_queue" "stock_price_collector_dlq" {
   name                      = "${var.project_name}-stock-price-collector-dlq"
-  message_retention_seconds = 1209600 # 14 days
+  message_retention_seconds = 259200 # 3 days
 
   tags = local.common_tags
 }

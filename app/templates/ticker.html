@@ -6,17 +6,25 @@
 <div class="mb-8">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">{{ ticker }}</h1>
+            <div class="flex items-center gap-3 mb-2">
+                <h1 class="text-3xl font-bold text-gray-900">{{ ticker }}</h1>
+                <button 
+                    id="ticker-watchlist-btn"
+                    class="px-3 py-1 text-sm font-medium rounded-md {% if is_following %}bg-green-50 text-green-700 hover:bg-green-100{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %} transition-colors flex items-center gap-2"
+                    data-symbol="{{ ticker }}"
+                    data-following="{% if is_following %}true{% else %}false{% endif %}"
+                    title="{% if is_following %}Remove from watchlist{% else %}Add to watchlist{% endif %}"
+                >
+                    <i class="fas fa-star {% if is_following %}text-yellow-500{% else %}text-gray-400{% endif %}"></i>
+                    <span>{% if is_following %}Following{% else %}Add to Watchlist{% endif %}</span>
+                </button>
+            </div>
             {% if ticker_obj %}
             <p class="text-gray-600">{{ ticker_obj.name }} - Recent news and sentiment analysis</p>
             {% else %}
             <p class="text-gray-600">Recent news and sentiment analysis</p>
             {% endif %}
             <div class="mt-2 flex items-center space-x-4 text-sm text-gray-500">
-                <span class="flex items-center">
-                    <i class="fas fa-newspaper mr-1"></i>
-                    {{ total_article_count }} total articles
-                </span>
                 {% if pagination.total_pages > 1 %}
                 <span class="flex items-center">
                     <i class="fas fa-list mr-1"></i>
@@ -31,197 +39,185 @@
     </div>
 </div>
 
-<!-- Sentiment Analysis for this Ticker -->
-{% if sentiment_histogram and sentiment_histogram["total"] > 0 %}
-<div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">
-        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
-        {{ ticker }} Sentiment Analysis
-    </h2>
-    <div class="grid grid-cols-3 gap-4 mb-4">
-        {% for item in sentiment_histogram.display_data %}
+<!-- Stock Price & Metrics Display -->
+<div class="bg-white rounded-lg shadow-sm border p-4 md:p-6 mb-6">
+    <div class="grid grid-cols-4 gap-2 md:gap-6">
+        <!-- Stock Price -->
+        {% if stock_data %}
         <div class="text-center">
-            <div class="text-2xl mb-1">{{ item.icon }}</div>
-            <div class="text-lg font-bold text-gray-900">{{ item.count }}</div>
-            <div class="text-sm text-gray-600">{{ item.label }}</div>
-            <div class="text-xs text-gray-500">{{ item.percentage }}%</div>
+            <h3 class="text-xs md:text-sm font-medium text-gray-500 mb-1">Price</h3>
+            <div class="text-lg md:text-2xl font-bold text-gray-900">
+                ${{ "%.2f"|format(stock_data.price) }}
+            </div>
+            <div class="flex flex-col md:flex-row items-center justify-center space-y-0 md:space-y-0 md:space-x-2 mt-1">
+                {% set change_color = "text-green-600" if stock_data.change >= 0 else "text-red-600" %}
+                <span class="text-xs md:text-sm {{ change_color }} font-medium">
+                    {{ "+" if stock_data.change >= 0 else "" }}${{ "%.2f"|format(stock_data.change) }}
+                </span>
+                <span class="text-xs md:text-sm {{ change_color }}">
+                    ({{ "+" if stock_data.change >= 0 else "" }}{{ "%.1f"|format(stock_data.change_percent) }}%)
+                </span>
+            </div>
+            <div class="text-xs text-gray-500 mt-1">
+                {{ stock_data.exchange }} • {{ stock_data.currency }}
+            </div>
         </div>
-        {% endfor %}
-    </div>
-    
-    <!-- Visual Bar Chart -->
-    <div class="flex h-4 bg-gray-200 rounded-full overflow-hidden">
-        {% for item in sentiment_histogram.display_data %}
-        {% if item.percentage > 0 %}
-        <div 
-            class="h-full" 
-            style="background-color: {{ item.color }}; width: {{ item.percentage }}%"
-            title="{{ item.label }}: {{ item.count }} articles ({{ item.percentage }}%)"
-        ></div>
         {% endif %}
-        {% endfor %}
+        
+        <!-- Today's Articles -->
+        <div class="text-center">
+            <h3 class="text-xs md:text-sm font-medium text-gray-500 mb-1">Today</h3>
+            <div class="text-lg md:text-2xl font-bold text-gray-900">{{ today_article_count }}</div>
+            <div class="flex flex-col md:flex-row items-center justify-center space-y-0 md:space-y-0 md:space-x-2 mt-1">
+                {% set change_color = "text-green-600" if article_change >= 0 else "text-red-600" %}
+                <span class="text-xs md:text-sm {{ change_color }} font-medium">
+                    {{ "+" if article_change >= 0 else "" }}{{ article_change }}
+                </span>
+                <span class="text-xs md:text-sm {{ change_color }}">
+                    ({{ "+" if article_change >= 0 else "" }}{{ "%.1f"|format(article_change_percent) }}%)
+                </span>
+            </div>
+            <div class="text-xs text-gray-500 mt-1">vs yesterday</div>
+        </div>
+        
+        <!-- Users Talking Today -->
+        <div class="text-center">
+            <h3 class="text-xs md:text-sm font-medium text-gray-500 mb-1">Users</h3>
+            <div class="text-lg md:text-2xl font-bold text-gray-900">{{ unique_users_today }}</div>
+            <div class="flex flex-col md:flex-row items-center justify-center space-y-0 md:space-y-0 md:space-x-2 mt-1">
+                {% set change_color = "text-green-600" if users_change >= 0 else "text-red-600" %}
+                <span class="text-xs md:text-sm {{ change_color }} font-medium">
+                    {{ "+" if users_change >= 0 else "" }}{{ users_change }}
+                </span>
+                <span class="text-xs md:text-sm {{ change_color }}">
+                    ({{ "+" if users_change >= 0 else "" }}{{ "%.1f"|format(users_change_percent) }}%)
+                </span>
+            </div>
+            <div class="text-xs text-gray-500 mt-1">vs yesterday</div>
+        </div>
+        
+        <!-- Total Articles -->
+        <div class="text-center">
+            <h3 class="text-xs md:text-sm font-medium text-gray-500 mb-1">Total</h3>
+            <div class="text-lg md:text-2xl font-bold text-gray-900">{{ total_article_count }}</div>
+            <div class="text-xs text-gray-500 mt-1">Since Oct 2025</div>
+        </div>
+    </div>
+</div>
+
+<!-- Sentiment Timeline Chart -->
+<div class="bg-white rounded-lg shadow-sm border p-4 md:p-6 mb-6">
+    <div class="mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">
+            <i class="fas fa-chart-area text-blue-600 mr-2"></i>
+            {{ ticker }} Sentiment Over Time
+        </h2>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div class="flex items-center space-x-2">
+                <label for="metric-selector" class="text-sm font-medium text-gray-700 whitespace-nowrap">Metric:</label>
+                <select id="metric-selector" class="flex-1 sm:flex-none px-3 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="comments" selected>By Comments</option>
+                    <option value="users">By Unique Users</option>
+                </select>
+            </div>
+            <div class="flex items-center space-x-2">
+                <label for="period-selector" class="text-sm font-medium text-gray-700 whitespace-nowrap">Period:</label>
+                <select id="period-selector" class="flex-1 sm:flex-none px-3 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="day" selected>Last 24 Hours</option>
+                    <option value="week">Last 7 Days</option>
+                    <option value="month">Last 30 Days</option>
+                </select>
+            </div>
+        </div>
     </div>
     
-    <div class="text-xs text-gray-500 mt-2 text-center">
-        Total articles analyzed: {{ sentiment_histogram["total"] }}
+    <div class="h-64 mb-4">
+        <canvas id="sentimentAreaChart"></canvas>
     </div>
-</div>
-
-<!-- Sentiment Over Time Chart -->
-{% if sentiment_over_time and sentiment_over_time.data|length > 0 %}
-<div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">
-        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
-        {{ ticker }} Daily Sentiment (Last {{ sentiment_over_time.period_days }} Days)
-    </h2>
-    <div class="h-64">
-        <canvas id="sentimentTimeChart"></canvas>
-    </div>
-    <div class="text-xs text-gray-500 mt-2 text-center">
-        Green bars = Positive articles, Red bars = Negative articles ({{ sentiment_over_time.total_points }} days)
-    </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const sentimentTimeData = {{ sentiment_over_time.data | tojson }};
     
-    if (sentimentTimeData && sentimentTimeData.length > 0) {
-        const ctx = document.getElementById('sentimentTimeChart').getContext('2d');
-        
-        const chartData = {
-            labels: sentimentTimeData.map(d => {
-                // Format date to show only month/day for better readability
-                const date = new Date(d.date);
-                return `${date.getMonth() + 1}/${date.getDate()}`;
-            }),
-            datasets: [{
-                label: 'Positive Articles',
-                data: sentimentTimeData.map(d => d.positive),
-                backgroundColor: '#10b981', // green-500
-                borderColor: '#059669', // green-600
-                borderWidth: 1
-            }, {
-                label: 'Negative Articles',
-                data: sentimentTimeData.map(d => -d.negative), // Negative values to show below zero
-                backgroundColor: '#ef4444', // red-500
-                borderColor: '#dc2626', // red-600
-                borderWidth: 1
-            }]
-        };
-        
-        const config = {
-            type: 'bar',
-            data: chartData,
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        },
-                        ticks: {
-                            callback: function(value) {
-                                return Math.abs(value); // Show absolute values
-                            }
-                        }
-                    },
-                    x: {
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        },
-                        ticks: {
-                            maxRotation: 45,
-                            minRotation: 45
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const dataPoint = sentimentTimeData[context.dataIndex];
-                                if (context.datasetIndex === 0) {
-                                    return `Positive: ${context.parsed.y} articles`;
-                                } else {
-                                    return `Negative: ${Math.abs(context.parsed.y)} articles`;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        
-        new Chart(ctx, config);
-    }
-});
-</script>
-{% endif %}
-{% elif sentiment_histogram and sentiment_histogram["total"] == 0 %}
-<div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">
-        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
-        {{ ticker }} Sentiment Analysis
-    </h2>
-    <div class="text-center py-8 text-gray-500">
-        <i class="fas fa-inbox text-4xl mb-4"></i>
-        <p class="text-lg">No sentiment data available</p>
-        <p class="text-sm">Articles for {{ ticker }} haven't been analyzed yet</p>
+    <div class="flex items-center justify-center space-x-4 text-xs text-gray-600">
+        <div class="flex items-center space-x-1">
+            <div class="w-3 h-3 rounded-full bg-blue-400"></div>
+            <span id="legend-total">Total Comments</span>
+        </div>
+        <div class="flex items-center space-x-1">
+            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+            <span>Positive</span>
+        </div>
+        <div class="flex items-center space-x-1">
+            <div class="w-3 h-3 rounded-full bg-red-500"></div>
+            <span>Negative</span>
+        </div>
     </div>
 </div>
-{% endif %}
 
-<!-- Filters -->
-<div class="bg-white rounded-lg shadow-sm border p-4 mb-6">
-    <div class="flex flex-col sm:flex-row gap-4">
-        <div class="flex-1">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Time Range</label>
-            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" id="time-filter">
-                <option value="">All time</option>
-                <option value="24h">Last 24 hours</option>
-                <option value="3d">Last 3 days</option>
-                <option value="1w">Last week</option>
-                <option value="1m">Last month</option>
-            </select>
-        </div>
-        <div class="flex-1">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Language</label>
-            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" id="language-filter">
-                <option value="">All languages</option>
-                <option value="en">English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-            </select>
-        </div>
-        <div class="flex-1">
+
+<!-- Filters (server-side) -->
+<form id="ticker-filters-form" class="bg-white rounded-lg shadow-sm border p-4 mb-6" method="get">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Sentiment</label>
-            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" id="article-sentiment-filter">
-                <option value="">All sentiment</option>
-                <option value="positive">Positive</option>
-                <option value="neutral">Neutral</option>
-                <option value="negative">Negative</option>
+            <select name="sentiment" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                <option value="" {% if (sentiment|default('')) == '' %}selected{% endif %}>All</option>
+                <option value="positive" {% if sentiment=='positive' %}selected{% endif %}>Positive</option>
+                <option value="neutral" {% if sentiment=='neutral' %}selected{% endif %}>Neutral</option>
+                <option value="negative" {% if sentiment=='negative' %}selected{% endif %}>Negative</option>
             </select>
         </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Source</label>
+            <select name="source" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                <option value="" {{ '' == (source|default('')) and 'selected' or '' }}>All</option>
+                {% if sources_available %}
+                    {% for s in sources_available %}
+                        <option value="{{ s }}" {{ source==s and 'selected' or '' }}>{{ s }}</option>
+                    {% endfor %}
+                {% endif %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Start</label>
+            <input type="date" name="start" value="{{ start or '' }}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">End</label>
+            <input type="date" name="end" value="{{ end or '' }}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
+        </div>
     </div>
-</div>
+    <div class="mt-4 flex gap-2">
+        <button class="px-3 py-2 bg-blue-600 text-white rounded">Apply</button>
+        <a href="/t/{{ ticker }}" class="px-3 py-2 border border-gray-300 rounded">Reset</a>
+    </div>
+    <!-- preserve page reset to 1 automatically by form submit (no page field) -->
+</form>
+{% if pagination and pagination.total_articles is defined %}
+<div class="mt-2 text-sm text-gray-600">
+    Showing {{ pagination.total_articles }} article{{ 's' if pagination.total_articles != 1 else '' }} matching filters
+    {% if filtered_article_count is defined and filtered_article_count != pagination.total_articles %}
+        <!-- Guard if pagination changes in future -->
+    {% endif %}
+    {% if total_article_count is defined %}
+        <span class="text-gray-400">•</span>
+        Total available: {{ total_article_count }}
+    {% endif %}
+    </div>
+{% endif %}
 
 <!-- Articles List -->
 <div class="space-y-4" id="articles-list">
     {% for article in articles %}
-    <div class="bg-white rounded-lg shadow-sm border p-6 article-card" 
+    {% set is_reddit_post = article.source in ['reddit_post', 'reddit'] %}
+    {% set is_reddit_comment = article.source == 'reddit_comment' %}
+    <div class="bg-white rounded-lg shadow-sm {{ 'border-4' if is_reddit_post else 'border' }} border-gray-200 p-4 md:p-6 article-card" 
          data-published="{{ article.published_at.isoformat() }}"
          data-language="{{ article.lang or 'unknown' }}"
          data-sentiment="{{ get_sentiment_display_data(article.sentiment).label.lower() }}"
+         data-sentiment-value="{{ article.sentiment or 0.0 }}"
+         data-engagement="{{ article.upvotes or 0 }}"
          data-source="{{ article.source }}">
-        <div class="flex items-start justify-between mb-3">
-            <h3 class="text-lg font-semibold text-gray-900 flex-1 mr-4">
+        <!-- Title -->
+        <div class="mb-3">
+            <h3 class="text-base md:text-lg font-semibold text-gray-900 line-clamp-2 md:line-clamp-none mb-2">
                 <a href="{{ article.url }}" target="_blank" class="hover:text-blue-600">
                     {% set title_text = article.title %}
                     {% for term in article.matched_terms %}
@@ -248,7 +244,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     <i class="fas fa-external-link-alt text-xs text-gray-400 ml-1"></i>
                 </a>
             </h3>
-            <div class="flex items-center space-x-2">
+            <!-- Date and Source first -->
+            <div class="flex flex-wrap items-center gap-2 text-xs md:text-sm text-gray-500 mb-2">
+                {% if article.published_at %}
+                <span class="article-time whitespace-nowrap" data-published="{{ article.published_at.isoformat() }}"></span>
+                {% else %}
+                <span class="whitespace-nowrap">Unknown date</span>
+                {% endif %}
+                <span class="text-gray-300">•</span>
+                <span class="px-2 py-1 rounded text-xs {{ 'bg-orange-100 text-orange-800' if is_reddit_post else ('bg-amber-100 text-amber-800' if is_reddit_comment else 'bg-gray-100 text-gray-600') }}">
+                    {% if is_reddit_post or is_reddit_comment %}
+                    <i class="fab fa-reddit-alien mr-1"></i>
+                    {% endif %}
+                    {{ article.source }}
+                </span>
+            </div>
+            <!-- Other metadata -->
+            <div class="flex flex-wrap items-center gap-2">
                 {% set sentiment_data = get_sentiment_display_data(article.sentiment) %}
                 <div class="flex items-center space-x-1">
                     <span class="text-sm">{{ sentiment_data.icon }}</span>
@@ -257,22 +269,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     </span>
                     <span class="text-xs text-gray-500">({{ "%.2f"|format(article.sentiment) }})</span>
                 </div>
-                <span class="text-xs text-gray-500">{{ article.source }}</span>
-            </div>
-        </div>
-        
-        <div class="flex items-center justify-between text-sm text-gray-500">
-            <div class="flex items-center space-x-4">
-                {% if article.published_at %}
-                <span class="article-time" data-published="{{ article.published_at.isoformat() }}"></span>
-                {% else %}
-                <span>Unknown date</span>
+                <span class="flex items-center text-gray-600 whitespace-nowrap text-xs md:text-sm">
+                    <i class="fas fa-arrow-up mr-1"></i>
+                    <span class="font-medium">{{ article.upvotes or 0 }}</span>
+                </span>
+                {% if is_reddit_post %}
+                <span class="flex items-center text-gray-600 whitespace-nowrap text-xs md:text-sm">
+                    <i class="fas fa-comments mr-1"></i>
+                    <span class="font-medium">{{ article.num_comments or 0 }}</span>
+                </span>
                 {% endif %}
                 {% if article.lang %}
                 <span class="px-2 py-1 bg-gray-100 rounded text-xs">{{ article.lang.upper() }}</span>
                 {% endif %}
                 {% if article.author %}
-                <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">{{ article.author }}</span>
+                <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs truncate max-w-[150px]">{{ article.author }}</span>
                 {% endif %}
                 {% if article.subreddit %}
                 <span class="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">{{ article.subreddit }}</span>
@@ -280,7 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         </div>
         
-        {% if article.full_text and article.source == 'reddit_comment' %}
+        {% if article.full_text and article.source in ['reddit_comment','reddit_post','reddit'] %}
         <div class="mt-3 p-3 bg-gray-50 rounded-md">
             <p class="text-sm text-gray-700">
                 {% set text = article.full_text %}
@@ -338,7 +349,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <div class="mt-8 flex justify-center">
     <nav class="flex items-center space-x-2">
         {% if pagination.has_prev %}
-        <a href="/t/{{ ticker }}?page={{ pagination.page - 1 }}" 
+        <a href="/t/{{ ticker }}?page={{ pagination.page - 1 }}&sentiment={{ sentiment or '' }}&source={{ source or '' }}&start={{ start or '' }}&end={{ end or '' }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             Previous
         </a>
@@ -353,7 +364,7 @@ document.addEventListener('DOMContentLoaded', function() {
         {% set end_page = [pagination.total_pages, pagination.page + 2]|min %}
         
         {% if start_page > 1 %}
-        <a href="/t/{{ ticker }}?page=1" 
+        <a href="/t/{{ ticker }}?page=1&sentiment={{ sentiment or '' }}&source={{ source or '' }}&start={{ start or '' }}&end={{ end or '' }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">1</a>
         {% if start_page > 2 %}
         <span class="px-2 text-sm text-gray-500">...</span>
@@ -366,7 +377,7 @@ document.addEventListener('DOMContentLoaded', function() {
             {{ page_num }}
         </span>
         {% else %}
-        <a href="/t/{{ ticker }}?page={{ page_num }}" 
+        <a href="/t/{{ ticker }}?page={{ page_num }}&sentiment={{ sentiment or '' }}&source={{ source or '' }}&start={{ start or '' }}&end={{ end or '' }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             {{ page_num }}
         </a>
@@ -377,14 +388,14 @@ document.addEventListener('DOMContentLoaded', function() {
         {% if end_page < pagination.total_pages - 1 %}
         <span class="px-2 text-sm text-gray-500">...</span>
         {% endif %}
-        <a href="/t/{{ ticker }}?page={{ pagination.total_pages }}" 
+        <a href="/t/{{ ticker }}?page={{ pagination.total_pages }}&sentiment={{ sentiment or '' }}&source={{ source or '' }}&start={{ start or '' }}&end={{ end or '' }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             {{ pagination.total_pages }}
         </a>
         {% endif %}
         
         {% if pagination.has_next %}
-        <a href="/t/{{ ticker }}?page={{ pagination.page + 1 }}" 
+        <a href="/t/{{ ticker }}?page={{ pagination.page + 1 }}&sentiment={{ sentiment or '' }}&source={{ source or '' }}&start={{ start or '' }}&end={{ end or '' }}" 
            class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
             Next
         </a>
@@ -400,4 +411,314 @@ document.addEventListener('DOMContentLoaded', function() {
     Showing {{ ((pagination.page - 1) * 50) + 1 }} to {{ [pagination.page * 50, pagination.total_articles]|min }} of {{ pagination.total_articles }} articles
 </div>
 {% endif %}
+
+<script>
+// Sentiment Area Chart
+const ticker = '{{ ticker }}';
+let sentimentChart = null;
+
+async function loadSentimentTimeline(period, metric) {
+    try {
+        const response = await fetch(`/api/ticker/${ticker}/sentiment-timeline?period=${period}&metric=${metric}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch sentiment timeline data');
+        }
+        const data = await response.json();
+        renderSentimentChart(data, period, metric);
+    } catch (error) {
+        console.error('Error loading sentiment timeline:', error);
+    }
+}
+
+function formatTimestamp(timestamp, period) {
+    // Parse the UTC timestamp - Date object automatically converts to local timezone
+    const date = new Date(timestamp);
+    if (period === 'day') {
+        // Show hour in local timezone (e.g., "14:00")
+        const hh = String(date.getHours()).padStart(2, '0');
+        const mi = String(date.getMinutes()).padStart(2, '0');
+        return `${hh}:${mi}`;
+    } else {
+        // Show month/day (e.g., "10/24")
+        const mm = date.getMonth() + 1;
+        const dd = date.getDate();
+        return `${mm}/${dd}`;
+    }
+}
+
+function renderSentimentChart(data, period, metric) {
+    const ctx = document.getElementById('sentimentAreaChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if it exists
+    if (sentimentChart) {
+        sentimentChart.destroy();
+    }
+    
+    const labels = data.data.map(d => formatTimestamp(d.timestamp, period));
+    const totalData = data.data.map(d => d.total);
+    const positiveData = data.data.map(d => d.positive);
+    const negativeData = data.data.map(d => d.negative);
+    const neutralData = data.data.map(d => d.neutral);
+    
+    // Dynamic labels based on metric
+    const metricLabel = metric === 'users' ? 'Users' : 'Comments';
+    const totalLabel = metric === 'users' ? 'Total Users' : 'Total Comments';
+    
+    // Update legend text
+    const legendTotal = document.getElementById('legend-total');
+    if (legendTotal) {
+        legendTotal.textContent = totalLabel;
+    }
+    
+    sentimentChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: totalLabel,
+                    data: totalData,
+                    fill: true,
+                    backgroundColor: 'rgba(96, 165, 250, 0.2)', // blue-400 with opacity
+                    borderColor: 'rgba(96, 165, 250, 0.8)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    order: 3
+                },
+                {
+                    label: 'Positive',
+                    data: positiveData,
+                    fill: true,
+                    backgroundColor: 'rgba(16, 185, 129, 0.3)', // green-500 with opacity
+                    borderColor: 'rgba(16, 185, 129, 0.8)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    order: 2
+                },
+                {
+                    label: 'Negative',
+                    data: negativeData,
+                    fill: true,
+                    backgroundColor: 'rgba(239, 68, 68, 0.3)', // red-500 with opacity
+                    borderColor: 'rgba(239, 68, 68, 0.8)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    stacked: false,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        precision: 0
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        autoSkip: true,
+                        maxTicksLimit: period === 'day' ? 12 : 15
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false  // We have custom legend below the chart
+                },
+                tooltip: {
+                    displayColors: false,
+                    callbacks: {
+                        title: function(context) {
+                            const dataIndex = context[0].dataIndex;
+                            const timestamp = data.data[dataIndex].timestamp;
+                            const date = new Date(timestamp);
+                            
+                            if (period === 'day') {
+                                // Format as "Hour: 14:00" in local timezone
+                                const hh = String(date.getHours()).padStart(2, '0');
+                                const mi = String(date.getMinutes()).padStart(2, '0');
+                                return `Hour: ${hh}:${mi}`;
+                            } else {
+                                // Format as "Date: 10/24/2025" in local timezone
+                                const mm = date.getMonth() + 1;
+                                const dd = date.getDate();
+                                const yyyy = date.getFullYear();
+                                return `Date: ${mm}/${dd}/${yyyy}`;
+                            }
+                        },
+                        beforeBody: function(context) {
+                            const dataIndex = context[0].dataIndex;
+                            const total = totalData[dataIndex];
+                            const positive = positiveData[dataIndex];
+                            const negative = negativeData[dataIndex];
+                            const neutral = neutralData[dataIndex];
+                            
+                            // Build tooltip in order: Total, bigger sentiment, smaller sentiment, neutral
+                            const lines = [];
+                            lines.push(`${totalLabel}: ${total} ${metricLabel.toLowerCase()}`);
+                            lines.push('');  // Add spacing
+                            
+                            if (positive > negative) {
+                                lines.push(`Positive: ${positive} ${metricLabel.toLowerCase()}`);
+                                lines.push(`Negative: ${negative} ${metricLabel.toLowerCase()}`);
+                            } else if (negative > positive) {
+                                lines.push(`Negative: ${negative} ${metricLabel.toLowerCase()}`);
+                                lines.push(`Positive: ${positive} ${metricLabel.toLowerCase()}`);
+                            } else {
+                                // Equal, show positive first
+                                lines.push(`Positive: ${positive} ${metricLabel.toLowerCase()}`);
+                                lines.push(`Negative: ${negative} ${metricLabel.toLowerCase()}`);
+                            }
+                            
+                            lines.push(`Neutral: ${neutral} ${metricLabel.toLowerCase()}`);
+                            
+                            return lines;
+                        },
+                        label: function(context) {
+                            // Hide default labels since we're using beforeBody
+                            return null;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Load initial data on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const periodSelector = document.getElementById('period-selector');
+    const metricSelector = document.getElementById('metric-selector');
+    
+    // Load initial chart with default values (day, comments)
+    loadSentimentTimeline('day', 'comments');
+    
+    // Handle period selector changes
+    if (periodSelector) {
+        periodSelector.addEventListener('change', function() {
+            const currentMetric = metricSelector ? metricSelector.value : 'comments';
+            loadSentimentTimeline(this.value, currentMetric);
+        });
+    }
+    
+    // Handle metric selector changes
+    if (metricSelector) {
+        metricSelector.addEventListener('change', function() {
+            const currentPeriod = periodSelector ? periodSelector.value : 'month';
+            loadSentimentTimeline(currentPeriod, this.value);
+        });
+    }
+});
+
+// Watchlist functionality
+const watchlistBtn = document.getElementById('ticker-watchlist-btn');
+if (watchlistBtn) {
+    watchlistBtn.addEventListener('click', async function(e) {
+        e.preventDefault();
+        const symbol = this.dataset.symbol;
+        const isFollowing = this.dataset.following === 'true';
+        
+        // Disable button during request
+        this.disabled = true;
+        
+        try {
+            if (isFollowing) {
+                // Remove from watchlist
+                const response = await fetch(`/api/users/me/follows/${symbol}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    this.dataset.following = 'false';
+                    this.classList.remove('bg-green-50', 'text-green-700', 'hover:bg-green-100');
+                    this.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+                    
+                    // Update button text and star color
+                    const icon = this.querySelector('i.fa-star');
+                    const span = this.querySelector('span');
+                    if (icon) {
+                        icon.classList.remove('text-yellow-500');
+                        icon.classList.add('text-gray-400');
+                    }
+                    if (span) span.textContent = 'Add to Watchlist';
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Failed to remove from watchlist');
+                }
+            } else {
+                // Add to watchlist
+                const response = await fetch('/api/users/me/follows', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ ticker: symbol })
+                });
+                
+                if (response.ok) {
+                    this.dataset.following = 'true';
+                    this.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+                    this.classList.add('bg-green-50', 'text-green-700', 'hover:bg-green-100');
+                    
+                    // Update button text and star color
+                    const icon = this.querySelector('i.fa-star');
+                    const span = this.querySelector('span');
+                    if (icon) {
+                        icon.classList.remove('text-gray-400');
+                        icon.classList.add('text-yellow-500');
+                    }
+                    if (span) span.textContent = 'Following';
+                } else {
+                    let errorMessage = 'Failed to add to watchlist';
+                    try {
+                        const errorData = await response.json();
+                        if (errorData.detail) {
+                            if (typeof errorData.detail === 'string') {
+                                errorMessage = errorData.detail;
+                            } else if (Array.isArray(errorData.detail)) {
+                                errorMessage = errorData.detail.map((e) => e.msg || JSON.stringify(e)).join(', ');
+                            } else {
+                                errorMessage = JSON.stringify(errorData.detail);
+                            }
+                        }
+                    } catch (e) {
+                        errorMessage = `Error ${response.status}: ${response.statusText}`;
+                    }
+                    
+                    if (response.status === 401) {
+                        alert('Please log in to add tickers to your watchlist');
+                    } else {
+                        alert(errorMessage);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Watchlist error:', error);
+            alert('An error occurred. Please try again.');
+        } finally {
+            this.disabled = false;
+        }
+    });
+}
+</script>
 {% endblock %}
+

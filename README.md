@@ -1,648 +1,340 @@
-# AlexStocks
+# Market Pulse v2 (AlexStocks)
 
-**A production-ready market sentiment analytics platform that tracks real-time discussions and sentiment across financial markets.**
-
-AlexStocks is a comprehensive web application that collects, analyzes, and visualizes market sentiment from Reddit discussions. It uses advanced NLP techniques including FinBERT-based sentiment analysis and intelligent ticker linking to provide actionable insights into market trends and momentum.
+**Real-time Reddit market intelligence with hybrid LLM sentiment, hourly mention analytics, and battle-tested cloud automation.**
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
 
-> 🚀 **NEW**: ECS Fargate migration complete! Cron jobs now run as containerized tasks on AWS Fargate (Spot) for 90% cost savings. See [ECS_MIGRATION_SUMMARY.md](ECS_MIGRATION_SUMMARY.md) for details.
+> 🆕 Recent additions: Redis-backed API budgets, hourly mentions API with Chart.js dashboards, concurrent Yahoo Finance collector, and AWS ECS Fargate cron fleet managed by Terraform + GitHub Actions.
+
+_Formerly branded as AlexStocks. The UI still shows the legacy name while the broader platform ships as **Market Pulse v2**._
 
 ---
 
-## 🚀 Features
+## Feature Overview
 
-### Core Capabilities
-- **📊 Real-Time Sentiment Tracking**: Dual-model sentiment analysis using FinBERT (financial domain) + VADER (social context)
-- **🔍 Intelligent Ticker Linking**: Advanced NLP-based ticker extraction with context awareness and alias matching
-- **📈 Live Stock Price Integration**: Real-time and historical stock price data via yfinance API
-- **🎯 Momentum Detection**: Velocity metrics showing discussion volume trends and spikes
-- **💬 Reddit Integration**: Automated scraping of r/wallstreetbets, r/stocks, and r/investing discussions
-- **📉 Interactive Visualizations**: Sentiment histograms, time-series charts, and price correlation graphs
-- **🔄 Incremental Processing**: Efficient data pipeline with deduplication and rate limiting
+### Reddit & Data Ingestion
+- Unified `ingest.reddit_scraper_cli` with **incremental**, **backfill**, and **status** modes (PRAW + robust retry/backoff).
+- Tracks discussion threads in `reddit_thread` and maintains per-source runtime metrics in `scraping_status`.
+- 15-minute production cadence backed by EventBridge + ECS Fargate (Spot) with CloudWatch Logs.
+- CLI surfaces structured JSON telemetry (threads processed, ticker links, batches saved) for observability.
 
-### Analytics & Insights
-- **Sentiment Distribution**: Histogram visualization of positive/negative/neutral sentiment
-- **Temporal Analysis**: Track sentiment trends over time for any ticker
-- **Volume Metrics**: 24-hour discussion velocity with baseline comparisons
-- **Multi-Source Data**: Aggregate sentiment from daily discussion threads and individual posts
-- **Confidence Scoring**: Context-aware ticker matching with relevance scores
+### Sentiment Intelligence
+- `HybridSentimentService` fuses **FinBERT** LLM scores with **VADER** and automatically falls back when the LLM is neutral or unavailable.
+- Jobs to override existing sentiment with LLM-only or dual-model scoring (`override_sentiment_with_llm`, `override_sentiment_dual_model`).
+- `SentimentAnalyticsService` provides leaning metrics (positive vs negative share) and histogram data used by the homepage and API (`/api/sentiment/*`).
+- Ticker detail pages surface sentiment timelines (day/week/month) and unique user counts per interval.
+
+### Mention & Velocity Analytics
+- `/api/mentions/hourly` aggregates linked articles per ticker over sliding windows (1–168 hours) with zero-fill gaps and UTC alignment.
+- Home dashboard renders hourly mention trends with Chart.js, dynamic ticker selection, and local-time formatting.
+- `VelocityService` computes activity z-scores vs configurable baselines to flag momentum tickers in UI cards.
+
+### Stock Market Data
+- Async Yahoo Finance integration with semaphore-limited concurrency (5× faster for large symbol sets) and resilient retry logic.
+- `StockPrice` table stores comprehensive intraday metrics (bid/ask, market cap, volume averages).
+- Historical OHLCV persists to `stock_price_history`; `stock_price_collector` job refreshes current + historical data.
+- `ensure_fresh_stock_price` guarantees ticker pages hydrate live prices before rendering (default 15-minute freshness).
+
+### Web Experience
+- FastAPI + Jinja templates + Tailwind UI for browse, ticker detail, sentiment charts, and velocity badges.
+- Built-in search, pagination, and multiple sort orders for tickers.
+- Home page surfaces 24h sentiment lean, scraping status, and curated default tickers for the mentions chart.
+- Privacy/about pages, GTM toggles, and cookie consent hooks controlled via Pydantic settings.
+
+### Reliability & Safety Rails
+- Redis-backed rate limiting middleware with per-endpoint quotas and `Retry-After` headers.
+- Parameter caps (articles limit, days, hours, offset budget) enforced centrally in `settings` and validated in routing layer + tests.
+- Extensive instrumentation of scraping and stock collectors with failure logging and idempotent batching.
+- Split dependency graph via `pyproject.toml` (app) and `jobs/pyproject.toml` (batch) to keep production images lean.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
-### Technology Stack
+### Core Stack
+- **FastAPI** for HTTP APIs and server-rendered views.
+- **SQLAlchemy 2.x** ORM with Postgres-first schema, SQLite-compatible fallbacks (`JSONBCompat`, `BigIntegerCompat`).
+- **Jinja2 + Tailwind + Chart.js** for templated UI.
+- **Pydantic Settings** for typed configuration sourced from `.env`.
+- **uv** for virtualenv management and reproducible lock files.
 
-**Backend:**
-- **FastAPI** - High-performance async web framework
-- **SQLAlchemy 2.0** - Modern ORM with async support
-- **PostgreSQL 16** - Primary data store with JSONB support
-- **Pydantic** - Data validation and settings management
+### Batch & Infrastructure
+- `jobs/` directory contains the Fargate-ready runtime (Dockerfile, minimal dependencies, shared code from `app/` and `jobs/ingest/`).
+- **AWS ECS Fargate (Spot)** runs Reddit scraper, sentiment analysis, stock collector, and daily status tasks.
+- **AWS EventBridge Scheduler** triggers tasks, while **Amazon ECR** stores container images.
+- **Terraform** modules (`infrastructure/terraform`) provision IAM, networking, ECS, scheduler, and CloudWatch resources.
+- **GitHub Actions** workflows build, scan, push, and deploy jobs (`.github/workflows/deploy-ecs-jobs.yml`).
 
-**Data Processing:**
-- **FinBERT** - Financial sentiment analysis (ProsusAI/finbert)
-- **VADER** - Social media sentiment analysis
-- **PRAW** - Reddit API integration
-- **yfinance** - Real-time stock price data
-- **Beautiful Soup** - HTML parsing for content extraction
+### Supporting Services
+- **PostgreSQL 16** via Docker Compose for local development.
+- **Redis** (optional for development, required for production rate limiting) with helper targets (`make redis-up`/`redis-down`).
+- **PRAW** for Reddit API access, `redis.asyncio` for rate limiting, and `yfinance` for market data.
 
-**Frontend:**
-- **Jinja2 Templates** - Server-side rendering
-- **Tailwind CSS** - Utility-first styling
-- **Chart.js** - Interactive data visualization
-
-**Development:**
-- **uv** - Fast Python package management
-- **Docker & Docker Compose** - Containerized deployment
-- **pytest** - Comprehensive test suite
-- **Ruff & Black** - Code formatting and linting
-- **MyPy** - Static type checking
-
-**Infrastructure (Production):**
-- **AWS ECS Fargate** - Serverless container orchestration
-- **EventBridge Scheduler** - Cron job scheduling
-- **CloudWatch Logs** - Centralized logging
-- **Terraform** - Infrastructure as code
-- **GitHub Actions** - CI/CD pipeline
-
-### Database Schema
+### Database Schema (abridged)
 
 ```
-┌─────────────┐         ┌──────────────────┐         ┌─────────────┐
-│   Ticker    │         │  ArticleTicker   │         │   Article   │
-├─────────────┤         ├──────────────────┤         ├─────────────┤
-│ symbol (PK) │◄─────── ┤ ticker (FK)      │         │ id (PK)     │
-│ name        │         │ article_id (FK)  ├────────►│ source      │
-│ aliases     │         │ confidence       │         │ url         │
-│ exchange    │         │ matched_terms    │         │ title       │
-│ is_sp500    │         └──────────────────┘         │ text        │
-└─────────────┘                                      │ sentiment   │
-                                                     │ published_at│
-┌──────────────────┐                                 │ reddit_id   │
-│   StockPrice     │                                 │ subreddit   │
-├──────────────────┤                                 │ author      │
-│ symbol (FK)      │                                 │ upvotes     │
-│ price            │                                 └─────────────┘
-│ change           │
-│ change_percent   │         ┌─────────────────────┐
-│ market_state     │         │ StockPriceHistory   │
-│ updated_at       │         ├─────────────────────┤
-└──────────────────┘         │ symbol (FK)         │
-                             │ date                │
-                             │ close_price         │
-                             │ volume              │
-                             └─────────────────────┘
+┌──────────────┐        ┌──────────────────┐        ┌──────────────┐
+│   Ticker     │◄──────►│  ArticleTicker   │◄──────►│   Article    │
+│ symbol (PK)  │        │ article_id (FK)  │        │ id (PK)      │
+│ name         │        │ ticker (FK)      │        │ source       │
+│ aliases JSON │        │ confidence       │        │ title/text   │
+│ exchange     │        │ matched_terms    │        │ sentiment    │
+│ sources      │        └──────────────────┘        │ reddit/meta  │
+└──────────────┘                                   │ published_at │
+                                                   └──────────────┘
+
+┌──────────────────┐       ┌────────────────────┐
+│  RedditThread    │       │   ScrapingStatus   │
+│ reddit_id (PK)   │       │ source (PK)        │
+│ subreddit/type   │       │ last_scrape_at     │
+│ total/scraped    │       │ items_scraped      │
+│ is_complete      │       │ status/error       │
+└──────────────────┘       └────────────────────┘
+
+┌──────────────┐        ┌────────────────────┐        ┌────────────────────────┐
+│ StockPrice   │        │ StockPriceHistory  │        │ StockDataCollection    │
+│ symbol (PK)  │        │ id (PK)            │        │ id (PK)                │
+│ price/change │        │ symbol (FK)        │        │ collection_type        │
+│ bid/ask/etc  │        │ date + OHLCV       │        │ success/fail counts    │
+│ updated_at   │        │ volume             │        │ duration/errors JSON   │
+└──────────────┘        └────────────────────┘        └────────────────────────┘
 ```
 
 ---
 
-## 📦 Quick Start
+## Directory Layout
+
+```
+market-pulse-v2/
+├── app/                     # FastAPI app, services, models, templates
+│   ├── main.py              # Routes (HTML + API) with rate limiting
+│   ├── config.py            # Pydantic settings
+│   ├── db/                  # SQLAlchemy models & session management
+│   ├── services/            # Sentiment, mentions, stock data, rate limiters
+│   ├── collectors/          # Local stock collection scripts
+│   ├── scripts/             # DB init/seed utilities & migrations helpers
+│   └── templates/           # Jinja2 templates for UI
+├── jobs/                    # Containerized batch runtime for ECS
+│   ├── Dockerfile
+│   ├── pyproject.toml
+│   ├── ingest/              # Production Reddit scraper + CLI
+│   └── jobs/                # Sentiment/stock jobs executed in ECS tasks
+├── infrastructure/terraform # Terraform modules for ECS/ECR/EventBridge/IAM
+├── tests/                   # Pytest suite (unit, integration, regression)
+├── docs/                    # Playbooks, migration guides, API docs
+├── Makefile                 # Developer + ops automation
+├── docker-compose.yml       # Local Postgres services
+└── README.md                # You are here
+```
+
+---
+
+## Quick Start
 
 ### Prerequisites
-
-- **Python 3.11+** (required for modern type hints)
-- **[uv](https://docs.astral.sh/uv/)** package manager
-- **Docker & Docker Compose** (for PostgreSQL)
-- **Reddit API credentials** (see [Reddit Setup](#reddit-api-setup))
+- **Python 3.11+** (3.12 compatible, 3.13 not yet validated)
+- **[uv](https://docs.astral.sh/uv/)** for dependency management
+- **Docker & Docker Compose** (local PostgreSQL)
+- **Redis** (optional locally; required for production rate limiting)
+- Reddit API credentials (client id/secret/user agent)
 
 ### Installation
 
-1. **Clone and navigate to the project:**
+1. **Clone and enter the repo**
    ```bash
    git clone <repository-url>
    cd market-pulse-v2
    ```
 
-2. **Install dependencies:**
+2. **Install Python dependencies**
    ```bash
    uv sync
    ```
 
-3. **Configure environment variables:**
+3. **Configure environment**
    ```bash
-   cp env.example .env
-   # Edit .env with your Reddit API credentials
+   cp .env.example .env
+   # Edit .env and add your credentials:
+   # - GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (required for authentication)
+   # - DATABASE_URL (defaults to local PostgreSQL)
+   # - REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET (optional, for social data)
+   # - Other settings have sensible defaults
    ```
 
-4. **Start PostgreSQL:**
+4. **Start services (Postgres + API)**
    ```bash
    make up
+   # In a separate terminal, optionally start Redis for rate limiting
+   make redis-up
    ```
 
-5. **Initialize database and seed data:**
+5. **Bootstrap the database**
    ```bash
    make db-init
    make seed-tickers
-   ```
-
-6. **Optional: Add sample data for demo:**
-   ```bash
+   # Optionally load demo content
    make seed-sample-data
    ```
 
-### Access the Application
+6. **Browse the app**
+   - Web UI: http://localhost:8000/
+   - API docs (FastAPI): http://localhost:8000/docs
+   - Health check: http://localhost:8000/health
 
-- **Web Interface**: http://localhost:8000/
-- **Browse Tickers**: http://localhost:8000/browse
-- **Ticker Details**: http://localhost:8000/t/AAPL
-- **Health Check**: http://localhost:8000/health
-- **API Docs**: http://localhost:8000/docs
-
----
-
-## 🎯 Usage
-
-### Data Collection
-
-```bash
-# Scrape Reddit discussions from daily threads
-make reddit-robust-scrape              # Single latest thread
-make reddit-robust-scrape-multi        # Multiple threads (last 3 days)
-
-# Analyze sentiment for new articles
-make analyze-sentiment                 # All unanalyzed articles
-make analyze-sentiment-recent          # Last 24 hours only
-
-# Collect stock price data
-make collect-stock-prices              # Current prices
-make collect-historical-data           # Historical OHLCV data
-make collect-both-stock-data           # Both current + historical
-
-# Combined pipeline (scrape + analyze)
-make scrape-and-analyze-full
-```
-
-### Reddit Data Sources
-
-The platform targets three major finance subreddits:
-
-- **r/wallstreetbets**: High-volume meme stock discussions, strong sentiment signals
-- **r/stocks**: General stock market discussions, balanced perspectives
-- **r/investing**: Long-term investment focus, fundamental analysis
-
-### Sentiment Analysis
-
-**Dual-Model Approach:**
-- **FinBERT** (ProsusAI/finbert): Financial domain-specific sentiment (0.65 weight)
-- **VADER**: Social media context and slang (0.35 weight)
-- **Adaptive Scoring**: Stronger sentiment signals when models agree
-
-```bash
-# Override existing sentiment with dual-model analysis
-make override-sentiment-dual           # All articles
-make override-sentiment-dual-reddit    # Reddit only
-make override-sentiment-dual-recent    # Last 24h only
-```
+To shut down local services run `make down` (and `make redis-down` for Redis).
 
 ---
 
-## 🔧 Development
+## CLI & Automation
 
-### Available Commands
+### Reddit scraping & sentiment
 
 ```bash
-make help                    # Show all available commands
-
-# Development
-make up                      # Start services (Postgres + API)
-make down                    # Stop all services
-make clean                   # Clean containers and volumes
-
-# Database
-make db-init                 # Initialize schema
-make seed-tickers            # Seed ticker data (~58 core tickers)
-make query-db                # Query database (interactive)
-
-# Testing
-make test                    # Run all tests
-make test-unit              # Unit tests only
-make test-integration       # Integration tests only
-make test-coverage          # Coverage report
-make test-reddit            # Reddit-specific tests
-make test-sentiment         # Sentiment analysis tests
-
-# Code Quality
-make lint                    # Run all linters
-make lint-fix               # Auto-fix issues
-make format                 # Format code (black + ruff)
-make security               # Security audit (bandit)
+make reddit-scrape-incremental             # 15-min production scraper mode
+make reddit-scrape-backfill START=2025-01-01 END=2025-01-31
+make reddit-scrape-status                  # Prints scraping_status + live subreddit stats
+make analyze-sentiment                     # Analyze articles lacking sentiment (LLM-first)
+make analyze-sentiment-reddit              # Reddit-only batch
+make override-sentiment-llm                # Re-score everything with LLM
+make override-sentiment-dual               # Dual-model override (LLM + VADER)
+make override-sentiment-dual-recent        # 24h dual-model refresh
+make scrape-and-analyze-full               # Latest daily thread scrape + sentiment
 ```
 
-### Project Structure
+### Stock data jobs
 
+```bash
+make collect-stock-prices                  # Refresh current prices for all tickers
+make collect-stock-prices-smart            # Skip warrants/units for faster runs
+make collect-historical-data               # Persist OHLCV (default 1 month)
+make collect-both-stock-data               # Current + historical in one pass
+make collect-top50-prices                  # ECS production task (top tickers)
+make analyze-tickers                       # Inspect ticker universe & metadata quality
 ```
-market-pulse-v2/
-├── app/
-│   ├── main.py                    # FastAPI application & routes
-│   ├── config.py                  # Settings & environment config
-│   ├── db/
-│   │   ├── models.py             # SQLAlchemy ORM models
-│   │   └── session.py            # Database session management
-│   ├── services/
-│   │   ├── sentiment.py          # VADER sentiment analysis
-│   │   ├── llm_sentiment.py      # FinBERT sentiment analysis
-│   │   ├── hybrid_sentiment.py   # Dual-model sentiment fusion
-│   │   ├── velocity.py           # Discussion momentum metrics
-│   │   ├── stock_data.py         # Stock price integration
-│   │   └── context_analyzer.py   # Ticker context validation
-│   ├── collectors/
-│   │   └── stock_price_collector.py  # Price data collection
-│   ├── jobs/
-│   │   ├── analyze_sentiment.py      # Batch sentiment analysis
-│   │   ├── collect_stock_prices.py   # Stock data jobs
-│   │   └── scrape_monthly_discussions.py  # Reddit scraping
-│   ├── scripts/
-│   │   ├── init_db.py            # Database initialization
-│   │   ├── seed_tickers.py       # Ticker seeding
-│   │   └── [migrations...]       # Database migrations
-│   └── templates/
-│       ├── base.html             # Base template
-│       ├── home.html             # Ticker grid homepage
-│       ├── ticker.html           # Individual ticker page
-│       └── browse.html           # Ticker browser
-├── ingest/
-│   ├── reddit.py                 # Reddit ingestion CLI
-│   ├── reddit_parser.py          # Reddit post parsing
-│   ├── reddit_robust_scraper.py  # Robust Reddit scraper
-│   ├── linker.py                 # Ticker linking engine
-│   └── [other scrapers...]
-├── tests/
-│   ├── test_main.py              # API endpoint tests
-│   ├── test_sentiment.py         # Sentiment analysis tests
-│   ├── test_reddit_ingest.py     # Reddit ingestion tests
-│   ├── test_ticker_linking.py    # Ticker linking tests
-│   └── conftest.py               # Test fixtures
-├── data/
-│   ├── tickers_core.csv          # Core ticker universe
-│   └── aliases.yaml              # Ticker alias mappings
-├── docs/                         # Detailed documentation
-├── pyproject.toml                # Project dependencies
-├── docker-compose.yml            # Service definitions
-├── Makefile                      # Development commands
-└── README.md                     # This file
+
+### Quality, testing & utilities
+
+```bash
+make test                                  # Full pytest suite
+make test-unit                             # Fast unit tests
+make test-integration                      # Integration tests (DB required)
+make test-reddit                           # Reddit ingestion regression checks
+make test-sentiment                        # Sentiment-specific tests
+make lint                                  # Ruff + Black --check + mypy
+make lint-fix                              # Ruff --fix + Black
+make security                              # Bandit scan (JSON report)
+make rate-limit-smoke                      # Exercise API parameter caps + 429s
+```
+
+### ECS & Terraform helpers
+
+```bash
+make build-jobs-image                      # Build batch image locally
+make push-jobs-image                       # Build & push to Amazon ECR
+make tf-plan && make tf-apply              # Terraform workflow
+make ecs-run-scraper                       # Manually trigger Reddit scraper task
+make ecs-logs-scraper                      # Tail CloudWatch logs
+make schedule-enable-all                   # Toggle EventBridge schedules
 ```
 
 ---
 
-## 🔑 Reddit API Setup
+## API Surface
 
-### 1. Create Reddit Application
-
-1. Visit https://www.reddit.com/prefs/apps
-2. Click "Create App" or "Create Another App"
-3. Fill in details:
-   - **Name**: AlexStocks
-   - **App type**: script
-   - **Description**: Market sentiment analytics
-   - **Redirect URI**: http://localhost:8080
-
-### 2. Configure Credentials
-
-Add to your `.env` file:
-
-```bash
-# Reddit API Configuration
-REDDIT_CLIENT_ID=your_client_id_here
-REDDIT_CLIENT_SECRET=your_client_secret_here
-REDDIT_USER_AGENT=AlexStocks/1.0 by YourUsername
-```
-
-### 3. Test Connection
-
-```bash
-# Add Reddit-specific database columns (one-time)
-make add-reddit-columns
-make add-reddit-thread-table
-
-# Test Reddit scraping
-make reddit-robust-scrape --verbose
-```
-
-**Note:** The Reddit API has a rate limit of 60 requests/minute. The scraper implements automatic backoff and incremental saving to handle this gracefully.
-
----
-
-## 📊 API Endpoints
-
-### Core Routes
+Public JSON endpoints all include rate limiting (default 60 RPM/IP) and defensive parameter caps.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Health check |
-| `/` | GET | Homepage with top 50 tickers (24h activity) |
-| `/browse` | GET | Browse all tickers with search & sorting |
-| `/t/{ticker}` | GET | Ticker detail page with articles |
+| `/health` | GET | Health probe used by uptime monitors |
+| `/api/scraping-status` | GET | Latest scraper run metadata from `scraping_status` |
+| `/api/tickers` | GET | Paginated ticker list with search + sorting + live price data |
+| `/api/ticker/{ticker}/articles` | GET | Paginated articles with sentiment for a ticker |
+| `/api/ticker/{ticker}/sentiment-timeline` | GET | Day/week/month sentiment buckets (comments vs unique users) |
+| `/api/mentions/hourly` | GET | Hourly mention counts for 1–168 hours (multiple tickers) |
+| `/api/sentiment/histogram` | GET | Global or per-ticker sentiment distribution |
+| `/api/sentiment/time-series` | GET | Positive/negative counts per day (≤90 days) |
+| `/api/stock/{symbol}` | GET | Cached current stock quote (refreshes via Yahoo Finance if stale) |
+| `/api/stock/{symbol}/chart` | GET | Historical + current price series sourced from DB |
 
-### Data API
+HTML routes include `/`, `/browse`, `/t/{ticker}`, `/about`, and `/privacy`.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/tickers` | GET | Paginated ticker list with filters |
-| `/api/ticker/{ticker}/articles` | GET | Paginated articles for ticker |
-| `/api/stock/{symbol}` | GET | Current stock price data |
-| `/api/stock/{symbol}/chart` | GET | Historical price chart data |
-| `/api/sentiment/histogram` | GET | Sentiment distribution data |
-| `/api/sentiment/time-series` | GET | Sentiment over time for ticker |
-
-### Query Parameters
-
-**Pagination:**
-- `page` - Page number (default: 1)
-- `limit` - Items per page (default: 50)
-
-**Filtering:**
-- `search` - Search ticker symbols
-- `sort_by` - Sort order: `recent_activity`, `alphabetical`, `total_articles`
-- `days` - Time period for time-series data
+### Rate limiting & parameter guards
+- Defaults configured in `app/config.py`: `rl_requests_per_minute=60`, `MAX_LIMIT_ARTICLES=100`, `MAX_DAYS_TIME_SERIES=90`, `MAX_HOURS_MENTIONS=168`, `MAX_OFFSET_ITEMS=5000`.
+- `app/services/rate_limit.py` uses `redis.asyncio` with fail-open fallback (warnings logged when Redis unavailable).
+- `tests/test_param_caps.py` verifies caps and produces 422/429 responses when exceeded.
 
 ---
 
-## 🧪 Testing
+## Deployment
 
-### Test Suite
+- **Application**: FastAPI app runs on EC2 (systemd + Nginx reverse proxy) per `docs/deployment.md`.
+- **Batch jobs**: ECS Fargate (Spot) tasks:
+  - `market-pulse-reddit-scraper` (*/15 minutes)
+  - `market-pulse-sentiment-analysis` (*/15 minutes)
+  - `market-pulse-stock-price-collector` (*/15 minutes during market hours)
+  - `market-pulse-daily-status` (daily @ 04:00 UTC)
+- **Container pipeline**: GitHub Actions builds `jobs/Dockerfile`, pushes to ECR, triggers ECS deploys.
+- **Infrastructure as Code**: Terraform modules define ECS cluster, IAM roles, EventBridge schedules, CloudWatch log groups, and ECR repository.
+- **Secrets**: Managed via AWS Secrets Manager / GitHub Actions secrets (see `scripts/setup-aws-secrets.sh` for bootstrapping).
 
-The project includes comprehensive tests covering:
-
-- **Unit Tests**: Service logic, data processing, sentiment analysis
-- **Integration Tests**: Database operations, API endpoints
-- **Real-World Tests**: End-to-end workflows with actual data
-- **Performance Tests**: Load testing, query optimization
-
-```bash
-# Run specific test categories
-make test-unit              # Fast unit tests
-make test-integration       # Integration tests
-make test-real-world        # Real-world scenarios
-make test-performance       # Performance benchmarks
-
-# Coverage reporting
-make test-coverage          # Generate HTML coverage report
-```
-
-### Test Configuration
-
-Tests use:
-- **pytest** with async support
-- **pytest-mock** for mocking external APIs
-- **Faker** for test data generation
-- **freezegun** for time-based testing
+For detailed migration notes see `docs/ECS_MIGRATION_GUIDE.md`, `docs/ECS_MIGRATION_SUMMARY.md`, and `docs/MIGRATION_COMPLETE.md`.
 
 ---
 
-## 🚀 Deployment
+## Testing & Quality
 
-### Production Environment
-
-**Live Site:** [alexstocks.com](https://alexstocks.com)
-
-**Infrastructure:**
-- **Web Application**: AWS EC2 (Ubuntu) + Nginx + FastAPI
-- **Database**: PostgreSQL 16 (Docker on EC2)
-- **Batch Jobs**: AWS ECS Fargate (Spot) ⭐ NEW
-- **Scheduling**: EventBridge Scheduler ⭐ NEW
-- **Container Registry**: Amazon ECR ⭐ NEW
-- **SSL**: Let's Encrypt (auto-renewal)
-- **Process Manager**: systemd
-- **Logging**: CloudWatch Logs ⭐ NEW
-
-**Deployment Process:**
-1. **Web App**: Code pushed → GitHub Actions → Deploy to EC2 → Systemd restart
-2. **Batch Jobs**: Code pushed → GitHub Actions → Build Docker → Push to ECR → Update ECS tasks ⭐ NEW
-
-See deployment documentation:
-- [ECS_MIGRATION_SUMMARY.md](ECS_MIGRATION_SUMMARY.md) - ECS Fargate batch jobs (NEW)
-- [docs/ECS_MIGRATION_GUIDE.md](docs/ECS_MIGRATION_GUIDE.md) - Complete migration guide
-- [docs/deployment.md](docs/deployment.md) - EC2 web app deployment
-- [docs/ci-cd-setup.md](docs/ci-cd-setup.md) - CI/CD pipeline details
-
-### Production Considerations
-
-1. **Database:**
-   - Use managed PostgreSQL (e.g., AWS RDS, Google Cloud SQL)
-   - Enable connection pooling via SQLAlchemy
-   - Regular backups and point-in-time recovery
-
-2. **Environment Variables:**
-   ```bash
-   DATABASE_URL=postgresql://user:pass@host:5432/db
-   REDDIT_CLIENT_ID=production_client_id
-   REDDIT_CLIENT_SECRET=production_secret
-   ```
-
-3. **Scaling:**
-   - Run sentiment analysis as async background jobs
-   - Use Redis for caching frequent queries
-   - Deploy multiple API instances behind load balancer
-
-4. **Monitoring:**
-   - Health check endpoint for uptime monitoring
-   - Structured logging for error tracking
-   - Performance metrics collection
-
-### Docker Deployment
-
-```bash
-# Build and run with Docker Compose
-docker compose up -d
-
-# View logs
-docker compose logs -f api
-
-# Scale API instances
-docker compose up -d --scale api=3
-```
+- **Pytest** suite across `tests/` covers FastAPI routes, sentiment services, ticker linking, Reddit ingestion, and parameter caps.
+- **mypy** enforces type checking for `app/`, `jobs/jobs/`, and `tests/`.
+- **Ruff** + **Black** maintain formatting and linting consistency; configured via `pyproject.toml`.
+- **Bandit** optional security audit (`make security` outputs JSON report).
+- `rate-limit-smoke` target hits negative scenarios (422/429) to verify API guards.
+- Coverage reports available via `make test-coverage` (HTML in `htmlcov/`).
 
 ---
 
-## 🛠️ Configuration
+## Recent Highlights
 
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://test:test@localhost:5432/test` |
-| `REDDIT_CLIENT_ID` | Reddit API client ID | Required for Reddit scraping |
-| `REDDIT_CLIENT_SECRET` | Reddit API secret | Required for Reddit scraping |
-| `REDDIT_USER_AGENT` | Reddit API user agent | `MarketPulse/1.0 by MarketPulseBot` |
-| `FINNHUB_SECRET` | Finnhub API key (optional) | None |
-
-### Sentiment Configuration
-
-Customize sentiment analysis in [config.py](app/config.py):
-
-```python
-sentiment_use_llm: bool = True              # Enable FinBERT
-sentiment_llm_model: str = "ProsusAI/finbert"
-sentiment_use_gpu: bool = False             # CPU inference
-sentiment_fallback_vader: bool = True       # VADER fallback
-sentiment_dual_model: bool = True           # Dual-model fusion
-sentiment_strong_threshold: float = 0.2     # Strong sentiment threshold
-```
+- Deployed **Redis-backed rate limiting** with per-endpoint quotas and automatic `Retry-After` responses.
+- Added **hourly mentions analytics** powering the homepage chart and `/api/mentions/hourly`.
+- Migrated cron workload to **AWS ECS Fargate (Spot)** with Terraform-managed infrastructure and GitHub Actions deploys.
+- Upgraded stock collector with **async semaphore concurrency** and extensive metrics in `stock_data_collection`.
+- Implemented **dual-model sentiment override** combining FinBERT and VADER with adaptive thresholds.
+- Introduced **scraping status dashboards** and database tables for live production telemetry.
 
 ---
 
-## 📈 Performance
+## Documentation
 
-### Optimizations
-
-- **Database Indexes**: Optimized for common query patterns
-- **Batch Processing**: Efficient bulk operations for data ingestion
-- **Connection Pooling**: Persistent database connections
-- **Async I/O**: Non-blocking API endpoints
-- **Incremental Processing**: Delta-based updates, not full refreshes
-
-### Benchmarks
-
-- **Sentiment Analysis**: ~50-100 articles/second (CPU)
-- **Ticker Linking**: ~200 articles/second
-- **API Response Time**: <100ms for cached queries
-- **Reddit Scraping**: 500-1000 comments/minute (rate-limited)
+Key references (all in `docs/`):
+- `API.md` – REST endpoint contract (rate limits, payload shapes).
+- `CRON_JOBS_SUMMARY.md` – 15-minute pipeline breakdown.
+- `ECS_MIGRATION_GUIDE.md` & `ECS_MIGRATION_SUMMARY.md` – Infrastructure migration details.
+- `LLM_SENTIMENT_SETUP.md` – FinBERT/transformers configuration notes.
+- `REDDIT_SCRAPER.md` & `REDDIT_SCRAPER_SUMMARY.md` – Scraper architecture, failure handling.
+- `STOCK_COLLECTION_QUICKSTART.md` & `STOCK_DATA_COLLECTION.md` – Stock price ingestion playbooks.
+- `TICKER_LINKING_IMPROVEMENTS.md` – NLP linking enhancements and heuristics.
+- `TESTING.md` – Test strategy, fixtures, tagging.
+- `deployment.md` & `ci-cd-setup.md` – EC2 + CI/CD operation guides.
 
 ---
 
-## 🔍 Troubleshooting
+## Contributing
 
-### Common Issues
-
-**Port Already in Use:**
-```bash
-make down          # Stop existing services
-make up            # Restart
-```
-
-**Database Connection Error:**
-```bash
-make clean         # Clean everything
-make up            # Restart services
-make db-init       # Reinitialize database
-make seed-tickers  # Reseed data
-```
-
-**Reddit API Rate Limit:**
-- The scraper automatically handles rate limits with exponential backoff
-- Use `--verbose` flag to see rate limit status
-- Reduce `--max-threads` if hitting limits frequently
-
-**Sentiment Analysis Slow:**
-- FinBERT runs on CPU by default (set `sentiment_use_gpu=True` for GPU)
-- Process in smaller batches with `--batch-size` flag
-- Use VADER-only mode for faster (but less accurate) results
+1. Fork the repo and create a feature branch from `main`.
+2. `uv sync` to install dependencies.
+3. Run `make lint` and `make test` before opening a PR.
+4. For scraper or job changes, exercise `make reddit-scrape-status` and relevant ECS helpers locally.
+5. Include tests for new logic (unit or integration as appropriate).
+6. Document new behaviour in `docs/` when applicable.
 
 ---
 
-## 🔒 Security
-
-All sensitive credentials are managed through environment variables and **never** committed to the repository. The `.env` file is gitignored and contains all API keys and secrets.
-
-**Required API Keys:**
-- Reddit API credentials (get from https://www.reddit.com/prefs/apps)
-- PostgreSQL password
-- Optional: Finnhub API key
-
-For detailed security information, see [SECURITY_ASSESSMENT.md](SECURITY_ASSESSMENT.md) (private file, not in repo).
-
----
-
-## 📋 Recent Changes
-
-### Latest Updates (October 2025)
-
-**Features:**
-- Added scraping status tracking table for monitoring Reddit data collection
-- Improved sentiment analytics service with better distribution metrics
-- Enhanced UI with better base template and responsive design
-- Production deployment to EC2 with automated CI/CD pipeline
-
-**Infrastructure:**
-- Deployed to AWS EC2 at alexstocks.com
-- Automated CI/CD via GitHub Actions (test → lint → security → deploy)
-- Nginx reverse proxy with SSL/HTTPS via Let's Encrypt
-- Systemd service for application management
-- Cron jobs for automated hourly data collection
-
-**Performance:**
-- Reddit scraping with intelligent rate limiting and retry logic
-- Stock price collection every 15 minutes during market hours
-- Historical data collection daily at 2 PM PT
-- Efficient database queries with proper indexing
-
-**Security:**
-- All secrets managed via environment variables
-- GitHub Actions deployment using SSH keys from GitHub Secrets
-- EC2 security groups properly configured
-- SSL certificate auto-renewal
-
----
-
-## 📚 Documentation
-
-Detailed documentation available in the [docs/](docs/) directory:
-
-- [Implementation Status](docs/IMPLEMENTATION_STATUS.md) - Feature completion tracker
-- [Reddit Setup Guide](docs/REDDIT_SETUP.md) - Reddit API configuration
-- [Testing Guide](docs/TESTING.md) - Test suite documentation
-- [LLM Sentiment Setup](docs/LLM_SENTIMENT_SETUP.md) - FinBERT configuration
-- [Ticker Linking](docs/TICKER_LINKING_IMPROVEMENTS.md) - Linking algorithm details
-- [Cron Jobs](docs/CRON_JOBS_SUMMARY.md) - Automated data pipeline
-- [Deployment Guide](docs/deployment.md) - EC2 deployment instructions
-- [CI/CD Setup](docs/ci-cd-setup.md) - GitHub Actions pipeline
-
----
-
-## 🤝 Contributing
-
-### Development Workflow
-
-1. **Fork & Clone**: Fork the repository and clone locally
-2. **Install Dependencies**: Run `uv sync` to install all dependencies
-3. **Create Branch**: Create a feature branch from `main`
-4. **Make Changes**: Implement your feature with tests
-5. **Run Tests**: Ensure all tests pass with `make test`
-6. **Format Code**: Run `make format` to format code
-7. **Submit PR**: Open a pull request with clear description
-
-### Code Standards
-
-- **Type Hints**: All functions must have type annotations
-- **Docstrings**: Public functions require docstrings
-- **Testing**: New features require unit tests
-- **Linting**: Code must pass `make lint` checks
-- **Formatting**: Use Black (88 char line length)
-
----
-
-## 📝 License
+## License & Support
 
 This project is available for personal and educational use.
 
----
-
-## 🙏 Acknowledgments
-
-- **FinBERT** by ProsusAI for financial sentiment analysis
-- **VADER** sentiment analysis library
-- **PRAW** for Reddit API integration
-- **FastAPI** framework and community
-- **yfinance** for stock market data
+Questions or issues? Open a ticket in your team’s tracker or reach out via the internal channel used for Market Pulse operations.
 
 ---
-
-## 📬 Support
-
-For issues, questions, or contributions:
-- **Security Issues**: Please report security vulnerabilities privately
-- **Bug Reports**: [GitHub Issues](https://github.com/your-repo/market-pulse/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-repo/market-pulse/discussions)
-
----
-
-## 📝 License
-
-This project is available for personal and educational use. Not for commercial redistribution.
-
----
-
-**Built with ❤️ for market analytics enthusiasts**

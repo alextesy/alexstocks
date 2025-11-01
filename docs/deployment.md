@@ -90,6 +90,7 @@ Add the following (replace with your actual values):
 POSTGRES_PASSWORD=your_secure_password
 POSTGRES_URL=postgresql+psycopg://postgres:your_secure_password@localhost:5432/market_pulse
 OPENAI_API_KEY=your_openai_api_key
+REDIS_URL=redis://localhost:6379/0
 ```
 
 **Important Notes:**
@@ -137,6 +138,56 @@ docker compose exec -T postgres pg_restore -U postgres -d market_pulse -v < ~/ma
 # Verify data was restored
 docker compose exec postgres psql -U postgres market_pulse -c "SELECT COUNT(*) FROM article; SELECT COUNT(*) FROM ticker;"
 ```
+
+---
+
+## Redis Setup (Rate Limiting)
+
+You can run Redis on EC2 either via Docker (simple) or as a system service. Keep it bound to localhost only and capped at 200MB.
+
+### Option A — Docker
+
+```bash
+docker run -d --name redis -p 6379:6379 redis:7-alpine \
+  redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru --appendonly no
+
+# Verify
+docker exec -it redis redis-cli ping
+docker exec -it redis redis-cli CONFIG GET maxmemory
+docker exec -it redis redis-cli CONFIG GET maxmemory-policy
+```
+
+### Option B — System Service (Ubuntu/Amazon Linux)
+
+```bash
+# Ubuntu
+sudo apt-get update && sudo apt-get install -y redis-server
+
+# Amazon Linux 2023
+sudo dnf install -y redis
+```
+
+Edit `/etc/redis/redis.conf` (path may vary) and set:
+
+```conf
+maxmemory 200mb
+maxmemory-policy allkeys-lru
+appendonly no
+bind 127.0.0.1
+protected-mode yes
+```
+
+Then enable and start:
+
+```bash
+sudo systemctl enable --now redis
+sudo systemctl status redis
+redis-cli ping
+```
+
+### Application Behavior if Redis is Down
+
+The API fails open for rate limiting: if Redis is unavailable, requests are allowed and a warning is logged. This ensures availability even if Redis is temporarily down.
 
 ---
 

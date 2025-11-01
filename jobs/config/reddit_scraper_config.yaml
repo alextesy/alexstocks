@@ -1,0 +1,51 @@
+# Reddit Scraper Configuration
+# 
+# Comment limits: Use -1 or null for unlimited comments
+# Daily discussions: All matching threads will be scraped (no artificial limit)
+# Top posts: Limited by max_top_posts_per_run to avoid overwhelming the system
+
+rate_limiting:
+  requests_per_minute: 60  # Reddit OAuth limit (be conservative)
+
+scraping:
+  batch_save_interval: 200  # Save to DB every N comments
+  max_workers: 5  # Worker threads for ticker linking
+
+subreddits:
+  - name: wallstreetbets
+    enabled: true
+    # Keywords to identify daily discussion threads (case-insensitive match)
+    daily_discussion_keywords:
+      - "daily discussion"
+      - "weekend discussion"
+      - "moves tomorrow"
+    limits:
+      # Daily discussions: -1 = unlimited comments (scrape all)
+      daily_discussion_max_comments: -1
+      # Regular top posts: 0 = just scrape the post itself (no comments)
+      regular_post_max_comments: 0
+      # Max number of top posts to scrape per run (from top/day)
+      max_top_posts_per_run: 100
+  
+  # Example: Additional subreddit (disabled by default)
+  - name: stocks
+    enabled: false
+    daily_discussion_keywords:
+      - "daily discussion"
+      - "what are your moves tomorrow"
+    limits:
+      daily_discussion_max_comments: 500
+      regular_post_max_comments: 0  # Just posts, no comments
+      max_top_posts_per_run: 50
+  
+  # Example: Another subreddit
+  - name: investing
+    enabled: false
+    daily_discussion_keywords:
+      - "daily advice thread"
+      - "daily discussion thread"
+    limits:
+      daily_discussion_max_comments: 300
+      regular_post_max_comments: 0  # Just posts, no comments
+      max_top_posts_per_run: 30
+

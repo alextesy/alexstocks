@@ -24,3 +24,29 @@ Notes:
 - Hours are aligned in UTC and zero-filled when counts are missing.
 - Currently computed live from `article` and `article_ticker` tables.
 
+## Rate limits
+
+Per-IP, per-endpoint limits are enforced (60 requests per minute by default). Exceeding the limit returns HTTP 429 with a `Retry-After` header and JSON body (FastAPI wraps payload under `detail`):
+
+```
+{
+  "detail": {
+    "error": "Too Many Requests",
+    "retry_after": 42
+  }
+}
+```
+
+Limits can be adjusted via settings.
+
+## Parameter caps
+
+To protect service stability, the following caps apply:
+- Articles list `limit` ≤ 100
+- Tickers list `limit` ≤ 100
+- Sentiment time-series `days` ≤ 90
+- Mentions hourly `hours` ≤ 168
+- Maximum offset (page × limit) ≤ 5000
+
+Oversized values are rejected by validation (422) or return a 400 when maximum offset is exceeded.
+
