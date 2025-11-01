@@ -10,7 +10,7 @@ sys.path.append(".")
 
 from app.collectors.stock_price_collector import StockPriceCollector
 from app.db.session import SessionLocal
-from jobs.slack_wrapper import run_with_slack_async
+from jobs.jobs.slack_wrapper import run_with_slack_async
 
 # Set up logging
 logging.basicConfig(

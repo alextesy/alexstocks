@@ -19,7 +19,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from dotenv import load_dotenv
-from jobs.slack_wrapper import run_with_slack
+
+from jobs.jobs.slack_wrapper import run_with_slack
 
 from .reddit_discussion_scraper import get_reddit_credentials
 from .reddit_scraper import RedditScraper
