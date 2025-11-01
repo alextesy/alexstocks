@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.api.routes import auth
+from app.api.routes import auth, users
 from app.config import settings
 from app.services.mention_stats import get_mention_stats_service
 from app.services.rate_limit import rate_limit
@@ -28,6 +28,7 @@ app = FastAPI(
 
 # Include routers
 app.include_router(auth.router)
+app.include_router(users.router)
 
 # Setup templates
 templates = Jinja2Templates(directory="app/templates")
@@ -190,6 +191,12 @@ async def about(request: Request):
 async def privacy(request: Request):
     """Privacy policy page."""
     return templates.TemplateResponse("privacy.html", {"request": request})
+
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request):
+    """Settings page for user profile and preferences."""
+    return templates.TemplateResponse("settings.html", {"request": request})
 
 
 @app.get("/api/scraping-status")

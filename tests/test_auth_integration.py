@@ -5,8 +5,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
 
 from app.db.models import Base, User, UserProfile
+from app.db.session import get_db
 from app.main import app
 
 
@@ -16,7 +18,25 @@ def client(test_engine):
     # Create all tables including User
     Base.metadata.create_all(bind=test_engine)
 
-    return TestClient(app)
+    TestingSessionLocal = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=test_engine,
+    )
+
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    test_client = TestClient(app)
+    yield test_client
+
+    app.dependency_overrides.pop(get_db, None)
 
 
 @pytest.fixture
@@ -111,7 +131,7 @@ class TestAuthIntegration:
 
             # Should redirect to home page
             assert response.status_code == 302
-            assert response.headers["location"] == "/"
+            assert response.headers["location"] == "/?login_event=true"
 
             # Should set session cookie
             assert "session_token" in response.cookies
@@ -300,7 +320,7 @@ class TestAuthIntegration:
         response = client.get("/auth/logout", follow_redirects=False)
 
         assert response.status_code == 302
-        assert response.headers["location"] == "/"
+        assert response.headers["location"] == "/?logout_event=true"
 
         # Cookie should be deleted (set with empty value or expires in past)
         # FastAPI sets it to "" with max_age=0

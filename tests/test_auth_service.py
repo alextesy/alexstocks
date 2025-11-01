@@ -161,24 +161,48 @@ class TestAuthService:
         new_profile = MagicMock()
         mock_profile_class.return_value = new_profile
 
-        result = auth_service.get_or_create_user(
-            db=mock_db,
-            auth_provider_id="123456",
-            email="test@gmail.com",
-            auth_provider="google",
-            display_name="Test User",
-            avatar_url="https://example.com/pic.jpg",
-        )
+        captured = {}
+        with patch(
+            "app.services.auth_service.AuthService._generate_unique_display_name"
+        ) as mock_unique_name:
+            mock_unique_name.side_effect = (
+                lambda db, user_id, desired_name, current_name=None: captured.update(
+                    {
+                        "db": db,
+                        "user_id": user_id,
+                        "desired_name": desired_name,
+                        "current_name": current_name,
+                    }
+                )
+                or "Generated Name"
+            )
+
+            result = auth_service.get_or_create_user(
+                db=mock_db,
+                auth_provider_id="123456",
+                email="test@gmail.com",
+                auth_provider="google",
+                display_name="Test User",
+                avatar_url="https://example.com/pic.jpg",
+            )
 
         # Verify user was added to database
         assert mock_db.add.call_count >= 1  # User + Profile
         mock_db.commit.assert_called()
         assert result is not None
+        assert captured["db"] is mock_db
+        assert captured["user_id"] == new_user.id
+        assert captured["desired_name"] == "Test User"
+        assert captured["current_name"] in (None, "")
 
     @patch("app.services.auth_service.UserProfile")
     @patch("app.services.auth_service.User")
     def test_get_or_create_user_existing_user(
-        self, mock_user_class, mock_profile_class, auth_service, mock_db
+        self,
+        mock_user_class,
+        mock_profile_class,
+        auth_service,
+        mock_db,
     ):
         """Test retrieving existing user updates profile."""
         # Create a proper mock with explicit False values
@@ -195,38 +219,79 @@ class TestAuthService:
         # Configure the is_deleted check to work properly
         type(existing_user).is_deleted = property(lambda self: False)
 
-        # Mock user query to return existing user
-        mock_db.query.return_value.filter.return_value.first.return_value = (
-            existing_user
-        )
+        # Create a simple object that will return display_name correctly
+        # Use a plain class with instance attributes
+        class MockProfileObj:
+            def __init__(self):
+                self.display_name = "Old Name"
+                self.user_id = 1
+                self.avatar_url = None
+                self.timezone = "UTC"
+                self.updated_at = datetime.now(UTC)
 
-        # Mock profile query for UserProfile
+        existing_profile = MockProfileObj()
+
+        # Set up profile query chain - ensure first() returns the profile object directly
         mock_profile_query = MagicMock()
-        mock_profile_query.filter.return_value.first.return_value = None
+        mock_profile_filter = MagicMock()
+        # Make first() a callable that returns the profile
+        mock_profile_filter.first = MagicMock(return_value=existing_profile)
+        mock_profile_query.filter.return_value = mock_profile_filter
+
+        # Mock user query to return existing user
+        user_query = MagicMock()
+        user_query.filter.return_value.first.return_value = existing_user
 
         # Configure different returns based on what's queried
-        original_query = mock_db.query
-
         def query_side_effect(model):
             if model is UserProfile:
                 return mock_profile_query
-            return original_query.return_value
+            return user_query
 
+        # Set up query method with side_effect that handles both User and UserProfile
         mock_db.query = MagicMock(side_effect=query_side_effect)
 
-        result = auth_service.get_or_create_user(
-            db=mock_db,
-            auth_provider_id="123456",
-            email="test@gmail.com",
-            auth_provider="google",
-            display_name="Updated Name",
-        )
+        # Also ensure flush is available
+        mock_db.flush = MagicMock()
+
+        captured = {}
+        with patch(
+            "app.services.auth_service.AuthService._update_or_create_profile"
+        ) as mock_update_profile:
+
+            def capture_update(db, user_id, display_name, avatar_url):
+                # Get the profile to see what display_name value it has
+                profile = (
+                    mock_db.query(UserProfile)
+                    .filter(UserProfile.user_id == user_id)
+                    .first()
+                )
+                if profile:
+                    captured["current_name"] = getattr(profile, "display_name", None)
+
+            mock_update_profile.side_effect = capture_update
+
+            with patch(
+                "app.services.auth_service.AuthService._generate_unique_display_name"
+            ) as mock_unique_name:
+                mock_unique_name.return_value = "Updated Name"
+
+                result = auth_service.get_or_create_user(
+                    db=mock_db,
+                    auth_provider_id="123456",
+                    email="test@gmail.com",
+                    auth_provider="google",
+                    display_name="Updated Name",
+                )
 
         # Verify commit was called
         mock_db.commit.assert_called()
         # Verify updated_at was set
         assert existing_user.updated_at is not None
         assert result is not None
+        # The current_name should be "Old Name" from the existing profile
+        current_name = captured.get("current_name")
+        assert current_name == "Old Name", f"Expected 'Old Name', got {current_name!r}"
 
     @patch("app.services.auth_service.User")
     def test_get_or_create_user_blocked_account(

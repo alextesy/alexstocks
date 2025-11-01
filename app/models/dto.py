@@ -169,3 +169,51 @@ class UserTickerFollowDTO:
     custom_alerts: dict | None
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass
+class UserProfileUpdateDTO:
+    """DTO for updating user profile."""
+
+    nickname: str | None = None  # display_name alias
+    avatar_url: str | None = None  # Optional, not exposed in UI for now
+    timezone: str | None = None
+    notification_defaults: dict | None = (
+        None  # Notification preferences: notify_on_surges, notify_on_most_discussed
+    )
+
+    def __post_init__(self):
+        """Validate DTO after initialization."""
+        if self.nickname is not None:
+            if not isinstance(self.nickname, str):
+                raise ValueError("nickname must be a string")
+            if len(self.nickname) > 100:
+                raise ValueError("nickname must be 100 characters or less")
+            if len(self.nickname.strip()) == 0:
+                raise ValueError("nickname cannot be empty")
+
+        if self.timezone is not None:
+            if not isinstance(self.timezone, str):
+                raise ValueError("timezone must be a string")
+            if len(self.timezone.strip()) == 0:
+                raise ValueError("timezone cannot be empty")
+
+        if self.avatar_url is not None:
+            if not isinstance(self.avatar_url, str):
+                raise ValueError("avatar_url must be a string")
+            if len(self.avatar_url) > 500:
+                raise ValueError("avatar_url must be 500 characters or less")
+
+
+@dataclass
+class UserProfileResponseDTO:
+    """DTO for user profile API response including notification defaults."""
+
+    id: int
+    email: str
+    nickname: str | None  # display_name
+    avatar_url: str | None  # Read-only, from OAuth provider
+    timezone: str
+    notification_defaults: dict  # notify_on_surges, notify_on_most_discussed
+    created_at: datetime
+    updated_at: datetime
