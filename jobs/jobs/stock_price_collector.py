@@ -25,7 +25,11 @@ from app.db.models import Article, ArticleTicker, StockPrice
 from app.db.session import SessionLocal
 from app.services.stock_data import StockDataService
 
-from .slack_wrapper import run_with_slack
+# Import slack_wrapper - handle both local (jobs.jobs) and Docker (jobs) contexts
+try:
+    from jobs.slack_wrapper import run_with_slack  # Docker context
+except ImportError:
+    from jobs.jobs.slack_wrapper import run_with_slack  # Local context
 
 # Set up logging
 logging.basicConfig(
