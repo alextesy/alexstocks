@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, date
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
+from datetime import UTC, date, datetime
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session

@@ -1,9 +1,10 @@
 """Add daily ticker summary table"""
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.sql import text
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "9a2a65bbcc1c"

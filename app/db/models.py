@@ -1,12 +1,12 @@
 """SQLAlchemy models for Market Pulse."""
 
-from datetime import UTC, datetime, date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import (
     JSON,
     BigInteger,
-    DateTime,
     Date,
+    DateTime,
     Float,
     ForeignKey,
     Index,
