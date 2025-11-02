@@ -1188,8 +1188,8 @@ async def browse_tickers(
 
         db = SessionLocal()
         try:
-            from app.services.auth_service import get_auth_service
             from app.repos.user_repo import UserRepository
+            from app.services.auth_service import get_auth_service
 
             auth_service = get_auth_service()
             user = auth_service.get_current_user(db, session_token)
