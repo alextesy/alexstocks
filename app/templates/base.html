@@ -199,7 +199,88 @@
             if (articlesList && !document.getElementById('ticker-filters-form')) {
                 setupTickerPageFiltering();
             }
-            
+
+            const watchlistButtons = document.querySelectorAll('.watchlist-btn');
+
+            watchlistButtons.forEach((btn) => {
+                btn.addEventListener('click', async function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const button = this;
+                    const symbol = button.dataset.symbol;
+                    const isFollowing = button.dataset.following === 'true';
+
+                    button.disabled = true;
+
+                    try {
+                        if (isFollowing) {
+                            const response = await fetch(`/api/users/me/follows/${symbol}`, {
+                                method: 'DELETE',
+                                credentials: 'include'
+                            });
+
+                            if (response.ok) {
+                                button.dataset.following = 'false';
+                                const star = button.querySelector('i.fa-star');
+                                if (star) {
+                                    star.classList.remove('text-yellow-500');
+                                    star.classList.add('text-gray-400');
+                                }
+                            } else {
+                                const error = await response.json();
+                                alert(error.detail || 'Failed to remove from watchlist');
+                            }
+                        } else {
+                            const response = await fetch('/api/users/me/follows', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                credentials: 'include',
+                                body: JSON.stringify({ ticker: symbol })
+                            });
+
+                            if (response.ok) {
+                                button.dataset.following = 'true';
+                                const star = button.querySelector('i.fa-star');
+                                if (star) {
+                                    star.classList.remove('text-gray-400');
+                                    star.classList.add('text-yellow-500');
+                                }
+                            } else {
+                                let errorMessage = 'Failed to add to watchlist';
+                                try {
+                                    const errorData = await response.json();
+                                    if (errorData.detail) {
+                                        if (typeof errorData.detail === 'string') {
+                                            errorMessage = errorData.detail;
+                                        } else if (Array.isArray(errorData.detail)) {
+                                            errorMessage = errorData.detail.map((item) => item.msg || JSON.stringify(item)).join(', ');
+                                        } else {
+                                            errorMessage = JSON.stringify(errorData.detail);
+                                        }
+                                    }
+                                } catch (err) {
+                                    errorMessage = `Error ${response.status}: ${response.statusText}`;
+                                }
+
+                                if (response.status === 401) {
+                                    alert('Please log in to add tickers to your watchlist');
+                                } else {
+                                    alert(errorMessage);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Watchlist error:', error);
+                        alert('An error occurred. Please try again.');
+                    } finally {
+                        button.disabled = false;
+                    }
+                });
+            });
+
             function setupHomePageFiltering() {
                 const allTickerCards = tickerGrid.children;
                 

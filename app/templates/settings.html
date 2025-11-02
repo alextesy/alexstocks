@@ -417,25 +417,25 @@ function renderWatchlist() {
     const sorted = [...watchlistData].sort((a, b) => (a.order || 0) - (b.order || 0));
     
     listEl.innerHTML = sorted.map((item, index) => `
-        <li 
-            class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+        <li
+            class="group flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             data-ticker="${item.ticker}"
             data-order="${item.order || index}"
         >
             <div class="flex items-center space-x-3 flex-1">
-                <button 
+                <button
                     class="text-gray-400 hover:text-gray-600 cursor-move"
                     title="Drag to reorder"
                     onmousedown="startDrag(event, '${item.ticker}')"
                 >
                     <i class="fas fa-grip-vertical"></i>
                 </button>
-                <div class="flex-1">
-                    <div class="font-semibold text-gray-900">${item.ticker}</div>
-                    ${item.ticker_name ? `<div class="text-sm text-gray-500">${item.ticker_name}</div>` : ''}
-                </div>
+                <a href="/t/${item.ticker}" class="flex-1 block">
+                    <div class="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">${item.ticker}</div>
+                    ${item.ticker_name ? `<div class="text-sm text-gray-500 group-hover:text-blue-500 transition-colors">${item.ticker_name}</div>` : ''}
+                </a>
             </div>
-            <button 
+            <button
                 onclick="removeTicker('${item.ticker}')"
                 class="ml-4 text-red-600 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 rounded p-2"
                 title="Remove from watchlist"
