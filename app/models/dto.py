@@ -1,7 +1,8 @@
 """Data Transfer Objects for API boundaries."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
+from typing import Any
 
 
 @dataclass
@@ -199,12 +200,52 @@ class UserProfileUpdateDTO:
                 raise ValueError("timezone must be a string")
             if len(self.timezone.strip()) == 0:
                 raise ValueError("timezone cannot be empty")
-
         if self.avatar_url is not None:
             if not isinstance(self.avatar_url, str):
                 raise ValueError("avatar_url must be a string")
             if len(self.avatar_url) > 500:
                 raise ValueError("avatar_url must be 500 characters or less")
+
+
+@dataclass
+class DailyTickerSummaryUpsertDTO:
+    """DTO for creating or updating a daily ticker summary."""
+
+    ticker: str
+    summary_date: date
+    mention_count: int
+    engagement_count: int
+    avg_sentiment: float | None = None
+    sentiment_stddev: float | None = None
+    sentiment_min: float | None = None
+    sentiment_max: float | None = None
+    top_articles: list[dict[str, Any]] | None = None
+    llm_summary: str | None = None
+    llm_summary_bullets: list[str] | None = None
+    llm_model: str | None = None
+    llm_version: str | None = None
+
+
+@dataclass
+class DailyTickerSummaryDTO:
+    """DTO representing a persisted daily ticker summary."""
+
+    id: int
+    ticker: str
+    summary_date: date
+    mention_count: int
+    engagement_count: int
+    avg_sentiment: float | None
+    sentiment_stddev: float | None
+    sentiment_min: float | None
+    sentiment_max: float | None
+    top_articles: list[dict[str, Any]] | None
+    llm_summary: str | None
+    llm_summary_bullets: list[str] | None
+    llm_model: str | None
+    llm_version: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 @dataclass
