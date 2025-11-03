@@ -194,7 +194,6 @@ class UserProfileUpdateDTO:
                 raise ValueError("nickname must be 100 characters or less")
             if len(self.nickname.strip()) == 0:
                 raise ValueError("nickname cannot be empty")
-
         if self.timezone is not None:
             if not isinstance(self.timezone, str):
                 raise ValueError("timezone must be a string")

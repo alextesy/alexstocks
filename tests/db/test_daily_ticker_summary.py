@@ -1,6 +1,7 @@
 """Tests for the DailyTickerSummary repository."""
 
 from datetime import date, timedelta
+from typing import Any
 
 import pytest
 
@@ -108,7 +109,7 @@ def test_json_payload_round_trip(db_session, repo):
     """Ensure JSON and bullet list fields persist without mutation."""
 
     _ensure_ticker(db_session, "NVDA")
-    articles = [
+    articles: list[dict[str, Any]] = [
         {"url": "https://example.com/nvda-1", "title": "NVDA rallies", "score": 0.95},
         {
             "url": "https://example.com/nvda-2",
