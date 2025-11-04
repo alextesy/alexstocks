@@ -1181,6 +1181,27 @@ async def browse_tickers(
         page=page, search=search, sort_by=sort_by, limit=50
     )
 
+    followed_tickers: list[str] = []
+    session_token = request.cookies.get("session_token")
+    if session_token:
+        from app.db.session import SessionLocal
+
+        db = SessionLocal()
+        try:
+            from app.repos.user_repo import UserRepository
+            from app.services.auth_service import get_auth_service
+
+            auth_service = get_auth_service()
+            user = auth_service.get_current_user(db, session_token)
+            if user:
+                repo = UserRepository(db)
+                follows = repo.get_ticker_follows(user.id)
+                followed_tickers = [f.ticker for f in follows]
+        except Exception:
+            pass
+        finally:
+            db.close()
+
     return templates.TemplateResponse(
         "browse.html",
         {
@@ -1189,6 +1210,7 @@ async def browse_tickers(
             "pagination": api_data["pagination"],
             "search": search or "",
             "sort_by": sort_by,
+            "followed_tickers": followed_tickers,
         },
     )
 

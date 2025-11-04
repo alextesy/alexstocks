@@ -28,14 +28,25 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db.models import Article, ArticleTicker, RedditThread, ScrapingStatus, Ticker
-from app.db.session import SessionLocal
+# Load .env FIRST before importing app modules that initialize settings
+load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
 
-from .linker import TickerLinker
-from .reddit_config import RedditScraperConfig, SubredditConfig, load_config
-from .reddit_discussion_scraper import RedditDiscussionScraper
+from app.db.models import (  # noqa: E402
+    Article,
+    ArticleTicker,
+    RedditThread,
+    ScrapingStatus,
+    Ticker,
+)
+from app.db.session import SessionLocal  # noqa: E402
 
-load_dotenv()
+from .linker import TickerLinker  # noqa: E402
+from .reddit_config import (  # noqa: E402
+    RedditScraperConfig,
+    SubredditConfig,
+    load_config,
+)
+from .reddit_discussion_scraper import RedditDiscussionScraper  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
