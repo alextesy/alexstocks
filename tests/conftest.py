@@ -60,6 +60,7 @@ def db_session(test_engine, test_db_session):
         with test_engine.begin() as conn:
             # Try to delete data - ignore errors if tables don't exist
             for table in [
+                "daily_ticker_summary",
                 "user_ticker_follows",
                 "user_notification_channels",
                 "user_profiles",
