@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from datetime import UTC, datetime
 from typing import Any
 
@@ -97,18 +98,7 @@ def test_run_status_job_sends_slack(
     fake_slack = FakeSlackService()
 
     monkeypatch.setattr(daily_status, "SlackService", lambda: fake_slack)
-    monkeypatch.setattr(
-        daily_status,
-        "collect_reddit_status",
-        lambda **_: {
-            "total_threads": 5,
-            "total_comments_scraped": 1234,
-            "live_counts_enabled": True,
-            "recent_threads": [],
-        },
-    )
-    monkeypatch.setattr(daily_status, "_print_status", lambda *_, **__: None)
-    monkeypatch.setattr(daily_status, "print", lambda *_, **__: None)
+    monkeypatch.setattr(builtins, "print", lambda *_, **__: None)
     monkeypatch.setattr(
         daily_status,
         "generate_daily_summary",
@@ -127,18 +117,7 @@ def test_run_status_job_handles_summary_error(monkeypatch: pytest.MonkeyPatch) -
     fake_slack = FakeSlackService()
 
     monkeypatch.setattr(daily_status, "SlackService", lambda: fake_slack)
-    monkeypatch.setattr(
-        daily_status,
-        "collect_reddit_status",
-        lambda **_: {
-            "total_threads": 5,
-            "total_comments_scraped": 1234,
-            "live_counts_enabled": True,
-            "recent_threads": [],
-        },
-    )
-    monkeypatch.setattr(daily_status, "_print_status", lambda *_, **__: None)
-    monkeypatch.setattr(daily_status, "print", lambda *_, **__: None)
+    monkeypatch.setattr(builtins, "print", lambda *_, **__: None)
     monkeypatch.setattr(
         daily_status,
         "generate_daily_summary",

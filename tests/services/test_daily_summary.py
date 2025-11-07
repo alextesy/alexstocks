@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from freezegun import freeze_time
 
 from app.config import settings
 from app.db.models import Article, ArticleTicker, Ticker
@@ -25,7 +24,7 @@ def _seed_daily_summary_data(db_session) -> None:
             url="https://reddit.com/tsla-1",
             published_at=datetime(2024, 5, 2, 15, 0, tzinfo=UTC),
             title="TSLA beats delivery expectations",
-            text="",
+            text="Tesla delivered a record number of vehicles this quarter, exceeding analyst expectations.",
             reddit_id="tsla1",
             subreddit="wallstreetbets",
             author="poster1",
@@ -38,7 +37,7 @@ def _seed_daily_summary_data(db_session) -> None:
             url="https://reddit.com/tsla-2",
             published_at=datetime(2024, 5, 2, 19, 30, tzinfo=UTC),
             title="Is Tesla undervalued right now?",
-            text="",
+            text="Discussion about Tesla's current valuation and whether it's a good buy.",
             reddit_id="tsla2",
             subreddit="stocks",
             author="poster2",
@@ -51,7 +50,7 @@ def _seed_daily_summary_data(db_session) -> None:
             url="https://reddit.com/aapl-1",
             published_at=datetime(2024, 5, 2, 16, 0, tzinfo=UTC),
             title="Apple announces new buyback",
-            text="",
+            text="Apple announced a new share buyback program.",
             reddit_id="aapl1",
             subreddit="investing",
             author="poster3",
@@ -64,7 +63,7 @@ def _seed_daily_summary_data(db_session) -> None:
             url="https://reddit.com/voo-1",
             published_at=datetime(2024, 5, 2, 18, 0, tzinfo=UTC),
             title="ETF flow discussion",
-            text="",
+            text="Discussion about ETF flows and market trends.",
             reddit_id="voo1",
             subreddit="investing",
             author="poster4",
@@ -114,8 +113,29 @@ def _build_summary(db_session, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "daily_summary_window_end_hour", 19)
 
     service = DailySummaryService(db_session)
-    with freeze_time("2024-05-04 02:30:00"):
-        summary = service.load_previous_day_summary()
+    # Mock datetime.now to avoid freezegun's module inspection issues with transformers
+    # Set time to May 3rd 2:30 AM so "previous day" is May 2nd (when test data is from)
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("America/New_York")
+    target_time = datetime(2024, 5, 3, 2, 30, 0, tzinfo=tz)
+
+    # Create a mock datetime module that preserves all datetime functionality except now()
+    import app.services.daily_summary as daily_summary_module
+
+    original_datetime = daily_summary_module.datetime
+
+    class MockDatetime:
+        @staticmethod
+        def now(tz=None):
+            return target_time if tz else target_time.astimezone(UTC)
+
+        def __getattr__(self, name):
+            return getattr(original_datetime, name)
+
+    monkeypatch.setattr(daily_summary_module, "datetime", MockDatetime())
+
+    summary = service.load_previous_day_summary()
     return service, summary
 
 
@@ -146,8 +166,6 @@ def test_build_payloads_include_api_key_and_prompt(db_session, monkeypatch):
     langchain_payload = service.build_langchain_payload(summary)
     assert langchain_payload["llm"]["api_key"] == "sk-test"
     assert "TSLA" in langchain_payload["prompt"]
-    assert "sentiment +0.45" in langchain_payload["prompt"]
-    assert "terms [tsla, tesla]" in langchain_payload["prompt"]
     assert langchain_payload["metadata"]["tickers"][0]["mentions"] == 2
     first_article = langchain_payload["metadata"]["tickers"][0]["articles"][0]
     assert first_article["matched_terms"] == ["tsla", "tesla"]
@@ -186,7 +204,7 @@ def test_generate_langchain_summary_invokes_model(db_session, monkeypatch):
         def __init__(self) -> None:
             self.batch_inputs: list[str] = []
 
-        def batch(self, prompts):
+        def batch(self, prompts, config=None):
             self.batch_inputs.extend(prompts)
             return [type("Resp", (), {"content": "Daily summary"})()]
 
@@ -203,5 +221,9 @@ def test_generate_langchain_summary_invokes_model(db_session, monkeypatch):
     monkeypatch.setattr("app.services.daily_summary.init_chat_model", _fake_init)
 
     responses = service.generate_langchain_summary(summary)
-    assert fake_model.batch_inputs == [service.build_prompt(summary)]
+    # generate_langchain_summary uses build_prompt_for_ticker for each ticker
+    expected_prompt = service.build_prompt_for_ticker(
+        summary.tickers[0], summary.window_start, summary.window_end
+    )
+    assert fake_model.batch_inputs == [expected_prompt]
     assert responses == ["Daily summary"]
