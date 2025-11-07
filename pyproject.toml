@@ -28,10 +28,9 @@ dependencies = [
     "praw>=7.7.0",
     "prawcore>=2.4.0",
     "python-dotenv>=1.0.0",
-    "transformers>=4.30.0,<4.40.0",
-    "torch>=2.2.0,<2.3.0", # 2.2.2 is last version with Intel Mac support
+    # transformers/torch removed - only used by jobs, not main app
+    # Main app only displays pre-computed sentiment scores from DB
     "numpy>=1.24.0,<2.0.0",
-    "torchvision>=0.17.0,<0.18.0", # Match torch version
     "yfinance>=0.2.66",
     "redis>=5.0.0",
     "alembic>=1.13.0",
@@ -141,4 +140,6 @@ dev = [
     "types-requests>=2.31.0",
     "types-beautifulsoup4>=4.12.0",
     "types-pyyaml>=6.0.0",
+    "langchain>=1.0.4",
+    "langchain-openai>=1.0.2",
 ]

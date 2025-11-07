@@ -11,7 +11,7 @@ from app.api.routes import auth, users
 from app.config import settings
 from app.services.mention_stats import get_mention_stats_service
 from app.services.rate_limit import rate_limit
-from app.services.sentiment import get_sentiment_service_hybrid
+# Removed get_sentiment_service_hybrid - main app only needs label conversion, not analysis
 from app.services.sentiment_analytics import get_sentiment_analytics_service
 from app.services.stock_data import stock_service
 from app.services.stock_price_cache import ensure_fresh_stock_price
@@ -62,8 +62,13 @@ def get_sentiment_display_data(sentiment_score: float | None) -> dict:
             "icon": "❓",
         }
 
-    sentiment_service = get_sentiment_service_hybrid()
-    label = sentiment_service.get_sentiment_label(sentiment_score)
+    # Simple threshold-based label conversion (no ML needed - scores already computed by jobs)
+    if sentiment_score >= 0.1:
+        label = "Positive"
+    elif sentiment_score <= -0.1:
+        label = "Negative"
+    else:
+        label = "Neutral"
 
     if label == "Positive":
         return {

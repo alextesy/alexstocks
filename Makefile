@@ -353,11 +353,22 @@ ecs-update-status-task: ## Update daily status task definition with new image (T
 	$(eval TASK_DEF := market-pulse-daily-status)
 	$(eval IMAGE := $(ACCOUNT_ID).dkr.ecr.us-east-1.amazonaws.com/market-pulse-jobs:$(TAG))
 	@echo "📦 Updating task definition $(TASK_DEF) with image $(IMAGE)..."
-	aws ecs describe-task-definition --task-definition $(TASK_DEF) --query 'taskDefinition' > /tmp/task-def.json
-	cat /tmp/task-def.json | jq --arg IMAGE "$(IMAGE)" '.containerDefinitions[0].image = $$IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)' > /tmp/task-def-new.json
-	aws ecs register-task-definition --cli-input-json file:///tmp/task-def-new.json > /tmp/task-def-result.json
-	$(eval NEW_REVISION := $(shell cat /tmp/task-def-result.json | jq -r '.taskDefinition.revision'))
-	@echo "✅ Task definition updated to revision $(NEW_REVISION)"
+	@python3 -c "import json, sys, subprocess; \
+		result = subprocess.run(['aws', 'ecs', 'describe-task-definition', '--task-definition', '$(TASK_DEF)', '--output', 'json'], \
+			capture_output=True, text=True, check=True); \
+		data = json.loads(result.stdout); \
+		td = data['taskDefinition']; \
+		td['containerDefinitions'][0]['image'] = '$(IMAGE)'; \
+		td.pop('taskDefinitionArn', None); \
+		td.pop('revision', None); \
+		td.pop('status', None); \
+		td.pop('requiresAttributes', None); \
+		td.pop('compatibilities', None); \
+		td.pop('registeredAt', None); \
+		td.pop('registeredBy', None); \
+		json.dump(td, sys.stdout)" > /tmp/task-def-new.json
+	@aws ecs register-task-definition --cli-input-json file:///tmp/task-def-new.json --output json > /tmp/task-def-result.json || (echo "❌ Failed to register task definition"; exit 1)
+		@python3 -c "import json; data=json.load(open('/tmp/task-def-result.json')); print(f\"✅ Task definition updated to revision {data['taskDefinition']['revision']}\")" || (echo "❌ Failed to read task definition result"; exit 1)
 	@echo "Run with: make ecs-run-status"
 
 ecs-update-status-and-run: push-jobs-image-test ## Build, push, update task definition, and run daily status job (all-in-one)

@@ -16,23 +16,16 @@ import argparse
 import logging
 import sys
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
-# Load .env FIRST before any imports that might initialize settings
 from dotenv import load_dotenv
 
-# Load from project root (parent of jobs/ directory) since we run from jobs/
-load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
+from jobs.jobs.slack_wrapper import run_with_slack
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.append(str(ROOT_DIR))
+from .reddit_discussion_scraper import get_reddit_credentials
+from .reddit_scraper import RedditScraper
 
-from jobs.slack_wrapper import run_with_slack  # noqa: E402
-
-from .reddit_discussion_scraper import get_reddit_credentials  # noqa: E402
-from .reddit_scraper import RedditScraper  # noqa: E402
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -215,60 +208,66 @@ def show_status(
     config_path: str | None = None,
     subreddit: str = "wallstreetbets",
     verbose: bool = False,
-) -> dict[str, Any]:
-    """Collect and display scraping status (simple status check without summaries)."""
+) -> None:
+    """
+    Show scraping status.
 
+    Args:
+        config_path: Path to config file (if None, uses default)
+        subreddit: Subreddit to check
+        verbose: Enable verbose logging
+    """
     setup_logging(verbose)
 
     try:
         # Get credentials
         client_id, client_secret, user_agent = get_reddit_credentials()
     except ValueError as e:
-        logger.error(f"❌ Missing credentials: {e}")
-        sys.exit(1)
+        print(f"❌ Reddit credentials not configured: {e}")
+        return
 
     try:
+        # Use RedditScraper for status
         scraper = RedditScraper(config_path=config_path)
         scraper.initialize_reddit(client_id, client_secret, user_agent)
 
         status = scraper.get_scraping_status(subreddit, check_live_counts=True)
-        if "error" in status:
-            raise RuntimeError(status["error"])
 
-        _print_status(status, subreddit)
-        return status
-    except Exception as exc:  # noqa: BLE001
-        print(f"❌ Error: {exc}")
+        if "error" in status:
+            print(f"❌ Error: {status['error']}")
+            return
+
+        # Display status
+        print(f"\n{'=' * 60}")
+        print(f"📊 REDDIT SCRAPING STATUS - r/{subreddit}")
+        print(f"{'=' * 60}")
+        print(f"Total threads tracked:   {status['total_threads']}")
+        print(f"Total comments scraped:  {status['total_comments_scraped']:,}")
+        print(f"Live counts enabled:     {status['live_counts_enabled']}")
+
+        if status["recent_threads"]:
+            print(f"\n{'─' * 60}")
+            print("📋 RECENT THREADS")
+            print(f"{'─' * 60}")
+
+            for i, thread in enumerate(status["recent_threads"][:5], 1):
+                print(f"\n{i}. {thread['title']}")
+                print(f"   Type:        {thread['type']}")
+                print(
+                    f"   Progress:    {thread['scraped_comments']:,} / {thread['total_comments']:,} "
+                    f"({thread['completion_rate']})"
+                )
+                print(f"   Last scraped: {thread['last_scraped'] or 'Never'}")
+                print(
+                    f"   Complete:     {'✅ Yes' if thread['is_complete'] else '⏳ No'}"
+                )
+
+        print(f"\n{'=' * 60}\n")
+
+    except Exception as e:
+        print(f"❌ Error: {e}")
         if verbose:
             logger.error("Error details:", exc_info=True)
-        return {}
-
-
-def _print_status(status: dict[str, Any], subreddit: str) -> None:
-    """Print status information to console."""
-    print(f"\n{'=' * 60}")
-    print(f"📊 REDDIT SCRAPING STATUS - r/{subreddit}")
-    print(f"{'=' * 60}")
-    print(f"Total threads tracked:   {status['total_threads']}")
-    print(f"Total comments scraped:  {status['total_comments_scraped']:,}")
-    print(f"Live counts enabled:     {status['live_counts_enabled']}")
-
-    if status["recent_threads"]:
-        print(f"\n{'─' * 60}")
-        print("📋 RECENT THREADS")
-        print(f"{'─' * 60}")
-
-        for i, thread in enumerate(status["recent_threads"][:5], 1):
-            print(f"\n{i}. {thread['title']}")
-            print(f"   Type:        {thread['type']}")
-            print(
-                f"   Progress:    {thread['scraped_comments']:,} / {thread['total_comments']:,} "
-                f"({thread['completion_rate']})"
-            )
-            print(f"   Last scraped: {thread['last_scraped'] or 'Never'}")
-            print(f"   Complete:     {'✅ Yes' if thread['is_complete'] else '⏳ No'}")
-
-    print(f"\n{'=' * 60}\n")
 
 
 def main() -> None:
@@ -405,17 +404,12 @@ Examples:
             },
         )
     elif args.mode == "status":
-        # Simple status check (without summaries)
-        # For full daily status with summaries, use: python -m jobs.daily_status
-        try:
-            show_status(
-                config_path=args.config,
-                subreddit=args.subreddit or "wallstreetbets",
-                verbose=args.verbose,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Status check failed: %s", exc, exc_info=args.verbose)
-            sys.exit(1)
+        # Status check doesn't need Slack notifications
+        show_status(
+            config_path=args.config,
+            subreddit=args.subreddit or "wallstreetbets",
+            verbose=args.verbose,
+        )
 
 
 if __name__ == "__main__":
