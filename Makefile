@@ -287,6 +287,14 @@ push-jobs-image: ecr-login ## Build and push jobs image to ECR
 	docker push $(ACCOUNT_ID).dkr.ecr.us-east-1.amazonaws.com/market-pulse-jobs:latest
 	@echo "✅ Pushed image to ECR"
 
+push-jobs-image-test: ecr-login ## Build and push jobs image with test tag
+	$(eval ACCOUNT_ID := $(shell aws sts get-caller-identity --query Account --output text))
+	$(eval TAG := test-$(shell date +%Y%m%d-%H%M%S))
+	docker build -f jobs/Dockerfile --platform linux/amd64 -t $(ACCOUNT_ID).dkr.ecr.us-east-1.amazonaws.com/market-pulse-jobs:$(TAG) .
+	docker push $(ACCOUNT_ID).dkr.ecr.us-east-1.amazonaws.com/market-pulse-jobs:$(TAG)
+	@echo "✅ Pushed image to ECR with tag: $(TAG)"
+	@echo "$(TAG)" > /tmp/last-test-tag.txt
+
 # Terraform Commands
 tf-init: ## Initialize Terraform
 	cd infrastructure/terraform && terraform init
@@ -333,6 +341,36 @@ ecs-run-status: ## Manually trigger daily status check task
 		--task-definition $(TASK_DEF) \
 		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
 		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1
+
+ecs-update-status-task: ## Update daily status task definition with new image (TAG=tag or latest)
+	@if [ -z "$(TAG)" ]; then \
+		echo "❌ Error: TAG required"; \
+		echo "Usage: make ecs-update-status-task TAG=test-20250101-120000"; \
+		echo "   or: make ecs-update-status-task TAG=latest"; \
+		exit 1; \
+	fi
+	$(eval ACCOUNT_ID := $(shell aws sts get-caller-identity --query Account --output text))
+	$(eval TASK_DEF := market-pulse-daily-status)
+	$(eval IMAGE := $(ACCOUNT_ID).dkr.ecr.us-east-1.amazonaws.com/market-pulse-jobs:$(TAG))
+	@echo "📦 Updating task definition $(TASK_DEF) with image $(IMAGE)..."
+	aws ecs describe-task-definition --task-definition $(TASK_DEF) --query 'taskDefinition' > /tmp/task-def.json
+	cat /tmp/task-def.json | jq --arg IMAGE "$(IMAGE)" '.containerDefinitions[0].image = $$IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)' > /tmp/task-def-new.json
+	aws ecs register-task-definition --cli-input-json file:///tmp/task-def-new.json > /tmp/task-def-result.json
+	$(eval NEW_REVISION := $(shell cat /tmp/task-def-result.json | jq -r '.taskDefinition.revision'))
+	@echo "✅ Task definition updated to revision $(NEW_REVISION)"
+	@echo "Run with: make ecs-run-status"
+
+ecs-update-status-and-run: push-jobs-image-test ## Build, push, update task definition, and run daily status job (all-in-one)
+	$(eval TAG := $(shell cat /tmp/last-test-tag.txt 2>/dev/null || echo ""))
+	@if [ -z "$(TAG)" ]; then \
+		echo "❌ Error: Could not find test tag. Run 'make push-jobs-image-test' first."; \
+		exit 1; \
+	fi
+	@echo "📦 Using tag: $(TAG)"
+	$(MAKE) ecs-update-status-task TAG=$(TAG)
+	@echo "🚀 Running task..."
+	$(MAKE) ecs-run-status
+	@echo "📋 To view logs: make ecs-logs-status"
 
 ecs-run-stock-prices: ## Manually trigger stock price collector task
 	$(eval CLUSTER := market-pulse-jobs)
