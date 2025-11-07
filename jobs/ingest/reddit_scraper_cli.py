@@ -16,16 +16,19 @@ import argparse
 import logging
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
+# Load .env FIRST before any imports that might initialize settings
 from dotenv import load_dotenv
 
-from jobs.jobs.slack_wrapper import run_with_slack
+# Load from project root (parent of jobs/ directory) since we run from jobs/
+load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
 
-from .reddit_discussion_scraper import get_reddit_credentials
-from .reddit_scraper import RedditScraper
+from jobs.slack_wrapper import run_with_slack  # noqa: E402
 
-load_dotenv()
+from .reddit_discussion_scraper import get_reddit_credentials  # noqa: E402
+from .reddit_scraper import RedditScraper  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
