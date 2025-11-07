@@ -200,9 +200,7 @@ def test_generate_langchain_summary_invokes_model(db_session, monkeypatch):
         assert kwargs["api_key"] == "sk-test"
         return fake_model
 
-    monkeypatch.setattr(
-        "app.services.daily_summary._init_langchain_chat_model", _fake_init
-    )
+    monkeypatch.setattr("app.services.daily_summary.init_chat_model", _fake_init)
 
     responses = service.generate_langchain_summary(summary)
     assert fake_model.batch_inputs == [service.build_prompt(summary)]

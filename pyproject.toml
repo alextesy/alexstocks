@@ -29,14 +29,16 @@ dependencies = [
     "prawcore>=2.4.0",
     "python-dotenv>=1.0.0",
     "transformers>=4.30.0,<4.40.0",
-    "torch>=2.2.0,<2.3.0",  # 2.2.2 is last version with Intel Mac support
+    "torch>=2.2.0,<2.3.0", # 2.2.2 is last version with Intel Mac support
     "numpy>=1.24.0,<2.0.0",
-    "torchvision>=0.17.0,<0.18.0",  # Match torch version
+    "torchvision>=0.17.0,<0.18.0", # Match torch version
     "yfinance>=0.2.66",
     "redis>=5.0.0",
     "alembic>=1.13.0",
     "python-jose[cryptography]>=3.3.0",
     "slack-sdk>=3.27.0",
+    "langchain>=1.0.4",
+    "langchain-openai>=1.0.2",
 ]
 
 [build-system]

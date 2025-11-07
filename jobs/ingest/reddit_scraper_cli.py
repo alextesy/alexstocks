@@ -29,12 +29,6 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
-from app.db.session import SessionLocal  # noqa: E402
-from app.services.daily_summary import (  # noqa: E402
-    DailySummaryResult,
-    DailySummaryService,
-)
-from app.services.slack_service import SlackService  # noqa: E402
 from jobs.slack_wrapper import run_with_slack  # noqa: E402
 
 from .reddit_discussion_scraper import get_reddit_credentials  # noqa: E402
@@ -222,44 +216,36 @@ def show_status(
     subreddit: str = "wallstreetbets",
     verbose: bool = False,
 ) -> dict[str, Any]:
-    """Collect and display scraping status."""
+    """Collect and display scraping status (simple status check without summaries)."""
+
+    setup_logging(verbose)
 
     try:
-        status = collect_status(
-            config_path=config_path, subreddit=subreddit, verbose=verbose
-        )
+        # Get credentials
+        client_id, client_secret, user_agent = get_reddit_credentials()
+    except ValueError as e:
+        logger.error(f"❌ Missing credentials: {e}")
+        sys.exit(1)
+
+    try:
+        scraper = RedditScraper(config_path=config_path)
+        scraper.initialize_reddit(client_id, client_secret, user_agent)
+
+        status = scraper.get_scraping_status(subreddit, check_live_counts=True)
+        if "error" in status:
+            raise RuntimeError(status["error"])
+
+        _print_status(status, subreddit)
+        return status
     except Exception as exc:  # noqa: BLE001
         print(f"❌ Error: {exc}")
         if verbose:
             logger.error("Error details:", exc_info=True)
         return {}
 
-    _print_status(status, subreddit)
-    return status
-
-
-def collect_status(
-    config_path: str | None = None,
-    subreddit: str = "wallstreetbets",
-    verbose: bool = False,
-) -> dict[str, Any]:
-    """Collect scraping status from Reddit."""
-
-    setup_logging(verbose)
-
-    # Get credentials
-    client_id, client_secret, user_agent = get_reddit_credentials()
-
-    scraper = RedditScraper(config_path=config_path)
-    scraper.initialize_reddit(client_id, client_secret, user_agent)
-
-    status = scraper.get_scraping_status(subreddit, check_live_counts=True)
-    if "error" in status:
-        raise RuntimeError(status["error"])
-    return status
-
 
 def _print_status(status: dict[str, Any], subreddit: str) -> None:
+    """Print status information to console."""
     print(f"\n{'=' * 60}")
     print(f"📊 REDDIT SCRAPING STATUS - r/{subreddit}")
     print(f"{'=' * 60}")
@@ -283,118 +269,6 @@ def _print_status(status: dict[str, Any], subreddit: str) -> None:
             print(f"   Complete:     {'✅ Yes' if thread['is_complete'] else '⏳ No'}")
 
     print(f"\n{'=' * 60}\n")
-
-
-def _summarize_daily_mentions() -> tuple[DailySummaryResult | None, list[str]]:
-    session = SessionLocal()
-    try:
-        service = DailySummaryService(session)
-        summary = service.load_previous_day_summary()
-        if not summary.tickers:
-            return summary, []
-
-        try:
-            responses = service.generate_langchain_summary(summary)
-        except (RuntimeError, ValueError) as exc:
-            logger.warning("LangChain invocation skipped: %s", exc)
-            responses = []
-        return summary, responses
-    finally:
-        session.close()
-
-
-def _format_summary_for_slack(
-    subreddit: str,
-    status: dict[str, Any],
-    summary: DailySummaryResult | None,
-    responses: list[str],
-) -> str:
-    lines = [
-        f"Daily status for r/{subreddit}",
-        f"Threads tracked: {status['total_threads']}",
-        f"Total comments scraped: {status['total_comments_scraped']:,}",
-    ]
-
-    if summary:
-        lines.append(
-            f"Daily summary tickers: {len(summary.tickers)} (mentions {summary.total_mentions})"
-        )
-        if summary.tickers:
-            top = ", ".join(ticker.ticker for ticker in summary.tickers)
-            lines.append(f"Top tickers: {top}")
-    else:
-        lines.append("Daily summary unavailable")
-
-    if responses:
-        lines.append("\nLLM summary:")
-        lines.extend(responses)
-    elif summary and not summary.tickers:
-        lines.append("No tickers met the summary thresholds yesterday.")
-
-    return "\n".join(lines)
-
-
-def run_status_job(
-    config_path: str | None = None,
-    subreddit: str = "wallstreetbets",
-    verbose: bool = False,
-) -> dict[str, Any]:
-    """Run the daily status check with Slack and LLM summaries."""
-
-    setup_logging(verbose)
-    slack = SlackService()
-    metadata = {"subreddit": subreddit}
-    start = datetime.now(UTC)
-    thread_ts = slack.notify_job_start("daily_status", metadata=metadata)
-
-    try:
-        status = collect_status(
-            config_path=config_path, subreddit=subreddit, verbose=verbose
-        )
-        _print_status(status, subreddit)
-
-        summary, responses = _summarize_daily_mentions()
-        if summary:
-            print("Daily summary tickers:")
-            for ticker in summary.tickers:
-                print(f" - {ticker.ticker}: {ticker.mentions} mentions")
-        if responses:
-            print("\nLangChain responses:")
-            for response in responses:
-                print(response)
-
-        slack_text = _format_summary_for_slack(subreddit, status, summary, responses)
-        slack.send_message(text=slack_text, thread_ts=thread_ts)
-
-        duration = (datetime.now(UTC) - start).total_seconds()
-        summary_metrics = {
-            "threads": status.get("total_threads"),
-            "tickers": len(summary.tickers) if summary else 0,
-            "mentions": summary.total_mentions if summary else 0,
-        }
-        slack.notify_job_complete(
-            job_name="daily_status",
-            status="success",
-            duration_seconds=duration,
-            summary=summary_metrics,
-            thread_ts=thread_ts,
-        )
-        return {
-            "status": status,
-            "summary": summary_metrics,
-            "responses": responses,
-        }
-    except Exception as exc:
-        duration = (datetime.now(UTC) - start).total_seconds()
-        slack.notify_job_complete(
-            job_name="daily_status",
-            status="error",
-            duration_seconds=duration,
-            summary={"subreddit": subreddit},
-            error=str(exc),
-            thread_ts=thread_ts,
-        )
-        raise
 
 
 def main() -> None:
@@ -531,14 +405,16 @@ Examples:
             },
         )
     elif args.mode == "status":
+        # Simple status check (without summaries)
+        # For full daily status with summaries, use: python -m jobs.daily_status
         try:
-            run_status_job(
+            show_status(
                 config_path=args.config,
                 subreddit=args.subreddit or "wallstreetbets",
                 verbose=args.verbose,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.error("Daily status job failed: %s", exc, exc_info=args.verbose)
+            logger.error("Status check failed: %s", exc, exc_info=args.verbose)
             sys.exit(1)
 
 

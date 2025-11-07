@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-import jobs.ingest.reddit_scraper_cli as cli
+import jobs.jobs.daily_status as daily_status
 from app.services.daily_summary import (
     DailySummaryArticle,
     DailySummaryResult,
@@ -69,6 +69,7 @@ def fake_summary() -> DailySummaryResult:
         ticker="TSLA",
         title="Tesla momentum builds",
         url="https://reddit.com/tsla",
+        text="Tesla stock is surging on strong delivery numbers.",
         published_at=datetime(2024, 5, 2, 15, 0, tzinfo=UTC),
         upvotes=100,
         num_comments=40,
@@ -95,10 +96,10 @@ def test_run_status_job_sends_slack(
 ) -> None:
     fake_slack = FakeSlackService()
 
-    monkeypatch.setattr(cli, "SlackService", lambda: fake_slack)
+    monkeypatch.setattr(daily_status, "SlackService", lambda: fake_slack)
     monkeypatch.setattr(
-        cli,
-        "collect_status",
+        daily_status,
+        "collect_reddit_status",
         lambda **_: {
             "total_threads": 5,
             "total_comments_scraped": 1234,
@@ -106,18 +107,18 @@ def test_run_status_job_sends_slack(
             "recent_threads": [],
         },
     )
-    monkeypatch.setattr(cli, "_print_status", lambda *_, **__: None)
-    monkeypatch.setattr(cli, "print", lambda *_, **__: None)
+    monkeypatch.setattr(daily_status, "_print_status", lambda *_, **__: None)
+    monkeypatch.setattr(daily_status, "print", lambda *_, **__: None)
     monkeypatch.setattr(
-        cli,
-        "_summarize_daily_mentions",
-        lambda: (fake_summary, ["LLM output"]),
+        daily_status,
+        "generate_daily_summary",
+        lambda **_: (fake_summary, ["LLM output"]),
     )
 
-    result = cli.run_status_job(subreddit="wallstreetbets")
+    result = daily_status.run_daily_status_job(subreddit="wallstreetbets")
 
     assert result["summary"]["tickers"] == 1
-    assert fake_slack.starts[0][0] == "daily_status"
+    assert fake_slack.starts[0][0] == daily_status.JOB_NAME
     assert fake_slack.completions[0]["status"] == "success"
     assert "LLM output" in fake_slack.messages[0]["text"]
 
@@ -125,10 +126,10 @@ def test_run_status_job_sends_slack(
 def test_run_status_job_handles_summary_error(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_slack = FakeSlackService()
 
-    monkeypatch.setattr(cli, "SlackService", lambda: fake_slack)
+    monkeypatch.setattr(daily_status, "SlackService", lambda: fake_slack)
     monkeypatch.setattr(
-        cli,
-        "collect_status",
+        daily_status,
+        "collect_reddit_status",
         lambda **_: {
             "total_threads": 5,
             "total_comments_scraped": 1234,
@@ -136,16 +137,16 @@ def test_run_status_job_handles_summary_error(monkeypatch: pytest.MonkeyPatch) -
             "recent_threads": [],
         },
     )
-    monkeypatch.setattr(cli, "_print_status", lambda *_, **__: None)
-    monkeypatch.setattr(cli, "print", lambda *_, **__: None)
+    monkeypatch.setattr(daily_status, "_print_status", lambda *_, **__: None)
+    monkeypatch.setattr(daily_status, "print", lambda *_, **__: None)
     monkeypatch.setattr(
-        cli,
-        "_summarize_daily_mentions",
-        lambda: (_ for _ in ()).throw(RuntimeError("fail")),
+        daily_status,
+        "generate_daily_summary",
+        lambda **_: (_ for _ in ()).throw(RuntimeError("fail")),
     )
 
     with pytest.raises(RuntimeError):
-        cli.run_status_job(subreddit="wallstreetbets")
+        daily_status.run_daily_status_job(subreddit="wallstreetbets")
 
     assert fake_slack.completions[0]["status"] == "error"
     assert fake_slack.completions[0]["error"] == "fail"
