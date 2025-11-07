@@ -49,6 +49,18 @@ class TestStockPriceCollector:
             assert isinstance(ticker, str)
             assert len(ticker) > 0
 
+    def test_get_top_n_tickers_excludes_etfs(
+        self, db_session, sample_articles_with_tickers
+    ):
+        """Ensure ETF tickers are excluded even with high mention counts."""
+        from jobs.jobs.stock_price_collector import StockPriceCollector
+
+        collector = StockPriceCollector()
+
+        top_tickers = collector.get_top_n_tickers(db_session, n=5, hours=24)
+
+        assert "SPY" not in top_tickers
+
     def test_get_top_n_tickers_empty_db(self, db_session):
         """Test getting top tickers when database is empty."""
         from jobs.jobs.stock_price_collector import StockPriceCollector
@@ -464,6 +476,11 @@ def sample_tickers(db_session):
         Ticker(symbol="GOOGL", name="Alphabet Inc.", aliases=["Google"]),
         Ticker(symbol="AMZN", name="Amazon.com Inc.", aliases=["Amazon"]),
         Ticker(symbol="TSLA", name="Tesla Inc.", aliases=["Tesla"]),
+        Ticker(
+            symbol="SPY",
+            name="SPDR S&P 500 ETF Trust",
+            aliases=["SPY"],
+        ),
         Ticker(symbol="META", name="Meta Platforms Inc.", aliases=["Facebook"]),
         Ticker(symbol="NVDA", name="NVIDIA Corporation", aliases=["NVIDIA"]),
         Ticker(symbol="AMD", name="Advanced Micro Devices", aliases=["AMD"]),
