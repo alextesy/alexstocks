@@ -9,7 +9,13 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 # NOTE: Build context is project root, not jobs/
 COPY jobs/pyproject.toml ./
 
-# Install dependencies
+# Install PyTorch CPU-only first (before other deps to avoid CUDA deps)
+# This prevents installation of nvidia-cuda-* packages (~1.5GB+)
+RUN uv pip install --system --no-cache \
+    --index-url https://download.pytorch.org/whl/cpu \
+    "torch>=2.2.0,<2.3.0"
+
+# Install remaining dependencies
 RUN uv pip install --system --no-cache -r pyproject.toml
 
 # Copy shared code from main app (models, services, config, collectors)

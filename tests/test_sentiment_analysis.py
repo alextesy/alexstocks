@@ -107,7 +107,7 @@ class TestLLMSentimentService:
         ]
 
     @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True)
-    @patch("app.services.llm_sentiment.pipeline")
+    @patch("app.services.llm_sentiment.pipeline", create=True)
     def test_initialization_success(self, mock_pipeline):
         """Test successful LLM service initialization."""
         mock_pipeline.return_value = self.mock_pipeline
@@ -125,7 +125,7 @@ class TestLLMSentimentService:
             LLMSentimentService()
 
     @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True)
-    @patch("app.services.llm_sentiment.pipeline")
+    @patch("app.services.llm_sentiment.pipeline", create=True)
     def test_analyze_sentiment_positive(self, mock_pipeline):
         """Test positive sentiment analysis with LLM."""
         # Mock the pipeline to return positive sentiment
@@ -145,7 +145,7 @@ class TestLLMSentimentService:
         assert result == pytest.approx(0.7)  # positive - negative = 0.8 - 0.1
 
     @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True)
-    @patch("app.services.llm_sentiment.pipeline")
+    @patch("app.services.llm_sentiment.pipeline", create=True)
     def test_analyze_sentiment_negative(self, mock_pipeline):
         """Test negative sentiment analysis with LLM."""
         mock_pipeline.return_value = Mock(
@@ -164,7 +164,7 @@ class TestLLMSentimentService:
         assert result == pytest.approx(-0.7)  # positive - negative = 0.1 - 0.8
 
     @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True)
-    @patch("app.services.llm_sentiment.pipeline")
+    @patch("app.services.llm_sentiment.pipeline", create=True)
     def test_analyze_sentiment_roberta_format(self, mock_pipeline):
         """Test sentiment analysis with RoBERTa format."""
         mock_pipeline.return_value = Mock(
@@ -183,7 +183,7 @@ class TestLLMSentimentService:
         assert result == 0.6  # positive - negative = 0.7 - 0.1
 
     @patch("app.services.llm_sentiment.TRANSFORMERS_AVAILABLE", True)
-    @patch("app.services.llm_sentiment.pipeline")
+    @patch("app.services.llm_sentiment.pipeline", create=True)
     def test_analyze_sentiment_text_truncation(self, mock_pipeline):
         """Test text truncation for long inputs."""
         mock_pipeline.return_value = self.mock_pipeline
@@ -194,8 +194,8 @@ class TestLLMSentimentService:
         service.analyze_sentiment(long_text)
 
         # Should call with truncated text
-        mock_pipeline.return_value.assert_called_once()
-        call_args = mock_pipeline.return_value.call_args[0][0]
+        self.mock_pipeline.assert_called_once()
+        call_args = self.mock_pipeline.call_args[0][0]
         assert len(call_args) <= 2003  # 2000 + "..."
 
     def test_analyze_sentiment_empty_text(self):

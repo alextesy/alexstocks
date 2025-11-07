@@ -7,16 +7,15 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.db.models import Article, ArticleTicker
-from app.services.sentiment import get_sentiment_service_hybrid
+
+# Removed get_sentiment_service_hybrid - only used in non-optimized method
+# Optimized methods use SQL aggregation directly
 
 logger = logging.getLogger(__name__)
 
 
 class SentimentAnalyticsService:
     """Service for sentiment analytics and histogram generation."""
-
-    def __init__(self):
-        self.sentiment_service = get_sentiment_service_hybrid()
 
     def get_sentiment_histogram(
         self, db: Session, ticker: str | None = None
@@ -49,14 +48,14 @@ class SentimentAnalyticsService:
             neutral_count = 0
             negative_count = 0
 
+            # Simple threshold-based classification (no ML service needed)
+            positive_threshold = 0.1
+            negative_threshold = -0.1
             for article in articles:
                 if article.sentiment is not None:
-                    sentiment_label = self.sentiment_service.get_sentiment_label(
-                        article.sentiment
-                    )
-                    if sentiment_label == "Positive":
+                    if article.sentiment >= positive_threshold:
                         positive_count += 1
-                    elif sentiment_label == "Negative":
+                    elif article.sentiment <= negative_threshold:
                         negative_count += 1
                     else:
                         neutral_count += 1
