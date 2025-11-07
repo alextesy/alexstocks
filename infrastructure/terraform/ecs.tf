@@ -220,7 +220,7 @@ resource "aws_ecs_task_definition" "daily_status" {
     essential = true
 
     command = [
-      "python", "-m", "jobs.daily_status"
+      "python", "jobs/daily_status.py"
     ]
 
     environment = [

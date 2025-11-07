@@ -115,7 +115,7 @@ def test_run_status_job_sends_slack(
         lambda **_: (fake_summary, ["LLM output"]),
     )
 
-    result = daily_status.run_daily_status_job(subreddit="wallstreetbets")
+    result = daily_status.run_daily_status_job()
 
     assert result["summary"]["tickers"] == 1
     assert fake_slack.starts[0][0] == daily_status.JOB_NAME
@@ -146,7 +146,7 @@ def test_run_status_job_handles_summary_error(monkeypatch: pytest.MonkeyPatch) -
     )
 
     with pytest.raises(RuntimeError):
-        daily_status.run_daily_status_job(subreddit="wallstreetbets")
+        daily_status.run_daily_status_job()
 
     assert fake_slack.completions[0]["status"] == "error"
     assert fake_slack.completions[0]["error"] == "fail"

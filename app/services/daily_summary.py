@@ -249,9 +249,17 @@ class DailySummaryService:
             "different stocks."
         )
 
+        # Format date as "November 7th" or "November 7"
+        trading_date = window_end.date()
+        month_name = trading_date.strftime("%B")
+        day = trading_date.day
+        day_suffix = (
+            "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+        )
+
         window_text = (
-            f"Analyze retail investor sentiment for {ticker_summary.ticker} from "
-            f"{window_start:%Y-%m-%d %H:%M} UTC through {window_end:%Y-%m-%d %H:%M} UTC."
+            f"Analyze retail investor sentiment for {ticker_summary.ticker} "
+            f"during the last day - {month_name} {day}{day_suffix}."
         )
         instructions = (
             "Provide two concise paragraphs: one covering momentum and sentiment, "
