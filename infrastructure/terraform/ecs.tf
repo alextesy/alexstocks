@@ -220,8 +220,7 @@ resource "aws_ecs_task_definition" "daily_status" {
     essential = true
 
     command = [
-      "python", "-m", "ingest.reddit_scraper_cli",
-      "--mode", "status"
+      "python", "jobs/daily_status.py"
     ]
 
     environment = [
@@ -255,6 +254,10 @@ resource "aws_ecs_task_definition" "daily_status" {
       {
         name      = "SLACK_DEFAULT_CHANNEL"
         valueFrom = data.aws_secretsmanager_secret.slack_default_channel.arn
+      },
+      {
+        name      = "OPENAI_API_KEY"
+        valueFrom = data.aws_secretsmanager_secret.openai_api_key.arn
       }
     ]
 
@@ -267,7 +270,7 @@ resource "aws_ecs_task_definition" "daily_status" {
       }
     }
 
-    stopTimeout = 60
+    stopTimeout = 120
   }])
 
   tags = local.common_tags

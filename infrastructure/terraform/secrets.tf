@@ -26,3 +26,7 @@ data "aws_secretsmanager_secret" "slack_default_channel" {
 data "aws_secretsmanager_secret" "slack_users_channel" {
   name = "${var.project_name}/slack-users-channel"
 }
+
+data "aws_secretsmanager_secret" "openai_api_key" {
+  name = "${var.project_name}/openai-api-key"
+}

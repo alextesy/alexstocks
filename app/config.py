@@ -109,6 +109,95 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("SLACK_USERS_CHANNEL", "slack_users_channel"),
     )
 
+    # LLM + Daily summary configuration
+    openai_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OPENAI_API_KEY", "openai_api_key"),
+    )
+    daily_summary_llm_model: str = Field(
+        default="gpt-4.1-mini",
+        validation_alias=AliasChoices(
+            "DAILY_SUMMARY_LLM_MODEL", "daily_summary_llm_model"
+        ),
+    )
+    daily_summary_min_mentions: int = Field(
+        default=10,
+        ge=1,
+        validation_alias=AliasChoices(
+            "DAILY_SUMMARY_MIN_MENTIONS", "daily_summary_min_mentions"
+        ),
+    )
+    daily_summary_max_tickers: int = Field(
+        default=10,
+        ge=1,
+        validation_alias=AliasChoices(
+            "DAILY_SUMMARY_MAX_TICKERS", "daily_summary_max_tickers"
+        ),
+    )
+    daily_summary_window_timezone: str = Field(
+        default="America/New_York",
+        validation_alias=AliasChoices(
+            "DAILY_SUMMARY_WINDOW_TIMEZONE", "daily_summary_window_timezone"
+        ),
+    )
+    daily_summary_window_start_hour: int = Field(
+        default=7,
+        ge=0,
+        le=23,
+        validation_alias=AliasChoices(
+            "DAILY_SUMMARY_WINDOW_START_HOUR",
+            "daily_summary_window_start_hour",
+        ),
+    )
+    daily_summary_window_end_hour: int = Field(
+        default=19,
+        ge=0,
+        le=23,
+        validation_alias=AliasChoices(
+            "DAILY_SUMMARY_WINDOW_END_HOUR",
+            "daily_summary_window_end_hour",
+        ),
+    )
+    daily_summary_start_offset_minutes: int = Field(
+        default=30,
+        ge=0,
+        validation_alias=AliasChoices(
+            "DAILY_SUMMARY_START_OFFSET_MINUTES",
+            "daily_summary_start_offset_minutes",
+        ),
+    )
+    daily_summary_end_offset_minutes: int = Field(
+        default=90,
+        ge=0,
+        validation_alias=AliasChoices(
+            "DAILY_SUMMARY_END_OFFSET_MINUTES",
+            "daily_summary_end_offset_minutes",
+        ),
+    )
+    daily_summary_llm_temperature: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        validation_alias=AliasChoices(
+            "DAILY_SUMMARY_LLM_TEMPERATURE", "daily_summary_llm_temperature"
+        ),
+    )
+    daily_summary_llm_timeout_seconds: int = Field(
+        default=30,
+        ge=1,
+        validation_alias=AliasChoices(
+            "DAILY_SUMMARY_LLM_TIMEOUT_SECONDS",
+            "daily_summary_llm_timeout_seconds",
+        ),
+    )
+    daily_summary_llm_max_tokens: int = Field(
+        default=1000,
+        ge=1,
+        validation_alias=AliasChoices(
+            "DAILY_SUMMARY_LLM_MAX_TOKENS", "daily_summary_llm_max_tokens"
+        ),
+    )
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
