@@ -11,6 +11,7 @@ from app.api.routes import auth, users
 from app.config import settings
 from app.services.mention_stats import get_mention_stats_service
 from app.services.rate_limit import rate_limit
+
 # Removed get_sentiment_service_hybrid - main app only needs label conversion, not analysis
 from app.services.sentiment_analytics import get_sentiment_analytics_service
 from app.services.stock_data import stock_service

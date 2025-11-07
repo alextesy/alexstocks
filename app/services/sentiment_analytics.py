@@ -7,6 +7,7 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.db.models import Article, ArticleTicker
+
 # Removed get_sentiment_service_hybrid - only used in non-optimized method
 # Optimized methods use SQL aggregation directly
 
