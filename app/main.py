@@ -910,6 +910,10 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 updated_at,
             ) = row
 
+            # Skip ETFs from the homepage display to focus on individual equities
+            if name and "ETF" in name.upper():
+                continue
+
             # Calculate velocity for this ticker
             velocity_data = velocity_service.calculate_velocity(symbol)
 
