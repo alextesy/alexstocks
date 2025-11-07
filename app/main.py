@@ -802,7 +802,7 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
     """Home page with ticker grid showing top 50 most discussed tickers in last 24h."""
     from datetime import datetime, timedelta
 
-    from sqlalchemy import and_, func
+    from sqlalchemy import and_, func, or_
 
     from app.db.models import Article, ArticleTicker, StockPrice, Ticker
     from app.db.session import SessionLocal
@@ -820,7 +820,11 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 func.count(ArticleTicker.article_id).label("recent_article_count"),
             )
             .join(Article, ArticleTicker.article_id == Article.id)
-            .filter(Article.published_at >= twenty_four_hours_ago)
+            .join(Ticker, Ticker.symbol == ArticleTicker.ticker)
+            .filter(
+                Article.published_at >= twenty_four_hours_ago,
+                or_(Ticker.name.is_(None), ~Ticker.name.ilike("%ETF%")),
+            )
             .group_by(ArticleTicker.ticker)
             .order_by(func.count(ArticleTicker.article_id).desc())
             .limit(50)
