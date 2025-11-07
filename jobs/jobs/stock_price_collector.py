@@ -18,10 +18,10 @@ load_dotenv()
 sys.path.append(".")
 
 # Now import app modules
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.db.models import Article, ArticleTicker, StockPrice
+from app.db.models import Article, ArticleTicker, StockPrice, Ticker
 from app.db.session import SessionLocal
 from app.services.stock_data import StockDataService
 
@@ -65,7 +65,11 @@ class StockPriceCollector:
                 func.count(ArticleTicker.article_id).label("article_count"),
             )
             .join(Article, ArticleTicker.article_id == Article.id)
-            .filter(Article.published_at >= cutoff_time)
+            .join(Ticker, Ticker.symbol == ArticleTicker.ticker)
+            .filter(
+                Article.published_at >= cutoff_time,
+                or_(Ticker.name.is_(None), ~Ticker.name.ilike("%ETF%")),
+            )
             .group_by(ArticleTicker.ticker)
             .order_by(func.count(ArticleTicker.article_id).desc())
             .limit(n)
