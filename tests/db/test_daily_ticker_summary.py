@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from app.db.models import Ticker
+from app.db.models import LLMSentimentCategory, Ticker
 from app.models.dto import DailyTickerSummaryUpsertDTO
 from app.repos.summary_repo import DailyTickerSummaryRepository
 
@@ -162,3 +162,55 @@ def test_cleanup_before_returns_deleted_count(db_session, repo):
 
     remaining = repo.get_summaries_for_ticker("MSFT")
     assert [r.summary_date for r in remaining] == [date(2024, 1, 20)]
+
+
+def test_llm_sentiment_enum_serialization(db_session, repo):
+    """Test that LLM sentiment enum values are correctly serialized to database."""
+    _ensure_ticker(db_session, "TSLA")
+
+    # Test with enum object (should use value)
+    dto_with_enum = DailyTickerSummaryUpsertDTO(
+        ticker="TSLA",
+        summary_date=date(2024, 1, 1),
+        mention_count=100,
+        engagement_count=500,
+        llm_summary="Test summary",
+        llm_sentiment=LLMSentimentCategory.BULLISH,  # Enum object
+        llm_model="gpt-test",
+    )
+
+    created = repo.upsert_summary(dto_with_enum)
+    assert created.llm_sentiment == LLMSentimentCategory.BULLISH
+
+    # Verify the value was saved correctly (not the name)
+    # Query directly from database to verify raw value
+    from app.db.models import DailyTickerSummary
+
+    entity = (
+        db_session.query(DailyTickerSummary)
+        .filter_by(ticker="TSLA", summary_date=date(2024, 1, 1))
+        .first()
+    )
+    assert entity is not None
+    # The enum value should be "Bullish", not "BULLISH"
+    assert entity.llm_sentiment == LLMSentimentCategory.BULLISH
+    assert entity.llm_sentiment.value == "Bullish"
+
+    # Test with different enum values
+    for sentiment_enum in [
+        LLMSentimentCategory.BEARISH,
+        LLMSentimentCategory.NEUTRAL,
+        LLMSentimentCategory.TO_THE_MOON,
+    ]:
+        dto = DailyTickerSummaryUpsertDTO(
+            ticker="TSLA",
+            summary_date=date(2024, 1, 2),
+            mention_count=100,
+            engagement_count=500,
+            llm_summary="Test summary",
+            llm_sentiment=sentiment_enum,
+            llm_model="gpt-test",
+        )
+        created = repo.upsert_summary(dto)
+        assert created.llm_sentiment == sentiment_enum
+        assert created.llm_sentiment.value in ["Bearish", "Neutral", "🚀 To the Moon"]
