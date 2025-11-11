@@ -51,7 +51,11 @@ class JSONBCompat(TypeDecorator):
 class LLMSentimentEnumType(TypeDecorator):
     """Type decorator to ensure enum values are used instead of names."""
 
-    impl = SQLEnum(LLMSentimentCategory, native_enum=True)
+    impl = SQLEnum(
+        LLMSentimentCategory,
+        native_enum=True,
+        values_callable=lambda x: [e.value for e in LLMSentimentCategory],
+    )
     cache_ok = True
 
     def process_bind_param(self, value, dialect):
