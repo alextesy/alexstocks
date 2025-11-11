@@ -5,8 +5,12 @@ from datetime import UTC, datetime
 import pytest
 
 from app.config import settings
-from app.db.models import Article, ArticleTicker, Ticker
-from app.services.daily_summary import DailySummaryService
+from app.db.models import Article, ArticleTicker, LLMSentimentCategory, Ticker
+from app.services.daily_summary import (
+    DailySummaryResult,
+    DailySummaryService,
+    SummaryInfo,
+)
 
 
 def _seed_daily_summary_data(db_session) -> None:
@@ -193,13 +197,28 @@ def test_generate_langchain_summary_invokes_model(db_session, monkeypatch):
 
     service, summary = _build_summary(db_session, monkeypatch)
 
-    class FakeModel:
-        def __init__(self) -> None:
-            self.batch_inputs: list[str] = []
+    # Track batch inputs
+    batch_inputs: list[str] = []
+
+    class FakeStructuredModel:
+        """Mock structured model that returns SummaryInfo objects."""
 
         def batch(self, prompts, config=None):
-            self.batch_inputs.extend(prompts)
-            return [type("Resp", (), {"content": "Daily summary"})()]
+            batch_inputs.extend(prompts)
+            # Return SummaryInfo objects matching the structured output
+            return [
+                SummaryInfo(
+                    summary="Daily summary for TSLA",
+                    sentiment=LLMSentimentCategory.BULLISH,
+                )
+            ]
+
+    class FakeModel:
+        """Mock model that supports with_structured_output."""
+
+        def with_structured_output(self, output_schema):
+            # Return a model that returns structured output
+            return FakeStructuredModel()
 
     fake_model = FakeModel()
 
@@ -218,5 +237,159 @@ def test_generate_langchain_summary_invokes_model(db_session, monkeypatch):
     expected_prompt = service.build_prompt_for_ticker(
         summary.tickers[0], summary.window_start, summary.window_end
     )
-    assert fake_model.batch_inputs == [expected_prompt]
-    assert responses == ["Daily summary"]
+    # Verify the prompts were passed to batch()
+    assert batch_inputs == [expected_prompt]
+    assert len(responses) == 1
+    assert isinstance(responses[0], SummaryInfo)
+    assert responses[0].summary == "Daily summary for TSLA"
+    assert responses[0].sentiment == LLMSentimentCategory.BULLISH
+
+
+def test_parse_llm_response_with_json_markdown():
+    """Test parsing LLM response wrapped in markdown code blocks."""
+    from app.services.daily_summary import parse_llm_response
+
+    response = """Here's the analysis:
+```json
+{
+  "summary": "TSLA is showing strong momentum with positive sentiment.",
+  "sentiment": "Bullish"
+}
+```"""
+    parsed = parse_llm_response(response)
+    assert parsed.summary == "TSLA is showing strong momentum with positive sentiment."
+    assert parsed.sentiment == LLMSentimentCategory.BULLISH
+
+
+def test_parse_llm_response_with_json_only():
+    """Test parsing LLM response with JSON only."""
+    from app.services.daily_summary import parse_llm_response
+
+    response = '{"summary": "Market is neutral today.", "sentiment": "Neutral"}'
+    parsed = parse_llm_response(response)
+    assert parsed.summary == "Market is neutral today."
+    assert parsed.sentiment == LLMSentimentCategory.NEUTRAL
+
+
+def test_parse_llm_response_with_emoji_sentiment():
+    """Test parsing LLM response with emoji sentiment values."""
+    from app.services.daily_summary import parse_llm_response
+
+    response = '{"summary": "To the moon!", "sentiment": "🚀 To the Moon"}'
+    parsed = parse_llm_response(response)
+    assert parsed.summary == "To the moon!"
+    assert parsed.sentiment == LLMSentimentCategory.TO_THE_MOON
+
+    response = '{"summary": "Doomed!", "sentiment": "💀 Doom"}'
+    parsed = parse_llm_response(response)
+    assert parsed.sentiment == LLMSentimentCategory.DOOM
+
+
+def test_parse_llm_response_with_invalid_sentiment():
+    """Test parsing LLM response with invalid sentiment falls back gracefully."""
+    from app.services.daily_summary import parse_llm_response
+
+    response = '{"summary": "Some summary", "sentiment": "InvalidSentiment"}'
+    parsed = parse_llm_response(response)
+    assert parsed.summary == "Some summary"
+    assert parsed.sentiment is None
+
+
+def test_parse_llm_response_with_no_json():
+    """Test parsing LLM response with no JSON returns raw text."""
+    from app.services.daily_summary import parse_llm_response
+
+    response = "This is just plain text without JSON."
+    parsed = parse_llm_response(response)
+    assert parsed.summary == "This is just plain text without JSON."
+    assert parsed.sentiment is None
+
+
+def test_parse_llm_response_empty():
+    """Test parsing empty response."""
+    from app.services.daily_summary import parse_llm_response
+
+    parsed = parse_llm_response("")
+    assert parsed.summary == ""
+    assert parsed.sentiment is None
+
+    parsed = parse_llm_response("   ")
+    assert parsed.summary == ""
+    assert parsed.sentiment is None
+
+
+def test_generate_langchain_summary_handles_fallback_parsing(db_session, monkeypatch):
+    """Test that generate_langchain_summary handles unexpected response types."""
+    _seed_daily_summary_data(db_session)
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    monkeypatch.setattr(settings, "daily_summary_llm_model", "gpt-test")
+    monkeypatch.setattr(settings, "daily_summary_llm_temperature", 0.5)
+    monkeypatch.setattr(settings, "daily_summary_llm_timeout_seconds", 45)
+    monkeypatch.setattr(settings, "daily_summary_llm_max_tokens", 500)
+
+    service, summary = _build_summary(db_session, monkeypatch)
+
+    # Mock a response that returns a non-SummaryInfo object (simulating edge case)
+    class FakeResponse:
+        def __str__(self):
+            return '{"summary": "Fallback summary", "sentiment": "Neutral"}'
+
+    class FakeStructuredModel:
+        def batch(self, prompts, config=None):
+            # Return a non-SummaryInfo object (simulating fallback scenario)
+            return [FakeResponse()]
+
+    class FakeModel:
+        def with_structured_output(self, output_schema):
+            return FakeStructuredModel()
+
+    fake_model = FakeModel()
+
+    def _fake_init(model_name: str, **kwargs):
+        return fake_model
+
+    monkeypatch.setattr("app.services.daily_summary.init_chat_model", _fake_init)
+
+    responses = service.generate_langchain_summary(summary)
+    # Should handle fallback and parse the string response
+    assert len(responses) == 1
+    assert isinstance(responses[0], SummaryInfo)
+    assert responses[0].summary == "Fallback summary"
+    assert responses[0].sentiment == LLMSentimentCategory.NEUTRAL
+
+
+def test_generate_langchain_summary_empty_tickers(db_session, monkeypatch):
+    """Test generate_langchain_summary with no tickers."""
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    service = DailySummaryService(db_session)
+
+    # Create empty summary
+    empty_summary = DailySummaryResult(
+        window_start=datetime(2024, 5, 2, 11, 0, tzinfo=UTC),
+        window_end=datetime(2024, 5, 2, 23, 0, tzinfo=UTC),
+        tickers=[],
+        total_mentions=0,
+        total_ranked_articles=0,
+    )
+
+    responses = service.generate_langchain_summary(empty_summary)
+    assert responses == []
+
+
+def test_build_prompt_for_ticker_includes_sentiment_instructions(
+    db_session, monkeypatch
+):
+    """Test that build_prompt_for_ticker includes sentiment classification instructions."""
+    _seed_daily_summary_data(db_session)
+    service, summary = _build_summary(db_session, monkeypatch)
+
+    prompt = service.build_prompt_for_ticker(
+        summary.tickers[0], summary.window_start, summary.window_end
+    )
+
+    # Check that prompt includes JSON structure instructions
+    assert "JSON" in prompt or "json" in prompt
+    assert "summary" in prompt.lower()
+    assert "sentiment" in prompt.lower()
+    # Check that it mentions sentiment classification
+    assert "sentiment" in prompt.lower()

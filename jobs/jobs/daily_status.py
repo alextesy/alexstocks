@@ -96,7 +96,7 @@ def format_summary_for_slack(
             if summary and idx < len(summary.tickers):
                 ticker_symbol = summary.tickers[idx].ticker
                 lines.append(f"\n**{ticker_symbol}:**")
-            lines.append(f"Sentiment: {response.sentiment}")
+            lines.append(f"Sentiment: {response.sentiment.value}")
             lines.append(response.summary)
     elif summary and not summary.tickers:
         lines.append("No tickers met the summary thresholds yesterday.")
