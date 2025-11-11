@@ -199,15 +199,8 @@ def run_daily_status_job(
                         for article in ticker_summary.articles
                     ]
 
-                    # Convert string sentiment to enum
-                    sentiment_enum: LLMSentimentCategory | None = None
-                    try:
-                        sentiment_enum = LLMSentimentCategory(summary_info.sentiment)
-                    except ValueError:
-                        logger.warning(
-                            "Invalid sentiment value from LLM, setting to None",
-                            extra={"sentiment": summary_info.sentiment},
-                        )
+                    # summary_info.sentiment is already an LLMSentimentCategory enum from structured output
+                    sentiment_enum: LLMSentimentCategory | None = summary_info.sentiment
 
                     # Build upsert DTO
                     upsert_dto = DailyTickerSummaryUpsertDTO(
