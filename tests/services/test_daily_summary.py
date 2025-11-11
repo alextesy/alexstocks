@@ -172,13 +172,6 @@ def test_build_payloads_include_api_key_and_prompt(db_session, monkeypatch):
     assert first_article["sentiment"] == pytest.approx(0.45)
     assert first_article["subreddit"] == "wallstreetbets"
 
-    langgraph_payload = service.build_langgraph_payload(summary)
-    assert langgraph_payload["config"]["credentials"]["openai_api_key"] == "sk-test"
-    assert (
-        langgraph_payload["input"]["context"]["total_mentions"]
-        == summary.total_mentions
-    )
-
 
 def test_langchain_payload_requires_api_key(db_session, monkeypatch):
     _seed_daily_summary_data(db_session)

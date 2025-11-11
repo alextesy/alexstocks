@@ -1,6 +1,7 @@
 """SQLAlchemy models for Market Pulse."""
 
 from datetime import UTC, date, datetime
+from enum import Enum
 
 from sqlalchemy import (
     JSON,
@@ -16,9 +17,22 @@ from sqlalchemy import (
     UniqueConstraint,
     desc,
 )
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
+
+
+class LLMSentimentCategory(str, Enum):
+    """Enum for LLM sentiment categories."""
+
+    TO_THE_MOON = "🚀 To the Moon"
+    BULLISH = "Bullish"
+    NEUTRAL = "Neutral"
+    BEARISH = "Bearish"
+    DOOM = "💀 Doom"
 
 
 class JSONBCompat(TypeDecorator):
@@ -232,6 +246,9 @@ class DailyTickerSummary(Base):
     llm_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     llm_summary_bullets: Mapped[list[str] | None] = mapped_column(
         JSONBCompat, nullable=True
+    )
+    llm_sentiment: Mapped[LLMSentimentCategory | None] = mapped_column(
+        SQLEnum(LLMSentimentCategory), nullable=True
     )
     llm_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     llm_version: Mapped[str | None] = mapped_column(String(100), nullable=True)

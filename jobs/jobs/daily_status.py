@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import statistics
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,10 +20,15 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
+from app.config import settings  # noqa: E402
+from app.db.models import LLMSentimentCategory  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
+from app.models.dto import DailyTickerSummaryUpsertDTO  # noqa: E402
+from app.repos.summary_repo import DailyTickerSummaryRepository  # noqa: E402
 from app.services.daily_summary import (  # noqa: E402
     DailySummaryResult,
     DailySummaryService,
+    SummaryInfo,
 )
 from app.services.slack_service import SlackService  # noqa: E402
 
@@ -43,7 +49,7 @@ def setup_logging(verbose: bool = False) -> None:
 
 def generate_daily_summary(
     max_tickers: int | None = None,
-) -> tuple[DailySummaryResult | None, list[str]]:
+) -> tuple[DailySummaryResult | None, list[SummaryInfo]]:
     """Generate daily summary with LLM responses.
 
     Args:
@@ -68,7 +74,7 @@ def generate_daily_summary(
 
 def format_summary_for_slack(
     summary: DailySummaryResult | None,
-    responses: list[str],
+    responses: list[SummaryInfo],
 ) -> str:
     """Format the daily summary for Slack."""
     lines = ["Daily Summary"]
@@ -90,7 +96,8 @@ def format_summary_for_slack(
             if summary and idx < len(summary.tickers):
                 ticker_symbol = summary.tickers[idx].ticker
                 lines.append(f"\n**{ticker_symbol}:**")
-            lines.append(response)
+            lines.append(f"Sentiment: {response.sentiment}")
+            lines.append(response.summary)
     elif summary and not summary.tickers:
         lines.append("No tickers met the summary thresholds yesterday.")
 
@@ -125,7 +132,124 @@ def run_daily_status_job(
                 if summary and idx < len(summary.tickers):
                     ticker_symbol = summary.tickers[idx].ticker
                     print(f"\n[{ticker_symbol}]")
-                print(response)
+                print(f"Summary: {response.summary}")
+                print(f"Sentiment: {response.sentiment}")
+
+        # Persist summaries to database
+        if summary and summary.tickers and responses:
+            session = SessionLocal()
+            try:
+                repo = DailyTickerSummaryRepository(session)
+                summary_date = summary.window_end.date()
+
+                for idx, ticker_summary in enumerate(summary.tickers):
+                    if idx >= len(responses):
+                        logger.warning(
+                            "Response count mismatch",
+                            extra={
+                                "ticker": ticker_summary.ticker,
+                                "total_responses": len(responses),
+                                "ticker_index": idx,
+                            },
+                        )
+                        continue
+
+                    summary_info: SummaryInfo = responses[idx]
+
+                    # Calculate sentiment stats from articles
+                    article_sentiments = [
+                        article.sentiment
+                        for article in ticker_summary.articles
+                        if article.sentiment is not None
+                    ]
+
+                    avg_sentiment: float | None = None
+                    sentiment_stddev: float | None = None
+                    sentiment_min: float | None = None
+                    sentiment_max: float | None = None
+
+                    if article_sentiments:
+                        avg_sentiment = statistics.mean(article_sentiments)
+                        if len(article_sentiments) > 1:
+                            sentiment_stddev = statistics.stdev(article_sentiments)
+                        sentiment_min = min(article_sentiments)
+                        sentiment_max = max(article_sentiments)
+
+                    # Calculate engagement count (sum of upvotes + comments)
+                    engagement_count = sum(
+                        article.upvotes + article.num_comments
+                        for article in ticker_summary.articles
+                    )
+
+                    # Serialize top articles
+                    top_articles = [
+                        {
+                            "article_id": article.article_id,
+                            "title": article.title,
+                            "url": article.url,
+                            "published_at": article.published_at.isoformat(),
+                            "upvotes": article.upvotes,
+                            "num_comments": article.num_comments,
+                            "engagement_score": article.engagement_score,
+                            "sentiment": article.sentiment,
+                            "source": article.source,
+                            "subreddit": article.subreddit,
+                            "author": article.author,
+                        }
+                        for article in ticker_summary.articles
+                    ]
+
+                    # Convert string sentiment to enum
+                    sentiment_enum: LLMSentimentCategory | None = None
+                    try:
+                        sentiment_enum = LLMSentimentCategory(summary_info.sentiment)
+                    except ValueError:
+                        logger.warning(
+                            "Invalid sentiment value from LLM, setting to None",
+                            extra={"sentiment": summary_info.sentiment},
+                        )
+
+                    # Build upsert DTO
+                    upsert_dto = DailyTickerSummaryUpsertDTO(
+                        ticker=ticker_summary.ticker,
+                        summary_date=summary_date,
+                        mention_count=ticker_summary.mentions,
+                        engagement_count=engagement_count,
+                        avg_sentiment=avg_sentiment,
+                        sentiment_stddev=sentiment_stddev,
+                        sentiment_min=sentiment_min,
+                        sentiment_max=sentiment_max,
+                        top_articles=top_articles,
+                        llm_summary=summary_info.summary,
+                        llm_summary_bullets=None,  # Skipping bullets for Phase 1
+                        llm_sentiment=sentiment_enum,
+                        llm_model=settings.daily_summary_llm_model,
+                        llm_version=None,  # Can be enhanced later if needed
+                    )
+
+                    try:
+                        repo.upsert_summary(upsert_dto)
+                        session.commit()
+                        logger.info(
+                            "Persisted daily summary to database",
+                            extra={
+                                "ticker": ticker_summary.ticker,
+                                "summary_date": summary_date.isoformat(),
+                                "sentiment": summary_info.sentiment,
+                            },
+                        )
+                    except Exception as e:
+                        session.rollback()
+                        logger.error(
+                            "Failed to persist summary for ticker",
+                            extra={
+                                "ticker": ticker_summary.ticker,
+                                "error": str(e),
+                            },
+                            exc_info=True,
+                        )
+            finally:
+                session.close()
 
         # Send formatted message to Slack
         slack_text = format_summary_for_slack(summary, responses)

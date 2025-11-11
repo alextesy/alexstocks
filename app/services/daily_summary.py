@@ -2,23 +2,140 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import math
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from langchain.chat_models import init_chat_model
+from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db.models import Article, ArticleTicker, Ticker
+from app.db.models import Article, ArticleTicker, LLMSentimentCategory, Ticker
 
 logger = logging.getLogger(__name__)
 
 Framework = Literal["langchain", "langgraph"]
+
+
+class SummaryInfo(BaseModel):
+    """Structured response model for LLM summary with sentiment classification."""
+
+    summary: str = Field(
+        description=(
+            "Two concise paragraphs: one covering momentum and sentiment, "
+            "another capturing the most cited catalysts."
+        )
+    )
+    sentiment: LLMSentimentCategory = Field(
+        description=(
+            "Overall sentiment classification for the ticker based on retail investor discussions. "
+            "Choose the category that best represents the collective mood:\n"
+            "- 🚀 To the Moon: Extreme positive sentiment - hype, euphoric, bullish calls like 'buy the dip', "
+            "'diamond hands', 'this is going 10x', emojis 🚀💎🙌\n"
+            "- Bullish: Optimistic or confident sentiment, but not extreme - 'looks good', "
+            "'earnings should beat', 'undervalued'\n"
+            "- Neutral: Factual, news-driven, or uncertain tone - 'earnings report tomorrow', "
+            "'holding for now', 'need to see volume'\n"
+            "- Bearish: Skeptical or mildly negative tone - 'overvalued', 'will drop', 'I'm selling'\n"
+            "- 💀 Doom: Extreme negative sentiment - panic or mockery - 'bagholders', 'dead company', "
+            "'GG', 'rip portfolio', emojis 💀😬😭"
+        )
+    )
+
+
+@dataclass(frozen=True)
+class ParsedLLMResponse:
+    """Parsed structured response from LLM."""
+
+    summary: str
+    sentiment: LLMSentimentCategory | None
+
+
+def parse_llm_response(response: str) -> ParsedLLMResponse:
+    """Parse structured JSON response from LLM.
+
+    Args:
+        response: Raw response string from LLM (may contain JSON or plain text)
+
+    Returns:
+        ParsedLLMResponse with summary text and sentiment category
+
+    The function attempts to:
+    1. Extract JSON from the response (handles markdown code blocks, extra text)
+    2. Parse the JSON and extract summary and sentiment fields
+    3. Validate sentiment category
+    4. Fall back to storing raw response if parsing fails
+    """
+    if not response or not response.strip():
+        return ParsedLLMResponse(summary="", sentiment=None)
+
+    # Try to extract JSON from response (may be wrapped in markdown code blocks)
+    json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response, re.DOTALL)
+    if json_match:
+        json_str = json_match.group(1)
+    else:
+        # Try to find JSON object directly
+        json_match = re.search(r"\{.*\}", response, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(0)
+        else:
+            # No JSON found, return raw response as summary
+            logger.warning(
+                "No JSON found in LLM response, storing raw text",
+                extra={"response_preview": response[:200]},
+            )
+            return ParsedLLMResponse(summary=response.strip(), sentiment=None)
+
+    try:
+        parsed = json.loads(json_str)
+        summary_text = parsed.get("summary", "").strip()
+        sentiment_raw = parsed.get("sentiment", "").strip()
+
+        # Map variations to enum values (case-insensitive for text, preserve emojis)
+        sentiment_mapping = {
+            "🚀 to the moon": LLMSentimentCategory.TO_THE_MOON,
+            "to the moon": LLMSentimentCategory.TO_THE_MOON,
+            "bullish": LLMSentimentCategory.BULLISH,
+            "neutral": LLMSentimentCategory.NEUTRAL,
+            "bearish": LLMSentimentCategory.BEARISH,
+            "💀 doom": LLMSentimentCategory.DOOM,
+            "doom": LLMSentimentCategory.DOOM,
+        }
+
+        # First check exact match (case-sensitive) against enum values
+        sentiment_category: LLMSentimentCategory | None = None
+        try:
+            sentiment_category = LLMSentimentCategory(sentiment_raw)
+        except ValueError:
+            # If no exact match, try normalized (lowercase) version
+            sentiment_normalized = sentiment_raw.lower()
+            sentiment_category = sentiment_mapping.get(sentiment_normalized)
+
+        if not sentiment_category:
+            logger.warning(
+                "Invalid sentiment category in LLM response",
+                extra={
+                    "sentiment_received": sentiment_raw,
+                    "valid_sentiments": [cat.value for cat in LLMSentimentCategory],
+                },
+            )
+
+        # Return enum directly (or None if invalid)
+        return ParsedLLMResponse(summary=summary_text, sentiment=sentiment_category)
+
+    except json.JSONDecodeError as e:
+        logger.warning(
+            "Failed to parse JSON from LLM response, storing raw text",
+            extra={"error": str(e), "json_preview": json_str[:200]},
+        )
+        return ParsedLLMResponse(summary=response.strip(), sentiment=None)
 
 
 @dataclass(frozen=True)
@@ -262,8 +379,13 @@ class DailySummaryService:
             f"during the last day - {month_name} {day}{day_suffix}."
         )
         instructions = (
-            "Provide two concise paragraphs: one covering momentum and sentiment, "
-            "another capturing the most cited catalysts."
+            "Analyze the provided articles and synthesize a comprehensive summary. "
+            "Your response must be structured as JSON with 'summary' and 'sentiment' fields.\n\n"
+            "Summary: Write two concise paragraphs - the first should cover momentum and overall sentiment "
+            "trends, the second should capture the most cited catalysts and key themes.\n\n"
+            "Sentiment: Classify the overall retail investor sentiment by analyzing the collective tone, "
+            "language patterns, and emotional indicators across all discussions. Consider the intensity and "
+            "consistency of sentiment signals, not just isolated comments."
         )
 
         lines = [
@@ -358,36 +480,6 @@ class DailySummaryService:
         }
         logger.debug(
             "Constructed LangChain payload",
-            extra={
-                "tickers": len(summary.tickers),
-                "articles": summary.total_ranked_articles,
-            },
-        )
-        return payload
-
-    def build_langgraph_payload(self, summary: DailySummaryResult) -> dict[str, Any]:
-        """Build a payload for LangGraph orchestrations."""
-
-        api_key = settings.openai_api_key
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY is required for LangGraph payloads")
-
-        payload = {
-            "framework": "langgraph",
-            "config": {
-                "llm": {
-                    "provider": "openai",
-                    "model": settings.daily_summary_llm_model,
-                },
-                "credentials": {"openai_api_key": api_key},
-            },
-            "input": {
-                "prompt": self.build_prompt(summary),
-                "context": self._serialize_summary(summary),
-            },
-        }
-        logger.debug(
-            "Constructed LangGraph payload",
             extra={
                 "tickers": len(summary.tickers),
                 "articles": summary.total_ranked_articles,
@@ -520,7 +612,7 @@ class DailySummaryService:
 
     def generate_langchain_summary(
         self, summary: DailySummaryResult, max_concurrency: int = 5
-    ) -> list[str]:
+    ) -> list[SummaryInfo]:
         """Execute the configured LangChain model with one prompt per ticker using batch calls.
 
         Args:
@@ -528,7 +620,7 @@ class DailySummaryService:
             max_concurrency: Maximum number of parallel API calls (default: 5)
 
         Returns:
-            List of responses, one per ticker in the same order as summary.tickers
+            List of SummaryInfo objects, one per ticker in the same order as summary.tickers
         """
 
         if not summary.tickers:
@@ -553,7 +645,7 @@ class DailySummaryService:
         # Mask API key for logging (show first 7 and last 4 chars)
         masked_key = f"{api_key[:7]}...{api_key[-4:]}" if len(api_key) > 11 else "***"
         logger.info(
-            "Invoking LangChain model with batch calls",
+            "Invoking LangChain model with structured output",
             extra={
                 "model": model_name,
                 "api_key_preview": masked_key,
@@ -562,6 +654,7 @@ class DailySummaryService:
                 "avg_prompt_length": (
                     sum(len(p) for p in prompts) // len(prompts) if prompts else 0
                 ),
+                "response_format": "SummaryInfo",
             },
         )
 
@@ -573,9 +666,16 @@ class DailySummaryService:
             api_key=api_key,
         )
 
+        # Configure structured output using Pydantic model
+        structured_model = model.with_structured_output(SummaryInfo)
+
         try:
-            # LangChain's batch accepts list[str] (prompts), but mypy types are strict
-            responses = model.batch(prompts, config={"max_concurrency": max_concurrency})  # type: ignore[arg-type]
+            # Use structured output - responses will be SummaryInfo objects
+            from typing import cast
+
+            responses = structured_model.batch(  # type: ignore[attr-defined]
+                cast(Any, prompts), config={"max_concurrency": max_concurrency}
+            )
         except Exception as e:
             error_msg = str(e)
             error_type = type(e).__name__
@@ -632,19 +732,32 @@ class DailySummaryService:
                     f"Model: {model_name}"
                 ) from e
 
-        outputs: list[str] = []
+        # Responses are already SummaryInfo objects from structured output
+        summary_infos: list[SummaryInfo] = []
         for idx, response in enumerate(responses):
-            content = getattr(response, "content", None)
-            if isinstance(content, str):
-                outputs.append(content)
-            elif isinstance(content, list):
-                concatenated = "".join(
-                    part.get("text", "") if isinstance(part, dict) else str(part)
-                    for part in content
-                )
-                outputs.append(concatenated)
+            # Ensure response is SummaryInfo (should be from structured output)
+            if isinstance(response, SummaryInfo):
+                summary_infos.append(response)
             else:
-                outputs.append(str(response))
+                # Fallback: try to parse if somehow we got a string
+                logger.warning(
+                    "Unexpected response type, attempting to parse",
+                    extra={
+                        "ticker": (
+                            ticker_symbols[idx]
+                            if idx < len(ticker_symbols)
+                            else "unknown"
+                        ),
+                        "response_type": type(response).__name__,
+                    },
+                )
+                # This shouldn't happen with structured output, but handle gracefully
+                parsed = parse_llm_response(str(response))
+                # Use parsed sentiment enum, default to Neutral if None
+                sentiment_enum = parsed.sentiment or LLMSentimentCategory.NEUTRAL
+                summary_infos.append(
+                    SummaryInfo(summary=parsed.summary, sentiment=sentiment_enum)
+                )
 
             logger.debug(
                 "Received response for ticker",
@@ -652,19 +765,19 @@ class DailySummaryService:
                     "ticker": (
                         ticker_symbols[idx] if idx < len(ticker_symbols) else "unknown"
                     ),
-                    "response_length": len(outputs[-1]),
+                    "sentiment": summary_infos[-1].sentiment,
                 },
             )
 
         logger.info(
             "Completed batch LangChain calls",
             extra={
-                "num_responses": len(outputs),
+                "num_responses": len(summary_infos),
                 "tickers": ticker_symbols,
             },
         )
 
-        return outputs
+        return summary_infos
 
     def _engagement_score(self, article: Article, confidence: float | None) -> float:
         upvotes = max(0, int(article.upvotes or 0))
