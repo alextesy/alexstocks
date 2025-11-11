@@ -48,6 +48,29 @@ class JSONBCompat(TypeDecorator):
             return dialect.type_descriptor(JSON())
 
 
+class LLMSentimentEnumType(TypeDecorator):
+    """Type decorator to ensure enum values are used instead of names."""
+
+    impl = SQLEnum(LLMSentimentCategory, native_enum=True)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        """Convert enum to its value when binding to database."""
+        if value is None:
+            return None
+        if isinstance(value, LLMSentimentCategory):
+            return value.value
+        return value
+
+    def process_result_value(self, value, dialect):
+        """Convert database value back to enum."""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return LLMSentimentCategory(value)
+        return value
+
+
 class BigIntegerCompat(TypeDecorator):
     """A type that uses BigInteger for PostgreSQL and Integer for SQLite (for autoincrement support)."""
 
@@ -248,7 +271,7 @@ class DailyTickerSummary(Base):
         JSONBCompat, nullable=True
     )
     llm_sentiment: Mapped[LLMSentimentCategory | None] = mapped_column(
-        SQLEnum(LLMSentimentCategory), nullable=True
+        LLMSentimentEnumType(), nullable=True
     )
     llm_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     llm_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
