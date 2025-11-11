@@ -54,10 +54,12 @@ def test_enum_serialization():
 
         # Verify by querying directly
         from app.db.models import DailyTickerSummary  # noqa: E402
-        entity = session.query(DailyTickerSummary).filter_by(
-            ticker="TEST",
-            summary_date=date.today()
-        ).first()
+
+        entity = (
+            session.query(DailyTickerSummary)
+            .filter_by(ticker="TEST", summary_date=date.today())
+            .first()
+        )
 
         if entity:
             print("\n✓ Verified in database:")
@@ -68,16 +70,20 @@ def test_enum_serialization():
         # Test all enum values
         print("\n\nTesting all enum values...")
         test_date = date.today()
-        for idx, sentiment_enum in enumerate([
-            LLMSentimentCategory.TO_THE_MOON,
-            LLMSentimentCategory.BULLISH,
-            LLMSentimentCategory.NEUTRAL,
-            LLMSentimentCategory.BEARISH,
-            LLMSentimentCategory.DOOM,
-        ]):
+        for idx, sentiment_enum in enumerate(
+            [
+                LLMSentimentCategory.TO_THE_MOON,
+                LLMSentimentCategory.BULLISH,
+                LLMSentimentCategory.NEUTRAL,
+                LLMSentimentCategory.BEARISH,
+                LLMSentimentCategory.DOOM,
+            ]
+        ):
             test_dto = DailyTickerSummaryUpsertDTO(
                 ticker="TEST",
-                summary_date=date(test_date.year, test_date.month, test_date.day - idx - 1),
+                summary_date=date(
+                    test_date.year, test_date.month, test_date.day - idx - 1
+                ),
                 mention_count=100,
                 engagement_count=500,
                 llm_summary=f"Test summary with {sentiment_enum.value} sentiment",
@@ -85,7 +91,9 @@ def test_enum_serialization():
                 llm_model="gpt-test",
             )
             result = repo.upsert_summary(test_dto)
-            print(f"✓ {sentiment_enum.name} -> {sentiment_enum.value} (saved as ID: {result.id})")
+            print(
+                f"✓ {sentiment_enum.name} -> {sentiment_enum.value} (saved as ID: {result.id})"
+            )
 
         print("\n✅ All enum serialization tests passed!")
         return True
@@ -93,13 +101,13 @@ def test_enum_serialization():
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     finally:
         session.close()
 
+
 if __name__ == "__main__":
     success = test_enum_serialization()
     sys.exit(0 if success else 1)
-
-
