@@ -41,6 +41,7 @@ class DailyTickerSummaryRepository:
             existing.top_articles = summary.top_articles
             existing.llm_summary = summary.llm_summary
             existing.llm_summary_bullets = summary.llm_summary_bullets
+            existing.llm_sentiment = summary.llm_sentiment
             existing.llm_model = summary.llm_model
             existing.llm_version = summary.llm_version
             existing.updated_at = now
@@ -59,6 +60,7 @@ class DailyTickerSummaryRepository:
             top_articles=summary.top_articles,
             llm_summary=summary.llm_summary,
             llm_summary_bullets=summary.llm_summary_bullets,
+            llm_sentiment=summary.llm_sentiment,
             llm_model=summary.llm_model,
             llm_version=summary.llm_version,
             created_at=now,
@@ -158,6 +160,7 @@ class DailyTickerSummaryRepository:
             top_articles=entity.top_articles,
             llm_summary=entity.llm_summary,
             llm_summary_bullets=entity.llm_summary_bullets,
+            llm_sentiment=entity.llm_sentiment,
             llm_model=entity.llm_model,
             llm_version=entity.llm_version,
             created_at=entity.created_at,

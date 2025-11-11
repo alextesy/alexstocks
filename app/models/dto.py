@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
+from app.db.models import LLMSentimentCategory
+
 
 @dataclass
 class TickerLinkDTO:
@@ -221,6 +223,7 @@ class DailyTickerSummaryUpsertDTO:
     top_articles: list[dict[str, Any]] | None = None
     llm_summary: str | None = None
     llm_summary_bullets: list[str] | None = None
+    llm_sentiment: LLMSentimentCategory | None = None
     llm_model: str | None = None
     llm_version: str | None = None
 
@@ -241,6 +244,7 @@ class DailyTickerSummaryDTO:
     top_articles: list[dict[str, Any]] | None
     llm_summary: str | None
     llm_summary_bullets: list[str] | None
+    llm_sentiment: LLMSentimentCategory | None
     llm_model: str | None
     llm_version: str | None
     created_at: datetime

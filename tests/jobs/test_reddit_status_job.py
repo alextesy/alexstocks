@@ -7,10 +7,12 @@ from typing import Any
 import pytest
 
 import jobs.jobs.daily_status as daily_status
+from app.db.models import LLMSentimentCategory
 from app.services.daily_summary import (
     DailySummaryArticle,
     DailySummaryResult,
     DailyTickerSummary,
+    SummaryInfo,
 )
 
 
@@ -99,10 +101,18 @@ def test_run_status_job_sends_slack(
 
     monkeypatch.setattr(daily_status, "SlackService", lambda: fake_slack)
     monkeypatch.setattr(builtins, "print", lambda *_, **__: None)
+    # Create mock SummaryInfo objects
+    mock_responses = [
+        SummaryInfo(
+            summary="TSLA momentum is strong with positive sentiment.",
+            sentiment=LLMSentimentCategory.BULLISH,
+        )
+    ]
+
     monkeypatch.setattr(
         daily_status,
         "generate_daily_summary",
-        lambda **_: (fake_summary, ["LLM output"]),
+        lambda **_: (fake_summary, mock_responses),
     )
 
     result = daily_status.run_daily_status_job()
@@ -110,7 +120,9 @@ def test_run_status_job_sends_slack(
     assert result["summary"]["tickers"] == 1
     assert fake_slack.starts[0][0] == daily_status.JOB_NAME
     assert fake_slack.completions[0]["status"] == "success"
-    assert "LLM output" in fake_slack.messages[0]["text"]
+    # Check that the summary text is in the Slack message
+    assert "TSLA momentum is strong" in fake_slack.messages[0]["text"]
+    assert "Bullish" in fake_slack.messages[0]["text"]
 
 
 def test_run_status_job_handles_summary_error(monkeypatch: pytest.MonkeyPatch) -> None:
