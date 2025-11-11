@@ -9,12 +9,12 @@ ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from datetime import date
+from datetime import date  # noqa: E402
 
-from app.db.models import LLMSentimentCategory, Ticker
-from app.db.session import SessionLocal
-from app.models.dto import DailyTickerSummaryUpsertDTO
-from app.repos.summary_repo import DailyTickerSummaryRepository
+from app.db.models import LLMSentimentCategory, Ticker  # noqa: E402
+from app.db.session import SessionLocal  # noqa: E402
+from app.models.dto import DailyTickerSummaryUpsertDTO  # noqa: E402
+from app.repos.summary_repo import DailyTickerSummaryRepository  # noqa: E402
 
 
 def test_enum_serialization():
@@ -53,7 +53,7 @@ def test_enum_serialization():
         print(f"✓ Sentiment value: {created.llm_sentiment.value}")
 
         # Verify by querying directly
-        from app.db.models import DailyTickerSummary
+        from app.db.models import DailyTickerSummary  # noqa: E402
         entity = session.query(DailyTickerSummary).filter_by(
             ticker="TEST",
             summary_date=date.today()
