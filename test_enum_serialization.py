@@ -16,11 +16,12 @@ from app.db.session import SessionLocal
 from app.models.dto import DailyTickerSummaryUpsertDTO
 from app.repos.summary_repo import DailyTickerSummaryRepository
 
+
 def test_enum_serialization():
     """Test that enum values are correctly serialized to database."""
     session = SessionLocal()
     repo = DailyTickerSummaryRepository(session)
-    
+
     try:
         # Ensure ticker exists
         ticker = session.get(Ticker, "TEST")
@@ -28,13 +29,13 @@ def test_enum_serialization():
             ticker = Ticker(symbol="TEST", name="Test Inc.")
             session.add(ticker)
             session.commit()
-        
+
         # Test saving with enum object
         print("Testing enum serialization...")
         print(f"Enum object: {LLMSentimentCategory.BULLISH}")
         print(f"Enum name: {LLMSentimentCategory.BULLISH.name}")
         print(f"Enum value: {LLMSentimentCategory.BULLISH.value}")
-        
+
         dto = DailyTickerSummaryUpsertDTO(
             ticker="TEST",
             summary_date=date.today(),
@@ -44,26 +45,26 @@ def test_enum_serialization():
             llm_sentiment=LLMSentimentCategory.BULLISH,
             llm_model="gpt-test",
         )
-        
+
         print("\nSaving to database...")
         created = repo.upsert_summary(dto)
         print(f"✓ Successfully saved! ID: {created.id}")
         print(f"✓ Sentiment enum: {created.llm_sentiment}")
         print(f"✓ Sentiment value: {created.llm_sentiment.value}")
-        
+
         # Verify by querying directly
         from app.db.models import DailyTickerSummary
         entity = session.query(DailyTickerSummary).filter_by(
-            ticker="TEST", 
+            ticker="TEST",
             summary_date=date.today()
         ).first()
-        
+
         if entity:
-            print(f"\n✓ Verified in database:")
+            print("\n✓ Verified in database:")
             print(f"  - Sentiment enum: {entity.llm_sentiment}")
             print(f"  - Sentiment value: {entity.llm_sentiment.value}")
             print(f"  - Raw value matches: {entity.llm_sentiment.value == 'Bullish'}")
-        
+
         # Test all enum values
         print("\n\nTesting all enum values...")
         test_date = date.today()
@@ -85,10 +86,10 @@ def test_enum_serialization():
             )
             result = repo.upsert_summary(test_dto)
             print(f"✓ {sentiment_enum.name} -> {sentiment_enum.value} (saved as ID: {result.id})")
-        
+
         print("\n✅ All enum serialization tests passed!")
         return True
-        
+
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback
