@@ -58,8 +58,20 @@ class LLMSentimentEnumType(TypeDecorator):
         """Convert enum to its value when binding to database."""
         if value is None:
             return None
+        # If it's already an enum object, get its value
         if isinstance(value, LLMSentimentCategory):
             return value.value
+        # If it's a string that matches an enum name, convert to value
+        if isinstance(value, str):
+            try:
+                # Try to find enum by name first
+                for enum_member in LLMSentimentCategory:
+                    if enum_member.name == value:
+                        return enum_member.value
+                # If not found by name, assume it's already a value
+                return value
+            except (ValueError, AttributeError):
+                return value
         return value
 
     def process_result_value(self, value, dialect):
@@ -67,7 +79,14 @@ class LLMSentimentEnumType(TypeDecorator):
         if value is None:
             return None
         if isinstance(value, str):
-            return LLMSentimentCategory(value)
+            try:
+                return LLMSentimentCategory(value)
+            except ValueError:
+                # If value doesn't match, try to find by name
+                for enum_member in LLMSentimentCategory:
+                    if enum_member.name == value:
+                        return enum_member
+                raise
         return value
 
 
