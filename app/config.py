@@ -198,6 +198,30 @@ class Settings(BaseSettings):
         ),
     )
 
+    # Email configuration
+    email_provider: Literal["ses", "sendgrid"] = Field(
+        default="ses",
+        validation_alias=AliasChoices("EMAIL_PROVIDER", "email_provider"),
+    )
+    email_from_address: str = Field(
+        default="noreply@alexstocks.com",
+        validation_alias=AliasChoices("EMAIL_FROM_ADDRESS", "email_from_address"),
+    )
+    email_from_name: str = Field(
+        default="AlexStocks",
+        validation_alias=AliasChoices("EMAIL_FROM_NAME", "email_from_name"),
+    )
+    aws_ses_region: str = Field(
+        default="us-east-1",
+        validation_alias=AliasChoices("AWS_SES_REGION", "aws_ses_region"),
+    )
+
+    # Test email configuration
+    test_email_recipient: str = Field(
+        default="test@example.com",  # Default for tests, override in .env for production
+        validation_alias=AliasChoices("TEST_EMAIL_RECIPIENT", "test_email_recipient"),
+    )
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

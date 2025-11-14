@@ -210,6 +210,9 @@ analyze-tickers: ## Analyze ticker database and show statistics
 check-rate-limit: ## Check if Yahoo Finance rate limit has cleared
 	uv run python app/scripts/check_rate_limit.py
 
+send-test-email: ## Send a test email to verify email service configuration
+	uv run python app/scripts/send_test_email.py
+
 # Combined Jobs (Scraping + Sentiment)
 scrape-and-analyze-posts: ## Scrape Reddit posts and analyze sentiment
 	cd jobs && PYTHONPATH=.. uv run python -m jobs.scrape_and_analyze posts
