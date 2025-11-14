@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time
+from datetime import date, datetime, time
 from typing import Any
 from urllib.parse import quote_plus, urljoin
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -98,14 +98,21 @@ def map_sentiment_to_display(
 
 def format_summary_date(summary_date: date | None, timezone: str | None) -> str:
     """Format summary date in the recipient's timezone."""
-    target_date = summary_date or datetime.now(UTC).date()
     try:
-        tz = ZoneInfo(timezone) if timezone else ZoneInfo("UTC")
+        summary_tz = ZoneInfo(settings.daily_summary_window_timezone)
     except ZoneInfoNotFoundError:
-        tz = ZoneInfo("UTC")
+        summary_tz = ZoneInfo("UTC")
 
-    midnight_utc = datetime.combine(target_date, time.min, tzinfo=UTC)
-    localized = midnight_utc.astimezone(tz)
+    try:
+        target_tz = ZoneInfo(timezone) if timezone else summary_tz
+    except ZoneInfoNotFoundError:
+        target_tz = summary_tz
+
+    if summary_date is None:
+        summary_date = datetime.now(summary_tz).date()
+
+    anchor = datetime.combine(summary_date, time(hour=12), tzinfo=summary_tz)
+    localized = anchor.astimezone(target_tz)
     return localized.strftime("%A, %B %d, %Y")
 
 

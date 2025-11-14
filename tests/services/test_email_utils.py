@@ -25,6 +25,12 @@ def test_format_summary_date_uses_timezone(monkeypatch):
     assert "November" in result
 
 
+def test_format_summary_date_avoids_previous_day(monkeypatch):
+    monkeypatch.setattr(settings, "daily_summary_window_timezone", "America/New_York")
+    result = email_utils.format_summary_date(date(2024, 11, 10), "America/Los_Angeles")
+    assert "November 10" in result
+
+
 def test_build_unsubscribe_url(monkeypatch):
     monkeypatch.setattr(settings, "app_base_url", "https://example.com/base")
     url = email_utils.build_unsubscribe_url("signed token")
