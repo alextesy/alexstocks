@@ -1,7 +1,6 @@
 """Tests for the DailyTickerSummary repository."""
 
 from datetime import date, timedelta
-from typing import Any
 
 import pytest
 
@@ -39,7 +38,7 @@ def test_upsert_creates_and_updates_summary(db_session, repo):
         sentiment_stddev=0.1,
         sentiment_min=-0.2,
         sentiment_max=0.9,
-        top_articles=[{"url": "https://example.com/aapl", "score": 0.8}],
+        top_articles=[101],
         llm_summary="Apple sees strong retail interest",
         llm_summary_bullets=["Retail flow up", "High optimism"],
         llm_model="gpt-test",
@@ -61,7 +60,7 @@ def test_upsert_creates_and_updates_summary(db_session, repo):
             sentiment_stddev=0.15,
             sentiment_min=-0.1,
             sentiment_max=0.95,
-            top_articles=[{"url": "https://example.com/aapl", "score": 0.9}],
+            top_articles=[101, 202],
             llm_summary="Retail interest continues to climb",
             llm_summary_bullets=["Mentions up"],
             llm_model="gpt-test",
@@ -109,14 +108,7 @@ def test_json_payload_round_trip(db_session, repo):
     """Ensure JSON and bullet list fields persist without mutation."""
 
     _ensure_ticker(db_session, "NVDA")
-    articles: list[dict[str, Any]] = [
-        {"url": "https://example.com/nvda-1", "title": "NVDA rallies", "score": 0.95},
-        {
-            "url": "https://example.com/nvda-2",
-            "title": "Options traders pile in",
-            "metadata": {"mentions": 42},
-        },
-    ]
+    article_ids = [111, 222]
     bullets = ["Bullish sentiment rising", "Institutional interest"]
 
     repo.upsert_summary(
@@ -125,14 +117,14 @@ def test_json_payload_round_trip(db_session, repo):
             summary_date=date(2024, 3, 5),
             mention_count=300,
             engagement_count=1200,
-            top_articles=articles,
+            top_articles=article_ids,
             llm_summary="NVIDIA remains a retail favourite.",
             llm_summary_bullets=bullets,
         )
     )
 
     fetched = repo.get_summaries_for_ticker("NVDA")
-    assert fetched[0].top_articles == articles
+    assert fetched[0].top_articles == article_ids
     assert fetched[0].llm_summary_bullets == bullets
 
 

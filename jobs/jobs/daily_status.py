@@ -181,23 +181,8 @@ def run_daily_status_job(
                         for article in ticker_summary.articles
                     )
 
-                    # Serialize top articles
-                    top_articles = [
-                        {
-                            "article_id": article.article_id,
-                            "title": article.title,
-                            "url": article.url,
-                            "published_at": article.published_at.isoformat(),
-                            "upvotes": article.upvotes,
-                            "num_comments": article.num_comments,
-                            "engagement_score": article.engagement_score,
-                            "sentiment": article.sentiment,
-                            "source": article.source,
-                            "subreddit": article.subreddit,
-                            "author": article.author,
-                        }
-                        for article in ticker_summary.articles
-                    ]
+                    # Only persist article identifiers to minimize JSON payload size
+                    top_articles = [article.article_id for article in ticker_summary.articles]
 
                     # summary_info.sentiment is already an LLMSentimentCategory enum from structured output
                     sentiment_enum: LLMSentimentCategory | None = summary_info.sentiment

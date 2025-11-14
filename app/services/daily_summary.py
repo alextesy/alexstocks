@@ -18,6 +18,11 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db.models import Article, ArticleTicker, LLMSentimentCategory, Ticker
+from app.services.engagement import (
+    DEFAULT_COMMENT_WEIGHT,
+    DEFAULT_UPVOTE_WEIGHT,
+    calculate_engagement_score,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -187,8 +192,8 @@ class DailySummaryService:
         session: Session,
         *,
         articles_per_ticker: int = 10,
-        upvote_weight: float = 0.7,
-        comment_weight: float = 0.3,
+        upvote_weight: float = DEFAULT_UPVOTE_WEIGHT,
+        comment_weight: float = DEFAULT_COMMENT_WEIGHT,
     ) -> None:
         self._session = session
         self._articles_per_ticker = max(1, articles_per_ticker)
@@ -780,14 +785,21 @@ class DailySummaryService:
         return summary_infos
 
     def _engagement_score(self, article: Article, confidence: float | None) -> float:
-        upvotes = max(0, int(article.upvotes or 0))
-        comments = max(0, int(article.num_comments or 0))
         conf = max(0.0, float(confidence or 1.0))
+        base_score = article.engagement_score
+        weights_match_defaults = math.isclose(
+            self._upvote_weight, DEFAULT_UPVOTE_WEIGHT
+        ) and math.isclose(self._comment_weight, DEFAULT_COMMENT_WEIGHT)
 
-        score = self._upvote_weight * math.log1p(
-            upvotes
-        ) + self._comment_weight * math.log1p(comments)
-        return score * conf
+        if base_score is None or not weights_match_defaults:
+            base_score = calculate_engagement_score(
+                article.upvotes,
+                article.num_comments,
+                upvote_weight=self._upvote_weight,
+                comment_weight=self._comment_weight,
+            )
+
+        return float(base_score) * conf
 
     def _ensure_utc(self, published_at: datetime) -> datetime:
         if published_at.tzinfo is None:

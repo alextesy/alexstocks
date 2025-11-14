@@ -39,6 +39,7 @@ from app.db.models import (  # noqa: E402
     Ticker,
 )
 from app.db.session import SessionLocal  # noqa: E402
+from app.services.engagement import calculate_engagement_score  # noqa: E402
 
 from .linker import TickerLinker  # noqa: E402
 from .reddit_config import (  # noqa: E402
@@ -529,6 +530,9 @@ class RedditScraper:
                 upvotes=submission.score,
                 num_comments=submission.num_comments,
                 reddit_url=f"https://reddit.com{submission.permalink}",
+                engagement_score=calculate_engagement_score(
+                    submission.score, submission.num_comments
+                ),
             )
             articles_to_add.append(article)
 
@@ -639,6 +643,9 @@ class RedditScraper:
                 upvotes=submission.score,
                 num_comments=submission.num_comments,  # Track total comments
                 reddit_url=f"https://reddit.com{submission.permalink}",
+                engagement_score=calculate_engagement_score(
+                    submission.score, submission.num_comments
+                ),
             )
 
             db.add(article)
