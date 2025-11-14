@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any
 
 from app.db.models import LLMSentimentCategory
 
@@ -220,7 +219,7 @@ class DailyTickerSummaryUpsertDTO:
     sentiment_stddev: float | None = None
     sentiment_min: float | None = None
     sentiment_max: float | None = None
-    top_articles: list[dict[str, Any]] | None = None
+    top_articles: list[int] | None = None
     llm_summary: str | None = None
     llm_summary_bullets: list[str] | None = None
     llm_sentiment: LLMSentimentCategory | None = None
@@ -241,7 +240,7 @@ class DailyTickerSummaryDTO:
     sentiment_stddev: float | None
     sentiment_min: float | None
     sentiment_max: float | None
-    top_articles: list[dict[str, Any]] | None
+    top_articles: list[int] | None
     llm_summary: str | None
     llm_summary_bullets: list[str] | None
     llm_sentiment: LLMSentimentCategory | None

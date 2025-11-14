@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from praw.models import Comment, Submission
 
 from app.db.models import Article
+from app.services.engagement import calculate_engagement_score
 
 # Load environment variables from .env file
 load_dotenv()
@@ -196,6 +197,7 @@ class RedditDiscussionScraper:
                 upvotes=comment.score,
                 num_comments=0,  # Comments don't have sub-comments in our model
                 reddit_url=comment_url,
+                engagement_score=calculate_engagement_score(comment.score, 0),
             )
 
             return article

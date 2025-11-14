@@ -168,6 +168,7 @@ class Article(Base):
     author: Mapped[str | None] = mapped_column(String(50), nullable=True)
     upvotes: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     num_comments: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    engagement_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     reddit_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
@@ -288,7 +289,7 @@ class DailyTickerSummary(Base):
     sentiment_stddev: Mapped[float | None] = mapped_column(Float, nullable=True)
     sentiment_min: Mapped[float | None] = mapped_column(Float, nullable=True)
     sentiment_max: Mapped[float | None] = mapped_column(Float, nullable=True)
-    top_articles: Mapped[list[dict] | None] = mapped_column(JSONBCompat, nullable=True)
+    top_articles: Mapped[list[int] | None] = mapped_column(JSONBCompat, nullable=True)
     llm_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     llm_summary_bullets: Mapped[list[str] | None] = mapped_column(
         JSONBCompat, nullable=True
