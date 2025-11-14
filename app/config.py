@@ -1,8 +1,8 @@
 """Configuration management using pydantic-settings."""
 
-from typing import Literal, Optional
+from typing import Literal
 
-from pydantic import AliasChoices, Field, PostgresDsn, field_validator
+from pydantic import AliasChoices, Field, PostgresDsn
 from pydantic_settings import BaseSettings
 
 
@@ -217,17 +217,10 @@ class Settings(BaseSettings):
     )
 
     # Test email configuration
-    test_email_recipient: Optional[str] = Field(
-        default=None,
+    test_email_recipient: str = Field(
+        default="test@example.com",  # Default for tests, override in .env for production
         validation_alias=AliasChoices("TEST_EMAIL_RECIPIENT", "test_email_recipient"),
     )
-
-    @field_validator("test_email_recipient")
-    @classmethod
-    def validate_test_email_recipient(cls, v):
-        if not v:
-            raise ValueError("TEST_EMAIL_RECIPIENT must be set in .env file")
-        return v
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

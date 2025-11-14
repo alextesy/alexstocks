@@ -11,11 +11,11 @@ EMAIL_FROM_ADDRESS=noreply@alexstocks.com
 EMAIL_FROM_NAME=AlexStocks
 AWS_SES_REGION=us-east-1
 
-# Test Email Configuration (REQUIRED - must be in .env file)
+# Test Email Configuration (Optional - defaults to test@example.com for development)
 TEST_EMAIL_RECIPIENT=your-verified-email@example.com
 ```
 
-⚠️ **Important**: `TEST_EMAIL_RECIPIENT` is **required** and must be provided in your `.env` file. The application will fail to start with a clear error message if it's missing.
+ℹ️ **Note**: `TEST_EMAIL_RECIPIENT` defaults to `test@example.com` for development/testing. Set it in your `.env` file for production use with a verified email address.
 
 ## AWS SES Setup Steps
 
