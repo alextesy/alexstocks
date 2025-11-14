@@ -17,6 +17,26 @@ TEST_EMAIL_RECIPIENT=your-verified-email@example.com
 
 ℹ️ **Note**: `TEST_EMAIL_RECIPIENT` defaults to `test@example.com` for development/testing. Set it in your `.env` file for production use with a verified email address.
 
+## Prerequisites
+
+### AWS Credentials Setup
+Before testing emails, you need AWS credentials with SES permissions:
+
+```bash
+# Option 1: Environment variables
+export AWS_ACCESS_KEY_ID=your-access-key
+export AWS_SECRET_ACCESS_KEY=your-secret-key
+export AWS_DEFAULT_REGION=us-east-1
+
+# Option 2: AWS CLI configuration
+aws configure
+
+# Verify credentials work
+aws sts get-caller-identity
+```
+
+**Note**: For EC2/production, IAM roles are used automatically - no credentials needed in `.env`.
+
 ## AWS SES Setup Steps
 
 ### 1. Domain Verification

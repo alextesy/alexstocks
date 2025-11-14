@@ -10,6 +10,22 @@ from app.services.email_service import get_email_service
 
 def send_test_email():
     """Send a test email to verify email service configuration."""
+    print("🔧 Checking AWS credentials...")
+    try:
+        import boto3
+
+        sts = boto3.client("sts")
+        sts.get_caller_identity()
+        print("✅ AWS credentials verified")
+    except Exception as e:
+        print("❌ AWS credentials not found!")
+        print("   Please set up AWS credentials:")
+        print("   export AWS_ACCESS_KEY_ID=your-key")
+        print("   export AWS_SECRET_ACCESS_KEY=your-secret")
+        print("   export AWS_DEFAULT_REGION=us-east-1")
+        print(f"   Error: {e}")
+        return
+
     try:
         # Get the email service
         service = get_email_service()
