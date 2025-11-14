@@ -198,6 +198,24 @@ class Settings(BaseSettings):
         ),
     )
 
+    # Email configuration
+    email_provider: Literal["ses", "sendgrid"] = Field(
+        default="ses",
+        validation_alias=AliasChoices("EMAIL_PROVIDER", "email_provider"),
+    )
+    email_from_address: str = Field(
+        default="noreply@marketpulse.com",
+        validation_alias=AliasChoices("EMAIL_FROM_ADDRESS", "email_from_address"),
+    )
+    email_from_name: str = Field(
+        default="Market Pulse",
+        validation_alias=AliasChoices("EMAIL_FROM_NAME", "email_from_name"),
+    )
+    aws_ses_region: str = Field(
+        default="us-east-1",
+        validation_alias=AliasChoices("AWS_SES_REGION", "aws_ses_region"),
+    )
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

@@ -262,3 +262,13 @@ class UserProfileResponseDTO:
     notification_defaults: dict  # notify_on_surges, notify_on_most_discussed
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass
+class EmailSendResult:
+    """Result of an email send operation."""
+
+    success: bool
+    message_id: str | None
+    error: str | None
+    provider: str
