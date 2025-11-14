@@ -1,0 +1,97 @@
+{% extends "_base.html" %}
+{% set greeting_name = user.display_name or user.email %}
+
+{% block content %}
+<p style="font-size:16px; margin-bottom:8px;">Hi {{ greeting_name }},</p>
+<p style="font-size:16px; color:#374151; margin-bottom:24px;">
+    Here is your personalized {{ company_name }} briefing for <strong>{{ date_display }}</strong>
+    ({{ timezone }}).
+</p>
+
+{% if has_tickers %}
+    {% for ticker in tickers %}
+        <div class="ticker-card">
+            <div class="ticker-header">
+                <div>
+                    <div class="ticker-symbol">{{ ticker.symbol }}</div>
+                    <div class="ticker-name">{{ ticker.name }}</div>
+                </div>
+                <div class="sentiment-pill" style="border-color: {{ ticker.sentiment_color }}; color: {{ ticker.sentiment_color }};">
+                    {{ ticker.sentiment_label }}
+                </div>
+            </div>
+            <div class="ticker-metrics">
+                <div class="metric">
+                    <div class="metric-label">Mentions</div>
+                    <div class="metric-value">{{ ticker.mention_count }}</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Engagement</div>
+                    <div class="metric-value">{{ ticker.engagement_count }}</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Avg Sentiment</div>
+                    <div class="metric-value">
+                        {% if ticker.avg_sentiment is not none %}
+                            {{ "%.2f"|format(ticker.avg_sentiment) }}
+                        {% else %}
+                            &mdash;
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% if ticker.summary %}
+                <div style="margin-bottom:12px;">
+                    <p style="font-size:15px; line-height:1.6; color:#1f2937;">{{ ticker.summary }}</p>
+                </div>
+            {% endif %}
+
+            {% if ticker.bullets %}
+                <ul style="padding-left:18px; color:#374151; margin-bottom:12px;">
+                    {% for bullet in ticker.bullets %}
+                        <li style="margin-bottom:6px;">{{ bullet }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+
+            {% if ticker.top_articles %}
+                <div class="articles">
+                    <div style="font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:#9ca3af; margin-bottom:8px;">
+                        Top Articles
+                    </div>
+                    {% for article in ticker.top_articles %}
+                        <div class="article">
+                            <a href="{{ article.url }}" class="article-title">{{ article.title }}</a>
+                            <div class="article-meta">
+                                {{ article.source or "Source" }}
+                                {% if article.engagement_score %}
+                                    · Engagement {{ "%.2f"|format(article.engagement_score) }}
+                                {% endif %}
+                            </div>
+                            <a href="{{ article.url }}" class="button">Read Article</a>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p style="font-size:13px; color:#6b7280; margin:0;">
+                    No highlighted articles available for this ticker today.
+                </p>
+            {% endif %}
+        </div>
+    {% endfor %}
+{% else %}
+    <div class="empty-state">
+        <p style="margin:0; font-size:16px;">No tickers from your watchlist had enough activity to summarize today.</p>
+        <p style="margin-top:8px; font-size:14px;">
+            Add more symbols to your watchlist to receive richer briefings.
+        </p>
+    </div>
+{% endif %}
+
+<p style="font-size:14px; color:#6b7280; margin-top:32px;">
+    Want to update your watchlist? Visit <a href="{{ app_base_url }}">{{ app_base_url }}</a>.
+</p>
+<p style="font-size:14px; color:#6b7280;">
+    Stay informed with {{ company_name }}.
+</p>
+{% endblock %}

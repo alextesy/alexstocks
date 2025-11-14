@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING
 from app.models.dto import EmailSendResult
 
 if TYPE_CHECKING:
-    from app.models.dto import DailyTickerSummaryDTO, UserDTO
+    from app.models.dto import (
+        DailyTickerSummaryDTO,
+        UserDTO,
+        UserProfileDTO,
+        UserTickerFollowDTO,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -77,12 +82,19 @@ class EmailService(ABC):
         self,
         user: "UserDTO",
         ticker_summaries: list["DailyTickerSummaryDTO"],
+        *,
+        user_profile: "UserProfileDTO | None" = None,
+        user_ticker_follows: list["UserTickerFollowDTO"] | None = None,
+        unsubscribe_token: str | None = None,
     ) -> EmailSendResult:
         """Send a daily summary email to a user.
 
         Args:
             user: User to send email to
             ticker_summaries: List of ticker summaries for the day
+            user_profile: Optional user profile for personalization
+            user_ticker_follows: Optional watchlist ordering to personalize content
+            unsubscribe_token: Signed token for unsubscribe link
 
         Returns:
             EmailSendResult with success status and metadata

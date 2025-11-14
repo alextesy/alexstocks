@@ -14,6 +14,10 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL", "postgres_url"),
     )
     postgres_password: str | None = None  # Allow but don't require
+    app_base_url: str = Field(
+        default="https://alexstocks.com",
+        validation_alias=AliasChoices("APP_BASE_URL", "app_base_url"),
+    )
     tickers_path: str = "data/tickers_core.csv"
     aliases_path: str = "data/aliases.yaml"
     rate_limit_per_min: int = 30
@@ -214,6 +218,29 @@ class Settings(BaseSettings):
     aws_ses_region: str = Field(
         default="us-east-1",
         validation_alias=AliasChoices("AWS_SES_REGION", "aws_ses_region"),
+    )
+    email_company_name: str = Field(
+        default="AlexStocks",
+        validation_alias=AliasChoices("EMAIL_COMPANY_NAME", "email_company_name"),
+    )
+    email_company_address: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("EMAIL_COMPANY_ADDRESS", "email_company_address"),
+        description="Optional physical mailing address for CAN-SPAM compliance",
+    )
+    email_daily_briefing_max_tickers: int = Field(
+        default=10,
+        ge=1,
+        validation_alias=AliasChoices(
+            "EMAIL_DAILY_BRIEFING_MAX_TICKERS", "email_daily_briefing_max_tickers"
+        ),
+    )
+    email_daily_briefing_max_articles: int = Field(
+        default=3,
+        ge=1,
+        validation_alias=AliasChoices(
+            "EMAIL_DAILY_BRIEFING_MAX_ARTICLES", "email_daily_briefing_max_articles"
+        ),
     )
 
     # Test email configuration

@@ -15,9 +15,15 @@ from app.services.email_service import (
     EmailSendError,
     EmailService,
 )
+from app.services.email_templates import EmailTemplateService
 
 if TYPE_CHECKING:
-    from app.models.dto import DailyTickerSummaryDTO, UserDTO
+    from app.models.dto import (
+        DailyTickerSummaryDTO,
+        UserDTO,
+        UserProfileDTO,
+        UserTickerFollowDTO,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +31,13 @@ logger = logging.getLogger(__name__)
 class SESEmailService(EmailService):
     """AWS SES email service implementation."""
 
-    def __init__(self):
+    def __init__(self, template_service: EmailTemplateService | None = None):
         super().__init__("ses")
         self.client = boto3.client(
             "ses",
             region_name=settings.aws_ses_region,
         )
+        self.template_service = template_service or EmailTemplateService()
 
     def send_email(
         self,
@@ -117,12 +124,19 @@ class SESEmailService(EmailService):
         self,
         user: "UserDTO",
         ticker_summaries: list["DailyTickerSummaryDTO"],
+        *,
+        user_profile: "UserProfileDTO | None" = None,
+        user_ticker_follows: list["UserTickerFollowDTO"] | None = None,
+        unsubscribe_token: str | None = None,
     ) -> EmailSendResult:
         """Send a daily summary email to a user.
 
         Args:
             user: User to send email to
             ticker_summaries: List of ticker summaries for the day
+            user_profile: Optional user profile for personalization
+            user_ticker_follows: Optional watchlist data for ordering
+            unsubscribe_token: Signed token for unsubscribe link
 
         Returns:
             EmailSendResult with success status and metadata
@@ -141,7 +155,18 @@ class SESEmailService(EmailService):
             )
 
         subject = "Market Pulse Daily Summary"
-        html_body, text_body = self._format_summary_email(ticker_summaries)
+        if user_profile and user_ticker_follows is not None and unsubscribe_token:
+            html_body, text_body = self.template_service.render_daily_briefing(
+                user=user,
+                user_profile=user_profile,
+                ticker_summaries=ticker_summaries,
+                user_ticker_follows=user_ticker_follows,
+                unsubscribe_token=unsubscribe_token,
+            )
+        else:
+            html_body, text_body = self.template_service.render_basic_summary(
+                ticker_summaries
+            )
 
         return self.send_email(
             to_email=user.email,
@@ -289,81 +314,3 @@ class SESEmailService(EmailService):
             True if the error is due to rate limiting
         """
         return error_code in {"Throttling", "ThrottlingException"}
-
-    def _format_summary_email(
-        self,
-        ticker_summaries: list["DailyTickerSummaryDTO"],
-    ) -> tuple[str, str]:
-        """Format ticker summaries into HTML and text email bodies.
-
-        Args:
-            ticker_summaries: List of ticker summaries (assumed non-empty)
-
-        Returns:
-            Tuple of (html_body, text_body)
-        """
-        # Sort by engagement (most discussed first)
-        sorted_summaries = sorted(
-            ticker_summaries,
-            key=lambda x: x.engagement_count,
-            reverse=True,
-        )
-
-        # HTML version
-        html_parts = [
-            "<h1>Market Pulse Daily Summary</h1>",
-            "<p>Here's your daily market intelligence:</p>",
-            "<table style='border-collapse: collapse; width: 100%;'>",
-            "<tr style='background-color: #f2f2f2;'>",
-            "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>Ticker</th>",
-            "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>Mentions</th>",
-            "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>Engagement</th>",
-            "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>Sentiment</th>",
-            "</tr>",
-        ]
-
-        text_parts = [
-            "Market Pulse Daily Summary",
-            "=" * 30,
-            "",
-            "Here's your daily market intelligence:",
-            "",
-            f"{'Ticker':<10} {'Mentions':<10} {'Engagement':<12} {'Sentiment'}",
-            "-" * 60,
-        ]
-
-        for summary in sorted_summaries:
-            sentiment_display = "N/A"
-            if summary.llm_sentiment:
-                sentiment_display = summary.llm_sentiment.value.title()
-
-            html_parts.extend(
-                [
-                    "<tr>",
-                    f"<td style='border: 1px solid #ddd; padding: 8px;'>{summary.ticker}</td>",
-                    f"<td style='border: 1px solid #ddd; padding: 8px;'>{summary.mention_count}</td>",
-                    f"<td style='border: 1px solid #ddd; padding: 8px;'>{summary.engagement_count}</td>",
-                    f"<td style='border: 1px solid #ddd; padding: 8px;'>{sentiment_display}</td>",
-                    "</tr>",
-                ]
-            )
-
-            text_parts.append(
-                f"{summary.ticker:<10} {summary.mention_count:<10} {summary.engagement_count:<12} {sentiment_display}"
-            )
-
-            # Add summary text if available
-            if summary.llm_summary:
-                html_parts.append(
-                    f"<tr><td colspan='4' style='border: 1px solid #ddd; padding: 8px;'><strong>Summary:</strong> {summary.llm_summary}</td></tr>"
-                )
-                text_parts.append(f"Summary: {summary.llm_summary}")
-                text_parts.append("")
-
-        html_parts.extend(["</table>", "<p>Stay informed with Market Pulse!</p>"])
-        text_parts.extend(["", "Stay informed with Market Pulse!"])
-
-        html_body = "\n".join(html_parts)
-        text_body = "\n".join(text_parts)
-
-        return html_body, text_body

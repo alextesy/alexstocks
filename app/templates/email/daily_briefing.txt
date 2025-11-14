@@ -1,0 +1,36 @@
+{{ company_name }} Daily Briefing
+Date: {{ date_display }} ({{ timezone }})
+
+Hello {{ user.display_name or user.email }},
+
+{% if has_tickers -%}
+{% for ticker in tickers -%}
+{{ loop.index }}. {{ ticker.symbol }} ({{ ticker.name }})
+   Sentiment: {{ ticker.sentiment_text_label }}
+   Mentions: {{ ticker.mention_count }} | Engagement: {{ ticker.engagement_count }}
+   Avg Sentiment: {% if ticker.avg_sentiment is not none %}{{ "%.2f"|format(ticker.avg_sentiment) }}{% else %}N/A{% endif %}
+   Summary: {% if ticker.summary_plain %}{{ ticker.summary_plain }}{% else %}No summary available.{% endif %}
+{%- if ticker.bullets_plain %}
+   Highlights:
+{%- for bullet in ticker.bullets_plain %}
+     - {{ bullet }}
+{%- endfor %}
+{%- endif %}
+{%- if ticker.top_articles %}
+   Articles:
+{%- for article in ticker.top_articles %}
+     {{ loop.index }}. {{ article.title }}{% if article.source %} ({{ article.source }}){% endif %} - {{ article.url }}
+{%- endfor %}
+{%- endif %}
+
+{% endfor -%}
+{% else -%}
+No watchlist tickers met the activity threshold for today's briefing.
+
+{% endif -%}
+Stay informed with {{ company_name }}.
+
+Manage preferences: {{ app_base_url }}
+Unsubscribe: {{ unsubscribe_url }}
+Support: {{ support_email }}
+{{ company_name }}{% if company_address %}, {{ company_address }}{% endif %}
