@@ -15,7 +15,7 @@ AWS_SES_REGION=us-east-1
 TEST_EMAIL_RECIPIENT=your-verified-email@example.com
 ```
 
-⚠️ **Important**: `TEST_EMAIL_RECIPIENT` has **no default value** in the code. It must be provided in your `.env` file. The application will fail to start without it.
+⚠️ **Important**: `TEST_EMAIL_RECIPIENT` is **required** and must be provided in your `.env` file. The application will fail to start with a clear error message if it's missing.
 
 ## AWS SES Setup Steps
 
