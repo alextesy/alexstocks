@@ -19,8 +19,7 @@ def calculate_engagement_score(
     """Return the weighted engagement score for a piece of content."""
     upvote_count = max(0, int(upvotes or 0))
     comment_count = max(0, int(num_comments or 0))
-    score = (
-        upvote_weight * math.log1p(upvote_count)
-        + comment_weight * math.log1p(comment_count)
+    score = upvote_weight * math.log1p(upvote_count) + comment_weight * math.log1p(
+        comment_count
     )
     return float(score)

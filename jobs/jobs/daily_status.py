@@ -182,7 +182,9 @@ def run_daily_status_job(
                     )
 
                     # Only persist article identifiers to minimize JSON payload size
-                    top_articles = [article.article_id for article in ticker_summary.articles]
+                    top_articles = [
+                        article.article_id for article in ticker_summary.articles
+                    ]
 
                     # summary_info.sentiment is already an LLMSentimentCategory enum from structured output
                     sentiment_enum: LLMSentimentCategory | None = summary_info.sentiment
