@@ -127,6 +127,19 @@ class SESEmailService(EmailService):
         Returns:
             EmailSendResult with success status and metadata
         """
+        # Don't send email if there are no summaries for today
+        if not ticker_summaries:
+            logger.info(
+                "Skipping email send - no summaries available for today",
+                extra={"user_id": user.id, "user_email": user.email},
+            )
+            return EmailSendResult(
+                success=True,
+                message_id=None,
+                error=None,
+                provider=self.provider_name,
+            )
+
         subject = "Market Pulse Daily Summary"
         html_body, text_body = self._format_summary_email(ticker_summaries)
 
@@ -284,16 +297,11 @@ class SESEmailService(EmailService):
         """Format ticker summaries into HTML and text email bodies.
 
         Args:
-            ticker_summaries: List of ticker summaries
+            ticker_summaries: List of ticker summaries (assumed non-empty)
 
         Returns:
             Tuple of (html_body, text_body)
         """
-        if not ticker_summaries:
-            html_body = "<p>No market summaries available for today.</p>"
-            text_body = "No market summaries available for today."
-            return html_body, text_body
-
         # Sort by engagement (most discussed first)
         sorted_summaries = sorted(
             ticker_summaries,

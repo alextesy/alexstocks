@@ -44,13 +44,15 @@ class TestSESEmailService:
         # Verify SES was called correctly
         ses_service.client.send_email.assert_called_once()
         call_args = ses_service.client.send_email.call_args
-        assert call_args[1]["Source"] == "noreply@marketpulse.com"
+        assert call_args[1]["Source"] == "noreply@alexstocks.com"
         assert call_args[1]["Destination"]["ToAddresses"] == ["test@example.com"]
         assert call_args[1]["Message"]["Subject"]["Data"] == "Test Subject"
 
     def test_send_email_with_custom_from(self, ses_service):
         """Test email sending with custom from address and name."""
-        ses_service.client.send_email.return_value = {"MessageId": "test-message-id-456"}
+        ses_service.client.send_email.return_value = {
+            "MessageId": "test-message-id-456"
+        }
 
         result = ses_service.send_email(
             to_email="test@example.com",
@@ -173,8 +175,8 @@ class TestSESEmailService:
         # Should have slept for exponential backoff (1, 2 seconds)
         assert mock_sleep.call_count == 2
 
-    def test_send_summary_email(self, ses_service):
-        """Test sending summary email."""
+    def test_send_summary_email_with_summaries(self, ses_service):
+        """Test sending summary email when summaries are available."""
         ses_service.client.send_email.return_value = {"MessageId": "summary-message-id"}
 
         user = UserDTO(
@@ -189,8 +191,30 @@ class TestSESEmailService:
             deleted_at=None,
         )
 
-        # Empty summaries for now - would need more complex DTO setup
-        ticker_summaries: list = []
+        # Mock a ticker summary - simplified for testing
+        from app.models.dto import DailyTickerSummaryDTO
+
+        ticker_summaries = [
+            DailyTickerSummaryDTO(
+                id=1,
+                ticker="AAPL",
+                summary_date=None,  # type: ignore
+                mention_count=10,
+                engagement_count=50,
+                avg_sentiment=0.2,
+                sentiment_stddev=None,
+                sentiment_min=None,
+                sentiment_max=None,
+                top_articles=None,
+                llm_summary="Apple showed strong performance today",
+                llm_summary_bullets=None,
+                llm_sentiment=None,
+                llm_model=None,
+                llm_version=None,
+                created_at=None,  # type: ignore
+                updated_at=None,  # type: ignore
+            )
+        ]
 
         result = ses_service.send_summary_email(user, ticker_summaries)
 
@@ -204,6 +228,33 @@ class TestSESEmailService:
         assert (
             "Market Pulse Daily Summary" in call_args[1]["Message"]["Subject"]["Data"]
         )
+
+    def test_send_summary_email_no_summaries(self, ses_service):
+        """Test that no email is sent when there are no summaries."""
+        user = UserDTO(
+            id=1,
+            email="user@example.com",
+            auth_provider_id=None,
+            auth_provider=None,
+            is_active=True,
+            is_deleted=False,
+            created_at=None,  # type: ignore
+            updated_at=None,  # type: ignore
+            deleted_at=None,
+        )
+
+        # Empty summaries
+        ticker_summaries: list = []
+
+        result = ses_service.send_summary_email(user, ticker_summaries)
+
+        assert result.success is True
+        assert result.message_id is None  # No email sent, so no message ID
+        assert result.error is None
+        assert result.provider == "ses"
+
+        # Verify no email was sent (send_email should not be called)
+        ses_service.client.send_email.assert_not_called()
 
 
 class TestEmailServiceFactory:
