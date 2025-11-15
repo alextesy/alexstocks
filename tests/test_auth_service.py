@@ -139,10 +139,16 @@ class TestAuthService:
         with pytest.raises(NonGmailDomainError):
             auth_service.validate_gmail_domain("test@outlook.com")
 
+    @patch("app.services.auth_service.ensure_email_notification_channel")
     @patch("app.services.auth_service.UserProfile")
     @patch("app.services.auth_service.User")
     def test_get_or_create_user_new_user(
-        self, mock_user_class, mock_profile_class, auth_service, mock_db
+        self,
+        mock_user_class,
+        mock_profile_class,
+        mock_ensure_channel,
+        auth_service,
+        mock_db,
     ):
         """Test creating a new user with profile."""
         # Mock query to return None (user doesn't exist)
@@ -195,12 +201,14 @@ class TestAuthService:
         assert captured["desired_name"] == "Test User"
         assert captured["current_name"] in (None, "")
 
+    @patch("app.services.auth_service.ensure_email_notification_channel")
     @patch("app.services.auth_service.UserProfile")
     @patch("app.services.auth_service.User")
     def test_get_or_create_user_existing_user(
         self,
         mock_user_class,
         mock_profile_class,
+        mock_ensure_channel,
         auth_service,
         mock_db,
     ):

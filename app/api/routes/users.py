@@ -18,6 +18,9 @@ from app.models.dto import (
 )
 from app.repos.user_repo import UserRepository
 from app.services.auth_service import get_auth_service
+from app.services.user_notification_channel_service import (
+    ensure_email_notification_channel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +149,14 @@ async def update_current_user_profile(
 
         if not updated_profile:
             raise HTTPException(status_code=404, detail="Profile not found")
+
+        if update_data.notification_defaults is not None:
+            ensure_email_notification_channel(
+                db,
+                user_id=user.id,
+                email=user.email,
+                preferences=update_data.notification_defaults,
+            )
 
         db.commit()
 
