@@ -102,7 +102,32 @@ class TestEmailTemplateService:
     ):
         """HTML/text rendering uses personalized data."""
         monkeypatch.setattr(settings, "app_base_url", "https://example.com")
-        service = EmailTemplateService()
+        published_at = datetime(2024, 11, 10, 15, tzinfo=UTC)
+        article_metadata = {
+            1: {
+                "title": "Thread title",
+                "url": "https://example.com/aapl",
+                "engagement_score": 3.2,
+                "source": "reddit_comment",
+                "text": "Apple comment preview text that should show up.",
+                "published_at": published_at,
+            }
+        }
+
+        def loader(ids):
+            return {
+                article_id: article_metadata[article_id]
+                for article_id in ids
+                if article_id in article_metadata
+            }
+
+        service = EmailTemplateService(article_loader=loader)
+        monkeypatch.setattr(
+            service, "_get_participant_count", lambda *args, **kwargs: 12
+        )
+        monkeypatch.setattr(
+            service, "_get_last_price", lambda *args, **kwargs: 123.45
+        )
 
         summaries = [
             make_summary(
@@ -114,14 +139,7 @@ class TestEmailTemplateService:
                 "AAPL",
                 summary_id=2,
                 sentiment=LLMSentimentCategory.TO_THE_MOON,
-                top_articles=[
-                    {
-                        "title": "Apple tops expectations",
-                        "url": "https://example.com/aapl",
-                        "engagement_score": 3.2,
-                        "source": "Reddit",
-                    }
-                ],
+                top_articles=[1],
             ),
             make_summary("TSLA", summary_id=3, sentiment=LLMSentimentCategory.BEARISH),
         ]
@@ -140,9 +158,13 @@ class TestEmailTemplateService:
         assert "unsubscribe?token=signed-token" in html
         assert "https://example.com" in html
         assert "To the Moon" in html
+        assert "🚀" in html
         assert "🚀" not in text  # plain text uses ASCII label
-        assert "Apple tops expectations" in html
-        assert "Apple tops expectations" in text
+        assert "Apple comment preview text" in html
+        assert "Thread title" in html
+        assert "$123.45" in html
+        assert "Participants" in html
+        assert "Apple comment preview text" in text
 
     def test_prepare_tickers_filters_and_sorts(self, user, follows):
         """Personalization logic filters to watchlist symbols."""

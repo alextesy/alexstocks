@@ -46,45 +46,75 @@
         .ticker-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
+            align-items: flex-start;
+            margin-bottom: 16px;
+            gap: 16px;
+            width: 100%;
+        }
+        .ticker-header-text {
+            display: block;
+            flex: 1;
+            min-width: 0;
         }
         .ticker-symbol {
             font-size: 20px;
             font-weight: 700;
             letter-spacing: 0.02em;
+            display: block;
+            margin-bottom: 4px;
         }
         .ticker-name {
             font-size: 14px;
             color: #6b7280;
-            margin-top: 2px;
+            line-height: 1.4;
+            display: block;
         }
         .sentiment-pill {
             border-radius: 9999px;
-            padding: 6px 14px;
+            padding: 8px 16px;
             font-size: 13px;
             font-weight: 600;
-            border: 1px solid transparent;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            justify-content: center;
+            flex-shrink: 0;
+            white-space: nowrap;
+            margin-left: auto;
         }
         .ticker-metrics {
-            display: flex;
-            gap: 16px;
-            flex-wrap: wrap;
+            width: 100%;
             margin-bottom: 16px;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        .ticker-metrics td {
+            padding: 0 8px;
+            vertical-align: top;
+            width: 25%;
+        }
+        .ticker-metrics td:first-child {
+            padding-left: 0;
+        }
+        .ticker-metrics td:last-child {
+            padding-right: 0;
         }
         .metric {
-            flex: 1;
-            min-width: 120px;
+            width: 100%;
         }
         .metric-label {
             font-size: 12px;
             text-transform: uppercase;
             color: #6b7280;
             letter-spacing: 0.05em;
+            margin-bottom: 4px;
+            display: block;
         }
         .metric-value {
             font-size: 18px;
             font-weight: 700;
+            display: block;
         }
         .articles {
             margin-top: 12px;
@@ -127,7 +157,36 @@
         @media (max-width: 600px) {
             .email-content { padding: 20px; }
             .ticker-header { flex-direction: column; align-items: flex-start; gap: 8px; }
-            .ticker-metrics { flex-direction: column; }
+            .ticker-metrics td { width: 50%; padding: 0 6px; }
+            .ticker-metrics td:nth-child(odd) { padding-left: 0; }
+            .ticker-metrics td:nth-child(even) { padding-right: 0; }
+        }
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #0f172a;
+                color: #f1f5f9;
+            }
+            .email-container {
+                background-color: #1e293b;
+            }
+            .ticker-card {
+                background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+                border-color: #334155;
+            }
+            .metric-label,
+            .article-meta,
+            .ticker-name,
+            .empty-state,
+            .empty-state p {
+                color: #cbd5f5;
+            }
+            .button {
+                background-color: #f8fafc;
+                color: #0f172a !important;
+            }
+            .articles .article {
+                border-color: #334155;
+            }
         }
     </style>
 </head>

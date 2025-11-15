@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from collections.abc import Callable, Sequence
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.db.models import Article, ArticleTicker, StockPrice
+from app.db.session import SessionLocal
 from app.models.dto import (
     DailyTickerSummaryDTO,
     UserDTO,
@@ -20,7 +25,6 @@ from app.services.email_utils import (
     ensure_plain_text,
     format_summary_date,
     map_sentiment_to_display,
-    normalize_article_payload,
 )
 
 
@@ -30,7 +34,13 @@ class EmailTemplateService:
     HTML_TEMPLATE = "daily_briefing.html"
     TEXT_TEMPLATE = "daily_briefing.txt"
 
-    def __init__(self, template_dir: str | Path | None = None):
+    def __init__(
+        self,
+        template_dir: str | Path | None = None,
+        *,
+        article_loader: Callable[[Sequence[int]], dict[int, dict]] | None = None,
+        session_factory: Callable[[], Session] | None = None,
+    ):
         base_path = Path(template_dir or Path("app") / "templates" / "email")
         self.template_dir = base_path
         loader = FileSystemLoader(str(base_path))
@@ -39,6 +49,12 @@ class EmailTemplateService:
             autoescape=select_autoescape(["html", "xml"]),
         )
         self._text_env = Environment(loader=loader, autoescape=False)
+        self._session_factory = session_factory or SessionLocal
+        self._article_loader = article_loader or self._load_articles_from_db
+        try:
+            self._summary_tz = ZoneInfo(settings.daily_summary_window_timezone)
+        except ZoneInfoNotFoundError:
+            self._summary_tz = ZoneInfo("UTC")
 
     def render_daily_briefing(
         self,
@@ -74,7 +90,7 @@ class EmailTemplateService:
         )
 
         html_parts = [
-            "<h1>Market Pulse Daily Summary</h1>",
+            "<h1>AlexStocks Daily Summary</h1>",
             "<p>Here's your daily market intelligence:</p>",
             "<table style='border-collapse: collapse; width: 100%;'>",
             "<tr style='background-color: #f2f2f2;'>",
@@ -86,7 +102,7 @@ class EmailTemplateService:
         ]
 
         text_parts = [
-            "Market Pulse Daily Summary",
+            "AlexStocks Daily Summary",
             "=" * 30,
             "",
             "Here's your daily market intelligence:",
@@ -196,7 +212,7 @@ class EmailTemplateService:
         follow: UserTickerFollowDTO | None,
     ) -> dict:
         sentiment = map_sentiment_to_display(summary.llm_sentiment)
-        articles = self._normalize_articles(summary.top_articles)
+        articles = self._normalize_articles(summary.top_articles, summary.summary_date)
         summary_text = summary.llm_summary or ""
         bullets = summary.llm_summary_bullets or []
         bullets_plain = []
@@ -224,22 +240,125 @@ class EmailTemplateService:
             "avg_sentiment": summary.avg_sentiment,
             "top_articles": articles,
             "follow_order": follow.order if follow else None,
+            "participant_count": self._get_participant_count(
+                summary.ticker, summary.summary_date
+            ),
+            "last_price": self._get_last_price(summary.ticker),
         }
 
-    def _normalize_articles(self, articles_raw) -> list[dict]:
+    def _normalize_articles(
+        self, articles_raw, summary_date: date | None
+    ) -> list[dict]:
         normalized: list[dict] = []
         if not articles_raw:
             return normalized
 
+        article_ids: list[int] = []
         for article in articles_raw:
-            normalized_article = normalize_article_payload(article)
-            if not normalized_article:
+            if isinstance(article, int):
+                article_ids.append(article)
+            elif isinstance(article, dict):
+                article_id = article.get("article_id")
+                if isinstance(article_id, int):
+                    article_ids.append(article_id)
+
+        if not article_ids:
+            return normalized
+
+        article_map = self._article_loader(article_ids)
+
+        for article_id in article_ids:
+            meta = article_map.get(article_id)
+            if not meta:
                 continue
-            normalized.append(normalized_article)
+            if summary_date and meta.get("published_at"):
+                article_date = meta["published_at"].astimezone(self._summary_tz).date()
+                if article_date != summary_date:
+                    continue
+            preview_text = ensure_plain_text(meta.get("text") or "")
+            if preview_text and len(preview_text) > 220:
+                preview_text = preview_text[:220].rstrip() + "..."
+
+            normalized.append(
+                {
+                    "title": meta.get("title") or f"Article {article_id}",
+                    "url": meta.get("url") or "",
+                    "engagement_score": meta.get("engagement_score"),
+                    "source": meta.get("source"),
+                    "preview": preview_text,
+                }
+            )
             if len(normalized) >= settings.email_daily_briefing_max_articles:
                 break
 
         return normalized
+
+    def _load_articles_from_db(self, article_ids: Sequence[int]) -> dict[int, dict]:
+        if not article_ids:
+            return {}
+
+        with self._session_factory() as session:
+            rows = (
+                session.query(
+                    Article.id,
+                    Article.title,
+                    Article.url,
+                    Article.engagement_score,
+                    Article.source,
+                    Article.text,
+                    Article.published_at,
+                )
+                .filter(Article.id.in_(article_ids))
+                .all()
+            )
+
+        return {
+            row.id: {
+                "title": row.title,
+                "url": row.url,
+                "engagement_score": row.engagement_score,
+                "source": row.source,
+                "text": row.text,
+                "published_at": row.published_at,
+            }
+            for row in rows
+        }
+
+    def _get_participant_count(
+        self, ticker: str, summary_date: date | None
+    ) -> int | None:
+        if not summary_date:
+            return None
+        start, end = self._summary_window_bounds(summary_date)
+        with self._session_factory() as session:
+            stmt = (
+                select(func.count(func.distinct(Article.author)))
+                .join(ArticleTicker, ArticleTicker.article_id == Article.id)
+                .where(
+                    ArticleTicker.ticker == ticker,
+                    Article.published_at >= start,
+                    Article.published_at < end,
+                )
+            )
+            result = session.execute(stmt).scalar()
+        return int(result or 0)
+
+    def _get_last_price(self, ticker: str) -> float | None:
+        with self._session_factory() as session:
+            row = (
+                session.query(StockPrice)
+                .filter(StockPrice.symbol == ticker)
+                .order_by(StockPrice.updated_at.desc())
+                .first()
+            )
+            if not row:
+                return None
+            return round(row.price, 2)
+
+    def _summary_window_bounds(self, summary_date: date) -> tuple[datetime, datetime]:
+        start_local = datetime.combine(summary_date, time.min, tzinfo=self._summary_tz)
+        end_local = start_local + timedelta(days=1)
+        return start_local.astimezone(UTC), end_local.astimezone(UTC)
 
     @staticmethod
     def _resolve_summary_date(

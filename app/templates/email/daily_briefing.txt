@@ -5,10 +5,10 @@ Hello {{ user.display_name or user.email }},
 
 {% if has_tickers -%}
 {% for ticker in tickers -%}
-{{ loop.index }}. {{ ticker.symbol }} ({{ ticker.name }})
+{{ loop.index }}. {{ ticker.symbol }}
+   {{ ticker.name }}
    Sentiment: {{ ticker.sentiment_text_label }}
-   Mentions: {{ ticker.mention_count }} | Engagement: {{ ticker.engagement_count }}
-   Avg Sentiment: {% if ticker.avg_sentiment is not none %}{{ "%.2f"|format(ticker.avg_sentiment) }}{% else %}N/A{% endif %}
+   Mentions: {{ ticker.mention_count }} | Engagement: {{ ticker.engagement_count }} | Participants: {{ ticker.participant_count or "N/A" }} | Last Price: {% if ticker.last_price %}${{ "%.2f"|format(ticker.last_price) }}{% else %}N/A{% endif %}
    Summary: {% if ticker.summary_plain %}{{ ticker.summary_plain }}{% else %}No summary available.{% endif %}
 {%- if ticker.bullets_plain %}
    Highlights:
@@ -19,7 +19,7 @@ Hello {{ user.display_name or user.email }},
 {%- if ticker.top_articles %}
    Articles:
 {%- for article in ticker.top_articles %}
-     {{ loop.index }}. {{ article.title }}{% if article.source %} ({{ article.source }}){% endif %} - {{ article.url }}
+     {{ loop.index }}. {% if article.source == "reddit_comment" and article.preview %}{{ article.preview }}{% else %}{{ article.title }}{% endif %}{% if article.source == "reddit_comment" and article.preview %} (Thread: {{ article.title }}){% elif article.source %} ({{ article.source }}){% endif %} - {{ article.url }}
 {%- endfor %}
 {%- endif %}
 

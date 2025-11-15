@@ -225,9 +225,7 @@ class TestSESEmailService:
         # Verify the email was sent to the user
         call_args = ses_service.client.send_email.call_args
         assert call_args[1]["Destination"]["ToAddresses"] == ["user@example.com"]
-        assert (
-            "Market Pulse Daily Summary" in call_args[1]["Message"]["Subject"]["Data"]
-        )
+        assert "AlexStocks Daily Summary" in call_args[1]["Message"]["Subject"]["Data"]
 
     def test_send_summary_email_no_summaries(self, ses_service):
         """Test that no email is sent when there are no summaries."""

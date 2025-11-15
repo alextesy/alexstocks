@@ -12,34 +12,55 @@
     {% for ticker in tickers %}
         <div class="ticker-card">
             <div class="ticker-header">
-                <div>
+                <div class="ticker-header-text">
                     <div class="ticker-symbol">{{ ticker.symbol }}</div>
                     <div class="ticker-name">{{ ticker.name }}</div>
                 </div>
                 <div class="sentiment-pill" style="border-color: {{ ticker.sentiment_color }}; color: {{ ticker.sentiment_color }};">
-                    {{ ticker.sentiment_label }}
+                    <span>{{ ticker.sentiment_emoji }}</span>
+                    <span>{{ ticker.sentiment_text_label }}</span>
                 </div>
             </div>
-            <div class="ticker-metrics">
-                <div class="metric">
-                    <div class="metric-label">Mentions</div>
-                    <div class="metric-value">{{ ticker.mention_count }}</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Engagement</div>
-                    <div class="metric-value">{{ ticker.engagement_count }}</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Avg Sentiment</div>
-                    <div class="metric-value">
-                        {% if ticker.avg_sentiment is not none %}
-                            {{ "%.2f"|format(ticker.avg_sentiment) }}
-                        {% else %}
-                            &mdash;
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
+            <table class="ticker-metrics">
+                <tr>
+                    <td>
+                        <div class="metric">
+                            <div class="metric-label">Mentions</div>
+                            <div class="metric-value">{{ ticker.mention_count }}</div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="metric">
+                            <div class="metric-label">Engagement</div>
+                            <div class="metric-value">{{ ticker.engagement_count }}</div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="metric">
+                            <div class="metric-label">Participants</div>
+                            <div class="metric-value">
+                                {% if ticker.participant_count %}
+                                    {{ ticker.participant_count }}
+                                {% else %}
+                                    &mdash;
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="metric">
+                            <div class="metric-label">Last Price</div>
+                            <div class="metric-value">
+                                {% if ticker.last_price %}
+                                    ${{ "%.2f"|format(ticker.last_price) }}
+                                {% else %}
+                                    &mdash;
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
             {% if ticker.summary %}
                 <div style="margin-bottom:12px;">
                     <p style="font-size:15px; line-height:1.6; color:#1f2937;">{{ ticker.summary }}</p>
@@ -60,12 +81,19 @@
                         Top Articles
                     </div>
                     {% for article in ticker.top_articles %}
+                        {% set article_title = article.title %}
+                        {% if article.source == "reddit_comment" and article.preview %}
+                            {% set article_title = article.preview %}
+                        {% endif %}
                         <div class="article">
-                            <a href="{{ article.url }}" class="article-title">{{ article.title }}</a>
+                            <a href="{{ article.url }}" class="article-title">{{ article_title }}</a>
                             <div class="article-meta">
                                 {{ article.source or "Source" }}
                                 {% if article.engagement_score %}
                                     · Engagement {{ "%.2f"|format(article.engagement_score) }}
+                                {% endif %}
+                                {% if article.source == "reddit_comment" and article.preview %}
+                                    · Thread: {{ article.title }}
                                 {% endif %}
                             </div>
                             <a href="{{ article.url }}" class="button">Read Article</a>

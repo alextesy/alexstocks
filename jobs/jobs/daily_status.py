@@ -9,6 +9,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 # Load .env FIRST before any imports that might initialize settings
 from dotenv import load_dotenv
@@ -19,6 +20,7 @@ load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
 ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
+
 
 from app.config import settings  # noqa: E402
 from app.db.models import LLMSentimentCategory  # noqa: E402
@@ -140,7 +142,11 @@ def run_daily_status_job(
             session = SessionLocal()
             try:
                 repo = DailyTickerSummaryRepository(session)
-                summary_date = summary.window_end.date()
+                try:
+                    summary_tz = ZoneInfo(settings.daily_summary_window_timezone)
+                except ZoneInfoNotFoundError:
+                    summary_tz = ZoneInfo("UTC")
+                summary_date = summary.window_start.astimezone(summary_tz).date()
 
                 for idx, ticker_summary in enumerate(summary.tickers):
                     if idx >= len(responses):
@@ -176,14 +182,25 @@ def run_daily_status_job(
                         sentiment_max = max(article_sentiments)
 
                     # Calculate engagement count (sum of upvotes + comments)
-                    engagement_count = sum(
-                        article.upvotes + article.num_comments
+                    engagement_count = ticker_summary.mentions
+                    engagement_count += sum(
+                        (article.upvotes or 0) + (article.num_comments or 0)
                         for article in ticker_summary.articles
                     )
 
-                    # Only persist article identifiers to minimize JSON payload size
+                    # Persist key article identifiers for downstream lookups, by engagement_score descending
+                    sorted_articles = sorted(
+                        ticker_summary.articles,
+                        key=lambda a: (
+                            a.engagement_score if a.engagement_score is not None else 0
+                        ),
+                        reverse=True,
+                    )
                     top_articles = [
-                        article.article_id for article in ticker_summary.articles
+                        article.article_id
+                        for article in sorted_articles[
+                            : settings.email_daily_briefing_max_articles
+                        ]
                     ]
 
                     # summary_info.sentiment is already an LLMSentimentCategory enum from structured output

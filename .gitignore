@@ -312,3 +312,5 @@ settings.local.py
 # *.joblib
 # *.h5
 # *.model
+
+market_pulse_dump.sql
