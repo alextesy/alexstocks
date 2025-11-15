@@ -13,6 +13,7 @@ from app.models.dto import DailyTickerSummaryDTO
 from app.repos.summary_repo import DailyTickerSummaryRepository
 from app.repos.user_repo import UserRepository
 from app.services.email_service import get_email_service
+from app.services.email_utils import generate_unsubscribe_token
 
 
 def parse_summary_date(value: str | None) -> date:
@@ -100,7 +101,7 @@ def main() -> int:
             )
             return 1
 
-        unsubscribe_token = f"preview-{user.id}"
+        unsubscribe_token = generate_unsubscribe_token(user.id)
         print(
             f"📧 Sending daily briefing to {target_email} "
             f"for {len(summaries)} tickers (target date {summary_date.isoformat()})..."

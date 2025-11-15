@@ -533,6 +533,32 @@ class UserTickerFollow(Base):
     ticker_obj: Mapped["Ticker"] = relationship("Ticker")
 
 
+class EmailSendLog(Base):
+    """Log of email sends for daily briefings."""
+
+    __tablename__ = "email_send_log"
+
+    id: Mapped[int] = mapped_column(
+        BigIntegerCompat, primary_key=True, autoincrement=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    email_address: Mapped[str] = mapped_column(String(255), nullable=False)
+    summary_date: Mapped[date] = mapped_column(Date, nullable=False)
+    ticker_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    success: Mapped[bool] = mapped_column(nullable=False)
+    message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship("User")
+
+
 # Indexes for performance
 Index("article_published_at_idx", Article.published_at.desc())
 Index("article_ticker_ticker_idx", ArticleTicker.ticker)
@@ -576,3 +602,8 @@ Index(
     UserTickerFollow.ticker,
     unique=True,
 )
+# EmailSendLog indexes
+Index("email_send_log_user_idx", EmailSendLog.user_id)
+Index("email_send_log_summary_date_idx", EmailSendLog.summary_date)
+Index("email_send_log_sent_at_idx", EmailSendLog.sent_at.desc())
+Index("email_send_log_success_idx", EmailSendLog.success)
