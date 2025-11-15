@@ -7,6 +7,7 @@ from app.db.models import Article, ArticleTicker, Ticker
 from app.models.dto import TickerLinkDTO
 from app.services.content_scraper import get_content_scraper
 from app.services.context_analyzer import get_context_analyzer
+from app.utils.ticker_aliases import canonicalize_symbol, expand_equivalent_symbols
 
 logger = logging.getLogger(__name__)
 
@@ -401,21 +402,35 @@ class TickerLinker:
         """
         self.tickers = tickers
         self.alias_to_ticker: dict[str, str] = {}
+        self.known_symbols: set[str] = {ticker.symbol.upper() for ticker in tickers}
         self.content_scraper = get_content_scraper()
         self.content_scraper.max_workers = max_scraping_workers
         self.context_analyzer = get_context_analyzer()
         self._build_alias_map()
 
     def _build_alias_map(self) -> None:
-        """Build mapping from ticker symbols to ticker symbols (no aliases to prevent false positives)."""
+        """Build mapping from ticker symbols and known aliases to canonical symbols."""
+
         for ticker in self.tickers:
-            # Only add the symbol itself (both cases) - no aliases
-            self.alias_to_ticker[ticker.symbol.lower()] = ticker.symbol
-            self.alias_to_ticker[ticker.symbol.upper()] = ticker.symbol
+            equivalent_symbols = expand_equivalent_symbols(ticker.symbol)
+            for symbol in {ticker.symbol, *equivalent_symbols}:
+                resolved_symbol = self._resolve_symbol(symbol)
+                self.alias_to_ticker[symbol.lower()] = resolved_symbol
+                self.alias_to_ticker[symbol.upper()] = resolved_symbol
+                self.alias_to_ticker[resolved_symbol.lower()] = resolved_symbol
+                self.alias_to_ticker[resolved_symbol.upper()] = resolved_symbol
 
         logger.info(
-            f"Built ticker symbol map with {len(self.alias_to_ticker)} entries (no aliases)"
+            f"Built ticker symbol map with {len(self.alias_to_ticker)} entries (symbols + aliases)"
         )
+
+    def _resolve_symbol(self, symbol: str) -> str:
+        """Resolve a raw symbol to the canonical representation if it exists."""
+
+        candidate = canonicalize_symbol(symbol.upper())
+        if candidate in self.known_symbols:
+            return candidate
+        return symbol.upper()
 
     def _extract_text_for_matching(
         self, article: Article, use_title_only: bool = False
@@ -549,7 +564,7 @@ class TickerLinker:
         dollar_matches = re.findall(dollar_pattern, clean_text.upper())
         for match in dollar_matches:
             if match in self.alias_to_ticker:
-                ticker_symbol = self.alias_to_ticker[match]
+                ticker_symbol = self._resolve_symbol(self.alias_to_ticker[match])
                 if ticker_symbol not in matches:
                     matches[ticker_symbol] = []
                 # Find the actual $SYMBOL in the original text
@@ -569,7 +584,7 @@ class TickerLinker:
 
         for match in symbol_matches:
             if match in self.alias_to_ticker:
-                ticker_symbol = self.alias_to_ticker[match]
+                ticker_symbol = self._resolve_symbol(self.alias_to_ticker[match])
 
                 # Apply strict rules:
                 # 1. Explicit cashtag-only symbols must not match without $

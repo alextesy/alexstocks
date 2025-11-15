@@ -49,3 +49,11 @@ def deduplicate_by_canonical(symbols: Iterable[str]) -> list[str]:
             seen.add(canonical)
             result.append(canonical)
     return result
+
+
+def get_alias_groups() -> dict[str, set[str]]:
+    """Return a copy of the canonical -> equivalent symbol mapping."""
+
+    return {
+        canonical: set(symbols) for canonical, symbols in _EQUIVALENT_GROUPS.items()
+    }
