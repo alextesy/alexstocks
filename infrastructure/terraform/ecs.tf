@@ -84,6 +84,13 @@ resource "aws_cloudwatch_log_group" "stock_price_collector" {
   tags = local.common_tags
 }
 
+resource "aws_cloudwatch_log_group" "send_daily_emails" {
+  name              = "/ecs/${var.project_name}-jobs/send-daily-emails"
+  retention_in_days = var.log_retention_days
+
+  tags = local.common_tags
+}
+
 # ECS Task Definition: Reddit Scraper
 resource "aws_ecs_task_definition" "reddit_scraper" {
   family                   = "${var.project_name}-reddit-scraper"
@@ -324,6 +331,62 @@ resource "aws_ecs_task_definition" "stock_price_collector" {
   tags = local.common_tags
 }
 
+# ECS Task Definition: Send Daily Emails
+resource "aws_ecs_task_definition" "send_daily_emails" {
+  family                   = "${var.project_name}-send-daily-emails"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.task_cpu
+  memory                   = var.task_memory
+  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([{
+    name      = "send-daily-emails"
+    image     = "${local.ecr_repository_url}:${var.ecr_image_tag}"
+    essential = true
+
+    command = [
+      "python", "jobs/send_daily_emails.py"
+    ]
+
+    environment = [
+      {
+        name  = "ENVIRONMENT"
+        value = var.environment
+      }
+    ]
+
+    secrets = [
+      {
+        name      = "POSTGRES_URL"
+        valueFrom = data.aws_secretsmanager_secret.postgres_url.arn
+      },
+      {
+        name      = "EMAIL_FROM_ADDRESS"
+        valueFrom = data.aws_secretsmanager_secret.email_from_address.arn
+      },
+      {
+        name      = "AWS_SES_REGION"
+        valueFrom = data.aws_secretsmanager_secret.aws_ses_region.arn
+      }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.send_daily_emails.name
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "ecs"
+      }
+    }
+
+    stopTimeout = 120
+  }])
+
+  tags = local.common_tags
+}
+
 # Outputs
 output "ecs_cluster_name" {
   description = "ECS cluster name"
@@ -353,4 +416,9 @@ output "daily_status_task_definition_arn" {
 output "stock_price_collector_task_definition_arn" {
   description = "Stock price collector task definition ARN"
   value       = aws_ecs_task_definition.stock_price_collector.arn
+}
+
+output "send_daily_emails_task_definition_arn" {
+  description = "Send daily emails task definition ARN"
+  value       = aws_ecs_task_definition.send_daily_emails.arn
 }

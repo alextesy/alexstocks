@@ -18,12 +18,13 @@ RUN uv pip install --system --no-cache \
 # Install remaining dependencies
 RUN uv pip install --system --no-cache -r pyproject.toml
 
-# Copy shared code from main app (models, services, config, collectors, repos)
+# Copy shared code from main app (models, services, config, collectors, repos, templates)
 COPY app/db /app/app/db
 COPY app/services /app/app/services
 COPY app/models /app/app/models
 COPY app/repos /app/app/repos
 COPY app/collectors /app/app/collectors
+COPY app/templates /app/app/templates
 COPY app/config.py /app/app/config.py
 
 # Copy job-specific code from jobs/ directory

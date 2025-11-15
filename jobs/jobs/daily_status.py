@@ -122,8 +122,8 @@ def run_daily_status_job(
     thread_ts = slack.notify_job_start(JOB_NAME, metadata=metadata)
 
     try:
-        # Generate daily summary (limit to 3 tickers for testing)
-        summary, responses = generate_daily_summary(max_tickers=3)
+        # Generate daily summary (uses default from settings)
+        summary, responses = generate_daily_summary(max_tickers=None)
         if summary:
             print("Daily summary tickers:")
             for ticker_summary in summary.tickers:
