@@ -154,7 +154,7 @@ class SESEmailService(EmailService):
                 provider=self.provider_name,
             )
 
-        subject = "Market Pulse Daily Summary"
+        subject = "AlexStocks Daily Summary"
         if user_profile and user_ticker_follows is not None and unsubscribe_token:
             html_body, text_body = self.template_service.render_daily_briefing(
                 user=user,

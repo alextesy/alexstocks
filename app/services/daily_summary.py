@@ -378,10 +378,22 @@ class DailySummaryService:
         day_suffix = (
             "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
         )
+        year = trading_date.year
+        start_text = window_start.astimezone(
+            ZoneInfo(settings.daily_summary_window_timezone)
+        )
+        end_text = window_end.astimezone(
+            ZoneInfo(settings.daily_summary_window_timezone)
+        )
+        window_range = (
+            f"{start_text.strftime('%B %d, %Y %I:%M %p %Z')} to "
+            f"{end_text.strftime('%B %d, %Y %I:%M %p %Z')}"
+        )
 
         window_text = (
             f"Analyze retail investor sentiment for {ticker_summary.ticker} "
-            f"during the last day - {month_name} {day}{day_suffix}."
+            f"during the previous trading window ({window_range}). "
+            f"The summary must reflect discussions specific to {month_name} {day}{day_suffix}, {year}."
         )
         instructions = (
             "Analyze the provided articles and synthesize a comprehensive summary. "
@@ -390,7 +402,9 @@ class DailySummaryService:
             "trends, the second should capture the most cited catalysts and key themes.\n\n"
             "Sentiment: Classify the overall retail investor sentiment by analyzing the collective tone, "
             "language patterns, and emotional indicators across all discussions. Consider the intensity and "
-            "consistency of sentiment signals, not just isolated comments."
+            "consistency of sentiment signals, not just isolated comments.\n\n"
+            "Be explicit that findings apply to the specified date only. Do not reference earlier years unless "
+            "directly compared as part of that day's discussion."
         )
 
         lines = [
