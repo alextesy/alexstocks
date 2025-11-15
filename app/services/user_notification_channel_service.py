@@ -152,6 +152,7 @@ def _sync_preferences_to_profile(
 
     # Mark as modified to ensure SQLAlchemy tracks the change
     from sqlalchemy.orm.attributes import flag_modified
+
     flag_modified(profile, "preferences")
 
     db.flush()

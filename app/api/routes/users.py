@@ -176,7 +176,9 @@ async def update_current_user_profile(
         # Get fresh DTO from the refreshed model
         updated_profile = repo.get_profile(user_id)
         if not updated_profile:
-            raise HTTPException(status_code=404, detail="Profile not found after update")
+            raise HTTPException(
+                status_code=404, detail="Profile not found after update"
+            )
 
         # Extract notification defaults from refreshed profile
         notification_defaults = {}
