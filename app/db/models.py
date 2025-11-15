@@ -481,6 +481,11 @@ class UserNotificationChannel(Base):
     preferences: Mapped[dict | None] = mapped_column(
         JSONBCompat, nullable=True
     )  # Channel-specific settings
+    email_bounced: Mapped[bool] = mapped_column(default=False)
+    bounced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    bounce_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )

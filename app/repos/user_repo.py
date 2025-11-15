@@ -96,6 +96,8 @@ class UserRepository:
     def get_users_with_daily_briefing_enabled(self) -> list[UserDTO]:
         """Get all users with daily briefing notifications enabled.
 
+        Excludes users with bounced email addresses.
+
         Returns:
             List of UserDTOs with daily briefing enabled
         """
@@ -111,6 +113,7 @@ class UserRepository:
                 UserNotificationChannel.channel_type == "email",
                 UserNotificationChannel.is_enabled == True,  # noqa: E712
                 UserNotificationChannel.is_verified == True,  # noqa: E712
+                UserNotificationChannel.email_bounced == False,  # noqa: E712
                 cast(
                     UserNotificationChannel.preferences["notify_on_daily_briefing"],
                     Text,
@@ -345,6 +348,55 @@ class UserRepository:
         self.session.flush()
         return True
 
+    def find_channel_by_email(self, email: str) -> UserNotificationChannelDTO | None:
+        """Find notification channel by email address.
+
+        Args:
+            email: Email address to search for
+
+        Returns:
+            UserNotificationChannelDTO if found, None otherwise
+        """
+        stmt = select(UserNotificationChannel).where(
+            UserNotificationChannel.channel_type == "email",
+            UserNotificationChannel.channel_value == email.lower(),
+        )
+        channel = self.session.execute(stmt).scalar_one_or_none()
+        return self._notification_channel_to_dto(channel) if channel else None
+
+    def mark_email_bounced(
+        self,
+        email: str,
+        bounce_type: str,
+        disable_channel: bool = False,
+    ) -> UserNotificationChannelDTO | None:
+        """Mark an email notification channel as bounced.
+
+        Args:
+            email: Email address that bounced
+            bounce_type: Type of bounce ('Permanent', 'Transient', etc.)
+            disable_channel: If True, also disable the channel (for permanent bounces)
+
+        Returns:
+            Updated UserNotificationChannelDTO if found, None otherwise
+        """
+        stmt = select(UserNotificationChannel).where(
+            UserNotificationChannel.channel_type == "email",
+            UserNotificationChannel.channel_value == email.lower(),
+        )
+        channel = self.session.execute(stmt).scalar_one_or_none()
+        if not channel:
+            return None
+
+        channel.email_bounced = True
+        channel.bounced_at = datetime.now(UTC)
+        channel.bounce_type = bounce_type
+        if disable_channel:
+            channel.is_enabled = False
+        channel.updated_at = datetime.now(UTC)
+        self.session.flush()
+        return self._notification_channel_to_dto(channel)
+
     # UserTickerFollow operations
     def create_ticker_follow(
         self, follow_dto: UserTickerFollowCreateDTO
@@ -519,6 +571,9 @@ class UserRepository:
             is_verified=channel.is_verified,
             is_enabled=channel.is_enabled,
             preferences=channel.preferences,
+            email_bounced=channel.email_bounced,
+            bounced_at=channel.bounced_at,
+            bounce_type=channel.bounce_type,
             created_at=channel.created_at,
             updated_at=channel.updated_at,
         )

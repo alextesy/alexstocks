@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.api.routes import auth, users
+from app.api.routes import auth, email, users
 from app.config import settings
 from app.services.mention_stats import get_mention_stats_service
 from app.services.rate_limit import rate_limit
@@ -30,6 +30,7 @@ app = FastAPI(
 # Include routers
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(email.router)
 
 # Setup templates
 templates = Jinja2Templates(directory="app/templates")

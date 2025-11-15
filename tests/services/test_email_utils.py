@@ -49,3 +49,51 @@ def test_normalize_article_payload_filters_invalid():
     )
     assert parsed is not None
     assert parsed["title"] == "Headline"
+
+
+def test_verify_unsubscribe_token_valid():
+    """Test verifying a valid unsubscribe token."""
+    user_id = 123
+    token = email_utils.generate_unsubscribe_token(user_id)
+    verified_id = email_utils.verify_unsubscribe_token(token)
+    assert verified_id == user_id
+
+
+def test_verify_unsubscribe_token_invalid_type():
+    """Test that tokens with wrong type are rejected."""
+    import pytest
+    from jose import jwt
+
+    from app.config import settings
+
+    # Create token with wrong type
+    payload = {
+        "sub": "123",
+        "type": "session",  # Wrong type
+        "exp": 9999999999,
+        "iat": 1000000000,
+    }
+    token = jwt.encode(payload, settings.session_secret_key, algorithm="HS256")
+    with pytest.raises(ValueError, match="Invalid token type"):
+        email_utils.verify_unsubscribe_token(token)
+
+
+def test_verify_unsubscribe_token_expired():
+    """Test that expired tokens are rejected."""
+    from datetime import UTC, datetime, timedelta
+
+    import pytest
+    from jose import jwt
+
+    from app.config import settings
+
+    # Create expired token
+    payload = {
+        "sub": "123",
+        "type": "unsubscribe",
+        "exp": int((datetime.now(UTC) - timedelta(days=1)).timestamp()),
+        "iat": int((datetime.now(UTC) - timedelta(days=2)).timestamp()),
+    }
+    token = jwt.encode(payload, settings.session_secret_key, algorithm="HS256")
+    with pytest.raises(ValueError):
+        email_utils.verify_unsubscribe_token(token)

@@ -8,7 +8,7 @@ from typing import Any
 from urllib.parse import quote_plus, urljoin
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from jose import jwt
+from jose import JWTError, jwt
 
 from app.config import settings
 from app.db.models import LLMSentimentCategory
@@ -142,6 +142,38 @@ def generate_unsubscribe_token(user_id: int) -> str:
     )
 
     return token
+
+
+def verify_unsubscribe_token(token: str) -> int:
+    """Verify and decode JWT unsubscribe token.
+
+    Args:
+        token: JWT token to verify
+
+    Returns:
+        User ID extracted from token
+
+    Raises:
+        ValueError: If token is invalid, expired, or wrong type
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.session_secret_key,
+            algorithms=["HS256"],
+        )
+        # Verify token type
+        if payload.get("type") != "unsubscribe":
+            raise ValueError("Invalid token type")
+        # Extract user_id
+        user_id_str = payload.get("sub")
+        if not user_id_str:
+            raise ValueError("Missing user ID in token")
+        return int(user_id_str)
+    except JWTError as e:
+        raise ValueError(f"Invalid or expired token: {str(e)}") from e
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid token format: {str(e)}") from e
 
 
 def build_unsubscribe_url(token: str) -> str:

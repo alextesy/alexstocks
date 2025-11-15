@@ -135,6 +135,9 @@ class UserNotificationChannelDTO:
     is_verified: bool
     is_enabled: bool
     preferences: dict | None
+    email_bounced: bool
+    bounced_at: datetime | None
+    bounce_type: str | None
     created_at: datetime
     updated_at: datetime
 
