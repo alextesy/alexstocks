@@ -183,7 +183,7 @@ class UserProfileUpdateDTO:
     avatar_url: str | None = None  # Optional, not exposed in UI for now
     timezone: str | None = None
     notification_defaults: dict | None = (
-        None  # Notification preferences: notify_on_surges, notify_on_most_discussed
+        None  # Notification preferences: notify_on_surges, notify_on_most_discussed, notify_on_daily_briefing
     )
 
     def __post_init__(self):

@@ -6,7 +6,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.db.models import User
+from app.db.models import User, UserProfile
 from app.db.session import SessionLocal
 from app.services.user_notification_channel_service import (
     ensure_email_notification_channel,
@@ -32,10 +32,17 @@ def backfill_channels(db: Session) -> tuple[int, int, int]:
     created = 0
     updated = 0
     for user in users:
+        # Get user profile to extract notification_defaults
+        profile = db.get(UserProfile, user.id)
+        notification_defaults = None
+        if profile and profile.preferences and isinstance(profile.preferences, dict):
+            notification_defaults = profile.preferences.get("notification_defaults")
+
         _, created_flag, updated_flag = ensure_email_notification_channel(
             db,
             user_id=user.id,
             email=user.email,
+            preferences=notification_defaults,
         )
         if created_flag:
             created += 1

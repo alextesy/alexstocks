@@ -173,7 +173,12 @@ def test_update_profile_notification_defaults(
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["notification_defaults"] == defaults
+    # Default notify_on_daily_briefing is merged in during sync
+    expected = {
+        "notify_on_daily_briefing": True,
+        **defaults,
+    }
+    assert data["notification_defaults"] == expected
 
 
 def test_update_profile_creates_notification_channel(
@@ -198,7 +203,12 @@ def test_update_profile_creates_notification_channel(
     )
     assert channel is not None
     assert channel.channel_value == test_user.email
-    assert channel.preferences == defaults
+    # Default notify_on_daily_briefing is merged in
+    expected_preferences = {
+        "notify_on_daily_briefing": True,
+        **defaults,
+    }
+    assert channel.preferences == expected_preferences
 
 
 def test_update_profile_multiple_fields(authenticated_client, test_user_with_profile):
@@ -218,7 +228,9 @@ def test_update_profile_multiple_fields(authenticated_client, test_user_with_pro
     data = response.json()
     assert data["nickname"] == "Multi Update"
     assert data["timezone"] == "Asia/Tokyo"
+    # Default notify_on_daily_briefing is merged in during sync
     assert data["notification_defaults"] == {
+        "notify_on_daily_briefing": True,
         "notify_on_surges": False,
         "notify_on_most_discussed": True,
     }

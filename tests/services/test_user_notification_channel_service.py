@@ -34,7 +34,11 @@ def test_ensure_email_notification_channel_creates_entry(db_session):
     assert updated is True
     assert channel.channel_type == "email"
     assert channel.channel_value == user.email
-    assert channel.preferences == {"notify_on_surges": True}
+    # Default notify_on_daily_briefing is merged in
+    assert channel.preferences == {
+        "notify_on_daily_briefing": True,
+        "notify_on_surges": True,
+    }
 
 
 def test_ensure_email_notification_channel_updates_existing(db_session):
@@ -57,4 +61,8 @@ def test_ensure_email_notification_channel_updates_existing(db_session):
     assert created is False
     assert updated is True
     assert channel.channel_value == new_email
-    assert channel.preferences == {"notify_on_most_discussed": False}
+    # Default notify_on_daily_briefing is merged in
+    assert channel.preferences == {
+        "notify_on_daily_briefing": True,
+        "notify_on_most_discussed": False,
+    }

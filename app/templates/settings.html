@@ -171,6 +171,19 @@
                 </label>
                 <p class="text-sm text-gray-500 ml-6 mt-1">Get notified when new stocks become the most discussed on the platform</p>
             </div>
+
+            <div>
+                <label class="flex items-center">
+                    <input 
+                        type="checkbox" 
+                        id="notify-on-daily-briefing" 
+                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        checked
+                    >
+                    <span class="ml-2 text-sm font-medium text-gray-700">Daily briefing email</span>
+                </label>
+                <p class="text-sm text-gray-500 ml-6 mt-1">Receive a daily email briefing with summaries of your watchlist tickers</p>
+            </div>
         </div>
     </div>
 
@@ -232,6 +245,8 @@ function populateForm(data) {
     const defaults = data.notification_defaults || {};
     document.getElementById('notify-on-surges').checked = defaults.notify_on_surges === true;
     document.getElementById('notify-on-most-discussed').checked = defaults.notify_on_most_discussed === true;
+    // Default to true if not set (for new users)
+    document.getElementById('notify-on-daily-briefing').checked = defaults.notify_on_daily_briefing !== false;
 }
 
 // Update avatar preview
@@ -291,6 +306,7 @@ async function saveProfile() {
             notification_defaults: {
                 notify_on_surges: document.getElementById('notify-on-surges').checked,
                 notify_on_most_discussed: document.getElementById('notify-on-most-discussed').checked,
+                notify_on_daily_briefing: document.getElementById('notify-on-daily-briefing').checked,
             }
         };
         
@@ -310,6 +326,9 @@ async function saveProfile() {
         
         const updated = await response.json();
         profileData = updated;
+        
+        // Reload the form to show updated values
+        populateForm(updated);
         showSuccess();
     } catch (error) {
         showError(error.message || 'Failed to save changes. Please try again.');
