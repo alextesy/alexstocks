@@ -4,6 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
     <title>{{ company_name }} Daily Briefing</title>
     <style>
         body {
@@ -154,6 +156,18 @@
             border: 1px dashed #d1d5db;
             color: #4b5563;
         }
+        .text-body {
+            color: #1f2937;
+        }
+        .text-secondary {
+            color: #374151;
+        }
+        .text-muted {
+            color: #6b7280;
+        }
+        .text-muted-light {
+            color: #9ca3af;
+        }
         @media (max-width: 600px) {
             .email-content { padding: 20px; }
             .ticker-header { flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -165,6 +179,9 @@
             body {
                 background-color: #0f172a;
                 color: #f1f5f9;
+            }
+            a {
+                color: #93c5fd;
             }
             .email-container {
                 background-color: #1e293b;
@@ -186,6 +203,14 @@
             }
             .articles .article {
                 border-color: #334155;
+            }
+            .text-body,
+            .text-secondary {
+                color: #e2e8f0 !important;
+            }
+            .text-muted,
+            .text-muted-light {
+                color: #cbd5f5 !important;
             }
         }
     </style>

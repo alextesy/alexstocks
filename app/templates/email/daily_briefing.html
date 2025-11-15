@@ -3,7 +3,7 @@
 
 {% block content %}
 <p style="font-size:16px; margin-bottom:8px;">Hi {{ greeting_name }},</p>
-<p style="font-size:16px; color:#374151; margin-bottom:24px;">
+<p class="text-secondary" style="font-size:16px; margin-bottom:24px;">
     Here is your personalized {{ company_name }} briefing for <strong>{{ date_display }}</strong>
     ({{ timezone }}).
 </p>
@@ -63,12 +63,12 @@
             </table>
             {% if ticker.summary %}
                 <div style="margin-bottom:12px;">
-                    <p style="font-size:15px; line-height:1.6; color:#1f2937;">{{ ticker.summary }}</p>
+                    <p class="text-body" style="font-size:15px; line-height:1.6;">{{ ticker.summary }}</p>
                 </div>
             {% endif %}
 
             {% if ticker.bullets %}
-                <ul style="padding-left:18px; color:#374151; margin-bottom:12px;">
+                <ul class="text-body" style="padding-left:18px; margin-bottom:12px;">
                     {% for bullet in ticker.bullets %}
                         <li style="margin-bottom:6px;">{{ bullet }}</li>
                     {% endfor %}
@@ -77,7 +77,7 @@
 
             {% if ticker.top_articles %}
                 <div class="articles">
-                    <div style="font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:#9ca3af; margin-bottom:8px;">
+                    <div class="text-muted-light" style="font-size:13px; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px;">
                         Top Articles
                     </div>
                     {% for article in ticker.top_articles %}
@@ -101,7 +101,7 @@
                     {% endfor %}
                 </div>
             {% else %}
-                <p style="font-size:13px; color:#6b7280; margin:0;">
+                <p class="text-muted" style="font-size:13px; margin:0;">
                     No highlighted articles available for this ticker today.
                 </p>
             {% endif %}
@@ -116,10 +116,10 @@
     </div>
 {% endif %}
 
-<p style="font-size:14px; color:#6b7280; margin-top:32px;">
+<p class="text-muted" style="font-size:14px; margin-top:32px;">
     Want to update your watchlist? Visit <a href="{{ app_base_url }}">{{ app_base_url }}</a>.
 </p>
-<p style="font-size:14px; color:#6b7280;">
+<p class="text-muted" style="font-size:14px;">
     Stay informed with {{ company_name }}.
 </p>
 {% endblock %}
