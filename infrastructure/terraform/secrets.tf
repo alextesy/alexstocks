@@ -38,3 +38,7 @@ data "aws_secretsmanager_secret" "email_from_address" {
 data "aws_secretsmanager_secret" "aws_ses_region" {
   name = "${var.project_name}/aws-ses-region"
 }
+
+data "aws_secretsmanager_secret" "test_email_recipient" {
+  name = "${var.project_name}/test-email-recipient"
+}
