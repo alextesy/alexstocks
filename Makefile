@@ -219,6 +219,9 @@ send-daily-emails: ## Run the daily email dispatch job locally
 send-daily-emails-dry-run: ## Run the daily email dispatch job in dry-run mode
 	cd jobs && PYTHONPATH=.. uv run python jobs/send_daily_emails.py --dry-run
 
+send-daily-emails-test: ## Run the daily email dispatch job sending only to TEST_EMAIL_RECIPIENT (actually sends, not dry-run)
+	cd jobs && PYTHONPATH=.. uv run python jobs/send_daily_emails.py --test-email-only
+
 # Combined Jobs (Scraping + Sentiment)
 scrape-and-analyze-posts: ## Scrape Reddit posts and analyze sentiment
 	cd jobs && PYTHONPATH=.. uv run python -m jobs.scrape_and_analyze posts
@@ -440,6 +443,18 @@ ecs-run-send-emails-dry-run: ## Manually trigger send daily emails task in dry-r
 		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
 		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1 \
 		--overrides '{"containerOverrides":[{"name":"send-daily-emails","command":["python","jobs/send_daily_emails.py","--dry-run"]}]}'
+
+ecs-run-send-emails-test: ## Manually trigger send daily emails task sending only to TEST_EMAIL_RECIPIENT (actually sends, not dry-run)
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-send-daily-emails)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r 'join(",")' || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1 \
+		--overrides '{"containerOverrides":[{"name":"send-daily-emails","command":["python","jobs/send_daily_emails.py","--test-email-only"]}]}'
 
 ecs-logs-send-emails: ## Tail logs for send daily emails
 	aws logs tail /ecs/market-pulse-jobs/send-daily-emails --follow
