@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db.models import Base, UserProfile
+from app.db.models import Base, UserNotificationChannel, UserProfile
 from app.db.session import get_db
 from app.main import app
 from app.models.dto import UserCreateDTO, UserProfileCreateDTO
@@ -174,6 +174,31 @@ def test_update_profile_notification_defaults(
     assert response.status_code == 200
     data = response.json()
     assert data["notification_defaults"] == defaults
+
+
+def test_update_profile_creates_notification_channel(
+    authenticated_client, test_user_with_profile, test_session
+):
+    """Updating notification settings should persist to notification channels."""
+    test_user, _ = test_user_with_profile
+    defaults = {
+        "notify_on_surges": False,
+        "notify_on_most_discussed": True,
+    }
+
+    response = authenticated_client.put(
+        "/api/users/me", json={"notification_defaults": defaults}
+    )
+    assert response.status_code == 200
+
+    channel = (
+        test_session.query(UserNotificationChannel)
+        .filter_by(user_id=test_user.id, channel_type="email")
+        .first()
+    )
+    assert channel is not None
+    assert channel.channel_value == test_user.email
+    assert channel.preferences == defaults
 
 
 def test_update_profile_multiple_fields(authenticated_client, test_user_with_profile):

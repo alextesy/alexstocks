@@ -12,6 +12,9 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db.models import User, UserProfile
 from app.services.slack_service import get_slack_service
+from app.services.user_notification_channel_service import (
+    ensure_email_notification_channel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -233,6 +236,8 @@ class AuthService:
             if display_name or avatar_url:
                 self._update_or_create_profile(db, user.id, display_name, avatar_url)
 
+            ensure_email_notification_channel(db, user_id=user.id, email=user.email)
+
             db.commit()
             db.refresh(user)
 
@@ -257,6 +262,8 @@ class AuthService:
             # Create profile if name/avatar provided
             if display_name or avatar_url:
                 self._create_profile(db, user.id, display_name, avatar_url)
+
+            ensure_email_notification_channel(db, user_id=user.id, email=user.email)
 
             db.commit()
             db.refresh(user)
