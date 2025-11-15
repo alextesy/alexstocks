@@ -2,6 +2,7 @@
 
 import json
 import logging
+from typing import TYPE_CHECKING
 from urllib.parse import unquote_plus
 
 import boto3
@@ -13,6 +14,9 @@ from app.config import settings
 from app.db.session import get_db
 from app.repos.user_repo import UserRepository
 from app.services.email_utils import verify_unsubscribe_token
+
+if TYPE_CHECKING:
+    from fastapi.templating import Jinja2Templates
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +32,27 @@ def get_sns_client():
     if _sns_client is None:
         _sns_client = boto3.client("sns", region_name=settings.aws_ses_region)
     return _sns_client
+
+
+def _get_email_templates() -> "Jinja2Templates":  # type: ignore[name-defined]
+    """Get Jinja2 templates configured for email routes.
+
+    Returns:
+        Configured Jinja2Templates instance with filters and globals
+    """
+    from fastapi.templating import Jinja2Templates
+
+    templates = Jinja2Templates(directory="app/templates")
+
+    def url_string(url_obj) -> str:
+        """Convert URL object to string safely for Jinja2 templates."""
+        if url_obj is None:
+            return ""
+        return str(url_obj)
+
+    templates.env.filters["url_string"] = url_string
+    templates.env.globals["settings"] = settings
+    return templates
 
 
 @router.get("/unsubscribe", response_class=HTMLResponse)
@@ -57,18 +82,7 @@ async def unsubscribe(
             extra={"error": str(e)},
         )
         # Return error page
-        from fastapi.templating import Jinja2Templates
-
-        templates = Jinja2Templates(directory="app/templates")
-
-        def url_string(url_obj) -> str:
-            """Convert URL object to string safely for Jinja2 templates."""
-            if url_obj is None:
-                return ""
-            return str(url_obj)
-
-        templates.env.filters["url_string"] = url_string
-        templates.env.globals["settings"] = settings
+        templates = _get_email_templates()
         return templates.TemplateResponse(
             "unsubscribe_error.html",
             {
@@ -92,18 +106,7 @@ async def unsubscribe(
             extra={"user_id": user_id},
         )
         # Still show success page to avoid revealing user existence
-        from fastapi.templating import Jinja2Templates
-
-        templates = Jinja2Templates(directory="app/templates")
-
-        def url_string(url_obj) -> str:
-            """Convert URL object to string safely for Jinja2 templates."""
-            if url_obj is None:
-                return ""
-            return str(url_obj)
-
-        templates.env.filters["url_string"] = url_string
-        templates.env.globals["settings"] = settings
+        templates = _get_email_templates()
         return templates.TemplateResponse(
             "unsubscribe.html",
             {
@@ -156,18 +159,7 @@ async def unsubscribe(
         )
 
     # Return success page
-    from fastapi.templating import Jinja2Templates
-
-    templates = Jinja2Templates(directory="app/templates")
-
-    def url_string(url_obj) -> str:
-        """Convert URL object to string safely for Jinja2 templates."""
-        if url_obj is None:
-            return ""
-        return str(url_obj)
-
-    templates.env.filters["url_string"] = url_string
-    templates.env.globals["settings"] = settings
+    templates = _get_email_templates()
     return templates.TemplateResponse(
         "unsubscribe.html",
         {
