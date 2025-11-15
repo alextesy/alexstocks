@@ -93,6 +93,31 @@ class UserRepository:
         users = self.session.execute(stmt).scalars().all()
         return [self._user_to_dto(user) for user in users]
 
+    def get_users_with_daily_briefing_enabled(self) -> list[UserDTO]:
+        """Get all users with daily briefing notifications enabled.
+
+        Returns:
+            List of UserDTOs with daily briefing enabled
+        """
+        stmt = (
+            select(User)
+            .join(
+                UserNotificationChannel,
+                User.id == UserNotificationChannel.user_id,
+            )
+            .where(
+                User.is_deleted == False,  # noqa: E712
+                User.is_active == True,  # noqa: E712
+                UserNotificationChannel.channel_type == "email",
+                UserNotificationChannel.is_enabled == True,  # noqa: E712
+                UserNotificationChannel.is_verified == True,  # noqa: E712
+                UserNotificationChannel.preferences["notify_on_daily_briefing"].astext
+                == "true",
+            )
+        )
+        users = self.session.execute(stmt).unique().scalars().all()
+        return [self._user_to_dto(user) for user in users]
+
     def update_user(
         self, user_id: int, is_active: bool | None = None
     ) -> UserDTO | None:

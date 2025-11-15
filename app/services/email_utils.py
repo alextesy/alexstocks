@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from urllib.parse import quote_plus, urljoin
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from jose import jwt
 
 from app.config import settings
 from app.db.models import LLMSentimentCategory
@@ -114,6 +116,32 @@ def format_summary_date(summary_date: date | None, timezone: str | None) -> str:
     anchor = datetime.combine(summary_date, time(hour=12), tzinfo=summary_tz)
     localized = anchor.astimezone(target_tz)
     return localized.strftime("%A, %B %d, %Y")
+
+
+def generate_unsubscribe_token(user_id: int) -> str:
+    """Generate a signed JWT token for unsubscribe links.
+
+    Args:
+        user_id: User ID to include in token
+
+    Returns:
+        Signed JWT token string
+    """
+    expire = datetime.now(UTC) + timedelta(days=30)
+    payload = {
+        "sub": str(user_id),
+        "type": "unsubscribe",
+        "exp": expire,
+        "iat": datetime.now(UTC),
+    }
+
+    token = jwt.encode(
+        payload,
+        settings.session_secret_key,
+        algorithm="HS256",
+    )
+
+    return token
 
 
 def build_unsubscribe_url(token: str) -> str:
