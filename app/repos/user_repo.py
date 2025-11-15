@@ -215,7 +215,7 @@ class UserRepository:
             avatar_url: New avatar URL (optional, not exposed in UI for now)
             timezone: New timezone
             notification_defaults: Notification preferences (merged into profile.preferences)
-                Expected keys: notify_on_surges, notify_on_most_discussed
+                Expected keys: notify_on_surges, notify_on_most_discussed, notify_on_daily_briefing
 
         Returns:
             Updated profile DTO or None if user not found
