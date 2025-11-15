@@ -1,14 +1,14 @@
-# Market Pulse v2 (AlexStocks)
+# AlexStocks
 
-**Real-time Reddit market intelligence with hybrid LLM sentiment, hourly mention analytics, and battle-tested cloud automation.**
+**Real-time Reddit market intelligence with hybrid LLM sentiment, hourly mention analytics, Gmail-powered auth, and battle-tested cloud automation.**
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
 
-> 🆕 Recent additions: Redis-backed API budgets, hourly mentions API with Chart.js dashboards, concurrent Yahoo Finance collector, and AWS ECS Fargate cron fleet managed by Terraform + GitHub Actions.
+> 🆕 Recent additions: Google OAuth with JWT-backed sessions, automatic timezone detection, GA4 user analytics, SES-powered daily summaries, Redis-backed API budgets, hourly mentions API, concurrent Yahoo Finance collectors, and AWS ECS Fargate cron fleet managed by Terraform + GitHub Actions.
 
-_Formerly branded as AlexStocks. The UI still shows the legacy name while the broader platform ships as **Market Pulse v2**._
+_Formerly referred to internally as Market Pulse v2; the public-facing experience, docs, and infrastructure now ship as **AlexStocks**._
 
 ---
 
@@ -42,6 +42,12 @@ _Formerly branded as AlexStocks. The UI still shows the legacy name while the br
 - Built-in search, pagination, and multiple sort orders for tickers.
 - Home page surfaces 24h sentiment lean, scraping status, and curated default tickers for the mentions chart.
 - Privacy/about pages, GTM toggles, and cookie consent hooks controlled via Pydantic settings.
+
+### Authentication & Personalization
+- Gmail-only Google OAuth login backed by JWT sessions, CSRF-protected state, and account blocking controls (`/auth/login`, `/auth/callback`, `/auth/logout`, `/auth/me`).
+- Browser-based timezone detection automatically syncs to `user_profiles.timezone` via `/auth/update-timezone`, enabling localized analytics and future notifications.
+- GA4 instrumentation emits login/logout events plus user properties (`user_id`, timezone, auth provider) once cookie consent is granted.
+- AWS SES integration delivers AlexStocks Daily Summary emails and `make send-test-email` smoke tests driven by `EMAIL_*` settings.
 
 ### Reliability & Safety Rails
 - Redis-backed rate limiting middleware with per-endpoint quotas and `Retry-After` headers.
@@ -228,6 +234,13 @@ make security                              # Bandit scan (JSON report)
 make rate-limit-smoke                      # Exercise API parameter caps + 429s
 ```
 
+### Authentication & email helpers
+
+```bash
+make test-users                            # Unit tests for user repository logic
+make send-test-email                       # Trigger SES-backed smoke email with current settings
+```
+
 ### ECS & Terraform helpers
 
 ```bash
@@ -296,12 +309,12 @@ For detailed migration notes see `docs/ECS_MIGRATION_GUIDE.md`, `docs/ECS_MIGRAT
 
 ## Recent Highlights
 
+- Rolled out **Google OAuth + JWT sessions** for Gmail-only sign-in, complete with `/auth/*` APIs, integration tests, and structured logging.
+- Added **automatic timezone detection** that syncs browsers → `/auth/update-timezone` → `user_profiles.timezone` for localized analytics.
+- Instrumented **GA4 tracking** with login/logout events, user IDs, and timezone/auth provider user properties respecting cookie consent.
+- Enabled **AWS SES email delivery** for AlexStocks Daily Summary plus a `make send-test-email` smoke command and documented setup.
 - Deployed **Redis-backed rate limiting** with per-endpoint quotas and automatic `Retry-After` responses.
 - Added **hourly mentions analytics** powering the homepage chart and `/api/mentions/hourly`.
-- Migrated cron workload to **AWS ECS Fargate (Spot)** with Terraform-managed infrastructure and GitHub Actions deploys.
-- Upgraded stock collector with **async semaphore concurrency** and extensive metrics in `stock_data_collection`.
-- Implemented **dual-model sentiment override** combining FinBERT and VADER with adaptive thresholds.
-- Introduced **scraping status dashboards** and database tables for live production telemetry.
 
 ---
 
@@ -335,6 +348,6 @@ Key references (all in `docs/`):
 
 This project is available for personal and educational use.
 
-Questions or issues? Open a ticket in your team’s tracker or reach out via the internal channel used for Market Pulse operations.
+Questions or issues? Open a ticket in your team’s tracker or reach out via the internal channel used for AlexStocks operations.
 
 ---
