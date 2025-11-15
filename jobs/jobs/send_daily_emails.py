@@ -21,7 +21,9 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
 
+from app.config import settings  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
+from app.models.dto import UserDTO  # noqa: E402
 from app.repos.email_send_log_repo import EmailSendLogRepository  # noqa: E402
 from app.repos.summary_repo import DailyTickerSummaryRepository  # noqa: E402
 from app.repos.user_repo import UserRepository  # noqa: E402
@@ -96,6 +98,7 @@ def run_send_daily_emails_job(
     summary_date: date | None = None,
     dry_run: bool = False,
     verbose: bool = False,
+    test_email_only: bool = False,
 ) -> dict[str, Any]:
     """Run the send daily emails job.
 
@@ -103,6 +106,7 @@ def run_send_daily_emails_job(
         summary_date: Target summary date (defaults to previous UTC day)
         dry_run: If True, log but don't send emails
         verbose: Enable verbose logging
+        test_email_only: If True, only send to TEST_EMAIL_RECIPIENT
 
     Returns:
         Dictionary with job results and statistics
@@ -123,6 +127,7 @@ def run_send_daily_emails_job(
             extra={
                 "summary_date": summary_date.isoformat(),
                 "dry_run": dry_run,
+                "test_email_only": test_email_only,
             },
         )
 
@@ -141,6 +146,44 @@ def run_send_daily_emails_job(
                 summary_repo=summary_repo,
                 send_log_repo=send_log_repo,
             )
+
+            # If test_email_only is enabled, filter to only TEST_EMAIL_RECIPIENT
+            if test_email_only:
+                test_email = settings.test_email_recipient
+                logger.info(
+                    "Test email mode: filtering to TEST_EMAIL_RECIPIENT only",
+                    extra={"test_email": test_email},
+                )
+                test_user = user_repo.get_user_by_email(test_email)
+                if not test_user:
+                    error_msg = (
+                        f"TEST_EMAIL_RECIPIENT ({test_email}) not found in database. "
+                        "Please ensure the user exists and has daily briefing enabled."
+                    )
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+
+                # Check if user has daily briefing enabled
+                channels = user_repo.get_notification_channels(test_user.id)
+                email_channel = None
+                for channel in channels:
+                    if channel.channel_type == "email":
+                        email_channel = channel
+                        break
+
+                if not email_channel or not email_channel.is_enabled:
+                    error_msg = (
+                        f"TEST_EMAIL_RECIPIENT ({test_email}) does not have "
+                        "daily briefing enabled. Please enable it in the user's profile."
+                    )
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+
+                # Override get_eligible_users to return only test user
+                def get_test_user_only() -> list[UserDTO]:
+                    return [test_user]
+
+                dispatch_service.get_eligible_users = get_test_user_only  # type: ignore[method-assign]
 
             stats = dispatch_service.dispatch_daily_briefings(
                 summary_date=summary_date,
@@ -213,6 +256,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Enable verbose logging",
     )
+    parser.add_argument(
+        "--test-email-only",
+        action="store_true",
+        help="Only send to TEST_EMAIL_RECIPIENT (not a dry-run, actually sends)",
+    )
 
     return parser.parse_args(argv)
 
@@ -226,6 +274,7 @@ def main(argv: list[str] | None = None) -> int:
             summary_date=summary_date,
             dry_run=args.dry_run,
             verbose=args.verbose,
+            test_email_only=args.test_email_only,
         )
         return 0
     except Exception as exc:  # noqa: BLE001
