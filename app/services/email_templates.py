@@ -356,8 +356,20 @@ class EmailTemplateService:
             return round(row.price, 2)
 
     def _summary_window_bounds(self, summary_date: date) -> tuple[datetime, datetime]:
-        start_local = datetime.combine(summary_date, time.min, tzinfo=self._summary_tz)
-        end_local = start_local + timedelta(days=1)
+        start_hour = settings.daily_summary_window_start_hour
+        end_hour = settings.daily_summary_window_end_hour
+        start_local = datetime.combine(
+            summary_date,
+            time(hour=start_hour),
+            tzinfo=self._summary_tz,
+        )
+        end_local = datetime.combine(
+            summary_date,
+            time(hour=end_hour),
+            tzinfo=self._summary_tz,
+        )
+        if end_local <= start_local:
+            end_local += timedelta(days=1)
         return start_local.astimezone(UTC), end_local.astimezone(UTC)
 
     @staticmethod

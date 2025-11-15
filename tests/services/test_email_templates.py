@@ -181,3 +181,31 @@ class TestEmailTemplateService:
         tickers = service._prepare_tickers(summaries, follows)
         assert [ticker["symbol"] for ticker in tickers] == ["NVDA", "AAPL"]
         assert all("TSLA" != ticker["symbol"] for ticker in tickers)
+
+    def test_summary_window_bounds_uses_custom_hours(self, monkeypatch):
+        """Participant windows align with daily summary configuration."""
+        monkeypatch.setattr(
+            settings, "daily_summary_window_timezone", "America/New_York"
+        )
+        monkeypatch.setattr(settings, "daily_summary_window_start_hour", 7)
+        monkeypatch.setattr(settings, "daily_summary_window_end_hour", 19)
+        service = EmailTemplateService()
+
+        start, end = service._summary_window_bounds(date(2024, 5, 2))
+
+        assert start == datetime(2024, 5, 2, 11, tzinfo=UTC)
+        assert end == datetime(2024, 5, 2, 23, tzinfo=UTC)
+
+    def test_summary_window_bounds_handles_cross_midnight(self, monkeypatch):
+        """Cross-midnight windows carry the end into the next day."""
+        monkeypatch.setattr(
+            settings, "daily_summary_window_timezone", "America/New_York"
+        )
+        monkeypatch.setattr(settings, "daily_summary_window_start_hour", 20)
+        monkeypatch.setattr(settings, "daily_summary_window_end_hour", 6)
+        service = EmailTemplateService()
+
+        start, end = service._summary_window_bounds(date(2024, 1, 15))
+
+        assert start == datetime(2024, 1, 16, 1, tzinfo=UTC)
+        assert end == datetime(2024, 1, 16, 11, tzinfo=UTC)
