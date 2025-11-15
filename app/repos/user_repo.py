@@ -3,7 +3,7 @@
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import Text, cast, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
@@ -111,7 +111,10 @@ class UserRepository:
                 UserNotificationChannel.channel_type == "email",
                 UserNotificationChannel.is_enabled == True,  # noqa: E712
                 UserNotificationChannel.is_verified == True,  # noqa: E712
-                UserNotificationChannel.preferences["notify_on_daily_briefing"].astext
+                cast(
+                    UserNotificationChannel.preferences["notify_on_daily_briefing"],
+                    Text,
+                )
                 == "true",
             )
         )
