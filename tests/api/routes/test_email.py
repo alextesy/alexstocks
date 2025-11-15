@@ -151,7 +151,10 @@ def test_ses_webhook_bounce_notification(mock_user_repo):
     def override_get_db():
         yield mock_db
 
-    with patch("app.api.routes.email.UserRepository", return_value=mock_user_repo):
+    with (
+        patch("app.api.routes.email.UserRepository", return_value=mock_user_repo),
+        patch("app.api.routes.email.verify_sns_message_signature", return_value=True),
+    ):
         app.dependency_overrides[get_db] = override_get_db
         try:
             response = client.post("/api/webhooks/ses", json=sns_payload)
@@ -184,13 +187,43 @@ def test_ses_webhook_complaint_notification():
         "SigningCertURL": "https://sns.us-east-1.amazonaws.com/cert.pem",
     }
 
-    with patch("app.api.routes.email.get_db"):
+    with (
+        patch("app.api.routes.email.get_db"),
+        patch("app.api.routes.email.verify_sns_message_signature", return_value=True),
+    ):
         response = client.post("/api/webhooks/ses", json=sns_payload)
 
     assert response.status_code == 200
     assert (
         "not processed" in response.text.lower() or "received" in response.text.lower()
     )
+
+
+def test_ses_webhook_invalid_signature():
+    """Test that webhook rejects messages with invalid signatures."""
+    bounce_message = {
+        "notificationType": "Bounce",
+        "bounce": {
+            "bounceType": "Permanent",
+            "bounceSubType": "General",
+            "bouncedRecipients": [
+                {"emailAddress": "bounced@example.com", "status": "5.1.1"}
+            ],
+        },
+    }
+
+    sns_payload = {
+        "Type": "Notification",
+        "Message": json.dumps(bounce_message),
+        "Signature": "invalid-signature",
+        "SigningCertURL": "https://sns.us-east-1.amazonaws.com/cert.pem",
+    }
+
+    with patch("app.api.routes.email.verify_sns_message_signature", return_value=False):
+        response = client.post("/api/webhooks/ses", json=sns_payload)
+
+    assert response.status_code == 403
+    assert "invalid" in response.text.lower()
 
 
 def test_ses_webhook_transient_bounce(mock_user_repo):
@@ -237,7 +270,10 @@ def test_ses_webhook_transient_bounce(mock_user_repo):
     def override_get_db():
         yield mock_db
 
-    with patch("app.api.routes.email.UserRepository", return_value=mock_user_repo):
+    with (
+        patch("app.api.routes.email.UserRepository", return_value=mock_user_repo),
+        patch("app.api.routes.email.verify_sns_message_signature", return_value=True),
+    ):
         app.dependency_overrides[get_db] = override_get_db
         try:
             response = client.post("/api/webhooks/ses", json=sns_payload)

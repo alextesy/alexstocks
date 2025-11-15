@@ -219,6 +219,11 @@ class Settings(BaseSettings):
         default="us-east-1",
         validation_alias=AliasChoices("AWS_SES_REGION", "aws_ses_region"),
     )
+    aws_sns_topic_arn: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AWS_SNS_TOPIC_ARN", "aws_sns_topic_arn"),
+        description="Expected SNS topic ARN for bounce notifications (optional but recommended for security)",
+    )
     email_company_name: str = Field(
         default="AlexStocks",
         validation_alias=AliasChoices("EMAIL_COMPANY_NAME", "email_company_name"),

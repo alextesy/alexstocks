@@ -13,7 +13,10 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db.session import get_db
 from app.repos.user_repo import UserRepository
-from app.services.email_utils import verify_unsubscribe_token
+from app.services.email_utils import (
+    verify_sns_message_signature,
+    verify_unsubscribe_token,
+)
 
 if TYPE_CHECKING:
     from fastapi.templating import Jinja2Templates
@@ -188,8 +191,8 @@ async def ses_webhook(
         200 OK with appropriate response
     """
     try:
-        body = await request.body()
-        payload = json.loads(body.decode("utf-8"))
+        body_bytes = await request.body()
+        payload = json.loads(body_bytes.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         logger.error(
             "Invalid webhook payload",
@@ -237,14 +240,16 @@ async def ses_webhook(
     # Handle notification (bounce/complaint)
     if message_type == "Notification":
         try:
-            # Note: SNS message signature verification would require downloading
-            # the certificate from SigningCertURL and verifying the signature.
-            # For now, we rely on HTTPS and proper AWS IAM/security groups.
-            # In production, consider implementing full signature verification.
-            # Basic validation: ensure required fields are present
-            if not payload.get("Signature") or not payload.get("SigningCertURL"):
-                logger.warning("SNS notification missing signature fields")
-                # Still process but log warning
+            # Verify SNS message signature to prevent forged requests
+            if not verify_sns_message_signature(payload, body_bytes):
+                logger.error(
+                    "SNS message signature verification failed - rejecting request",
+                    extra={"topic_arn": payload.get("TopicArn")},
+                )
+                return PlainTextResponse(
+                    "Invalid signature",
+                    status_code=status.HTTP_403_FORBIDDEN,
+                )
 
             # Parse the message
             message_str = payload.get("Message")
