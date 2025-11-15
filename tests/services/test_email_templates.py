@@ -125,9 +125,7 @@ class TestEmailTemplateService:
         monkeypatch.setattr(
             service, "_get_participant_count", lambda *args, **kwargs: 12
         )
-        monkeypatch.setattr(
-            service, "_get_last_price", lambda *args, **kwargs: 123.45
-        )
+        monkeypatch.setattr(service, "_get_last_price", lambda *args, **kwargs: 123.45)
 
         summaries = [
             make_summary(
@@ -166,9 +164,14 @@ class TestEmailTemplateService:
         assert "Participants" in html
         assert "Apple comment preview text" in text
 
-    def test_prepare_tickers_filters_and_sorts(self, user, follows):
+    def test_prepare_tickers_filters_and_sorts(self, user, follows, monkeypatch):
         """Personalization logic filters to watchlist symbols."""
         service = EmailTemplateService()
+        monkeypatch.setattr(
+            service, "_get_participant_count", lambda *args, **kwargs: 0
+        )
+        monkeypatch.setattr(service, "_get_last_price", lambda *args, **kwargs: None)
+        monkeypatch.setattr(service, "_article_loader", lambda ids: {})
         summaries = [
             make_summary("TSLA", summary_id=10, sentiment=LLMSentimentCategory.DOOM),
             make_summary("NVDA", summary_id=11, sentiment=LLMSentimentCategory.BULLISH),
