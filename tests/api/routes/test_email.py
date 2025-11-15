@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.db.session import get_db
 from app.main import app
 from app.models.dto import UserNotificationChannelDTO
 
@@ -145,11 +146,17 @@ def test_ses_webhook_bounce_notification(mock_user_repo):
 
     mock_user_repo.mark_email_bounced.return_value = updated_channel
 
+    mock_db = MagicMock()
+
+    def override_get_db():
+        yield mock_db
+
     with patch("app.api.routes.email.UserRepository", return_value=mock_user_repo):
-        with patch("app.api.routes.email.get_db") as mock_get_db:
-            mock_db = MagicMock()
-            mock_get_db.return_value = mock_db
+        app.dependency_overrides[get_db] = override_get_db
+        try:
             response = client.post("/api/webhooks/ses", json=sns_payload)
+        finally:
+            app.dependency_overrides.pop(get_db, None)
 
     assert response.status_code == 200
     assert "processed" in response.text.lower()
@@ -225,11 +232,17 @@ def test_ses_webhook_transient_bounce(mock_user_repo):
 
     mock_user_repo.mark_email_bounced.return_value = updated_channel
 
+    mock_db = MagicMock()
+
+    def override_get_db():
+        yield mock_db
+
     with patch("app.api.routes.email.UserRepository", return_value=mock_user_repo):
-        with patch("app.api.routes.email.get_db") as mock_get_db:
-            mock_db = MagicMock()
-            mock_get_db.return_value = mock_db
+        app.dependency_overrides[get_db] = override_get_db
+        try:
             response = client.post("/api/webhooks/ses", json=sns_payload)
+        finally:
+            app.dependency_overrides.pop(get_db, None)
 
     assert response.status_code == 200
     mock_user_repo.mark_email_bounced.assert_called_once_with(

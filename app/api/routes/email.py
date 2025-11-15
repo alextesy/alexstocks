@@ -60,6 +60,15 @@ async def unsubscribe(
         from fastapi.templating import Jinja2Templates
 
         templates = Jinja2Templates(directory="app/templates")
+
+        def url_string(url_obj) -> str:
+            """Convert URL object to string safely for Jinja2 templates."""
+            if url_obj is None:
+                return ""
+            return str(url_obj)
+
+        templates.env.filters["url_string"] = url_string
+        templates.env.globals["settings"] = settings
         return templates.TemplateResponse(
             "unsubscribe_error.html",
             {
@@ -86,6 +95,15 @@ async def unsubscribe(
         from fastapi.templating import Jinja2Templates
 
         templates = Jinja2Templates(directory="app/templates")
+
+        def url_string(url_obj) -> str:
+            """Convert URL object to string safely for Jinja2 templates."""
+            if url_obj is None:
+                return ""
+            return str(url_obj)
+
+        templates.env.filters["url_string"] = url_string
+        templates.env.globals["settings"] = settings
         return templates.TemplateResponse(
             "unsubscribe.html",
             {
@@ -141,6 +159,15 @@ async def unsubscribe(
     from fastapi.templating import Jinja2Templates
 
     templates = Jinja2Templates(directory="app/templates")
+
+    def url_string(url_obj) -> str:
+        """Convert URL object to string safely for Jinja2 templates."""
+        if url_obj is None:
+            return ""
+        return str(url_obj)
+
+    templates.env.filters["url_string"] = url_string
+    templates.env.globals["settings"] = settings
     return templates.TemplateResponse(
         "unsubscribe.html",
         {
