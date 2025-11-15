@@ -245,6 +245,20 @@ jobs:
             --cli-input-json file://task-def-stock-price-updated.json > /dev/null
           UPDATED_TASKS="$UPDATED_TASKS\n- market-pulse-stock-price-collector"
 
+          # Update Send Daily Emails task definition
+          echo "Updating market-pulse-send-daily-emails..."
+          aws ecs describe-task-definition \
+            --task-definition market-pulse-send-daily-emails \
+            --query taskDefinition > task-def-send-emails.json
+
+          jq --arg IMAGE "$IMAGE_URI" \
+            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            task-def-send-emails.json > task-def-send-emails-updated.json
+
+          aws ecs register-task-definition \
+            --cli-input-json file://task-def-send-emails-updated.json > /dev/null
+          UPDATED_TASKS="$UPDATED_TASKS\n- market-pulse-send-daily-emails"
+
           echo "✅ Updated all ECS task definitions"
           echo "updated_tasks<<EOF" >> $GITHUB_OUTPUT
           echo -e "$UPDATED_TASKS" >> $GITHUB_OUTPUT
@@ -334,6 +348,7 @@ jobs:
           import_resource "aws_cloudwatch_log_group" "sentiment_analysis" "/ecs/$PROJECT_NAME-jobs/sentiment-analysis" || true
           import_resource "aws_cloudwatch_log_group" "daily_status" "/ecs/$PROJECT_NAME-jobs/daily-status" || true
           import_resource "aws_cloudwatch_log_group" "stock_price_collector" "/ecs/$PROJECT_NAME-jobs/stock-price-collector" || true
+          import_resource "aws_cloudwatch_log_group" "send_daily_emails" "/ecs/$PROJECT_NAME-jobs/send-daily-emails" || true
           
           # Import IAM roles
           import_resource "aws_iam_role" "ecs_task_execution" "$PROJECT_NAME-ecs-task-execution" || true
@@ -354,6 +369,7 @@ jobs:
           import_resource "aws_scheduler_schedule" "sentiment_analysis" "default/$PROJECT_NAME-sentiment-analysis" || true
           import_resource "aws_scheduler_schedule" "daily_status" "default/$PROJECT_NAME-daily-status" || true
           import_resource "aws_scheduler_schedule" "stock_price_collector" "default/$PROJECT_NAME-stock-price-collector" || true
+          import_resource "aws_scheduler_schedule" "send_daily_emails" "default/$PROJECT_NAME-send-daily-emails" || true
           
           echo "Import step completed. Continuing with plan..."
 
@@ -446,6 +462,7 @@ jobs:
             echo "- [Sentiment Analysis Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Fsentiment-analysis)" >> $GITHUB_STEP_SUMMARY
             echo "- [Daily Status Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Fdaily-status)" >> $GITHUB_STEP_SUMMARY
             echo "- [Stock Price Collector Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Fstock-price-collector)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Send Daily Emails Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Fsend-daily-emails)" >> $GITHUB_STEP_SUMMARY
           else
             echo "⏭️ Skipped" >> $GITHUB_STEP_SUMMARY
           fi
