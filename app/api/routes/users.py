@@ -140,6 +140,10 @@ async def update_current_user_profile(
         )
         repo.create_profile(profile_dto)
         db.commit()
+        # Re-fetch the profile after creation
+        profile = db.get(UserProfile, user_id)
+        if not profile:
+            raise HTTPException(status_code=500, detail="Failed to create profile")
 
     try:
         # Update profile
