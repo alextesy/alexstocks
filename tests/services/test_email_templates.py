@@ -209,3 +209,92 @@ class TestEmailTemplateService:
 
         assert start == datetime(2024, 1, 16, 1, tzinfo=UTC)
         assert end == datetime(2024, 1, 16, 11, tzinfo=UTC)
+
+    def test_normalize_articles_filters_to_window(self, monkeypatch):
+        """Top articles respect the configured daily summary window."""
+        monkeypatch.setattr(
+            settings, "daily_summary_window_timezone", "America/New_York"
+        )
+        monkeypatch.setattr(settings, "daily_summary_window_start_hour", 7)
+        monkeypatch.setattr(settings, "daily_summary_window_end_hour", 19)
+
+        published_inside = datetime(2024, 5, 2, 15, tzinfo=UTC)
+        published_too_early = datetime(2024, 5, 2, 9, tzinfo=UTC)
+        published_too_late = datetime(2024, 5, 2, 23, 30, tzinfo=UTC)
+
+        articles = {
+            1: {
+                "title": "Inside Window",
+                "url": "https://example.com/inside",
+                "engagement_score": 1.2,
+                "source": "reddit",
+                "text": "Inside window text",
+                "published_at": published_inside,
+            },
+            2: {
+                "title": "Too Early",
+                "url": "https://example.com/early",
+                "engagement_score": 0.5,
+                "source": "reddit",
+                "text": "Early text",
+                "published_at": published_too_early,
+            },
+            3: {
+                "title": "Too Late",
+                "url": "https://example.com/late",
+                "engagement_score": 0.8,
+                "source": "reddit",
+                "text": "Late text",
+                "published_at": published_too_late,
+            },
+        }
+
+        service = EmailTemplateService(article_loader=lambda ids: articles)
+        normalized = service._normalize_articles([1, 2, 3], date(2024, 5, 2))
+
+        assert len(normalized) == 1
+        assert normalized[0]["title"] == "Inside Window"
+
+    def test_normalize_articles_handles_cross_midnight_window(self, monkeypatch):
+        """Articles after midnight are included when window spans days."""
+        monkeypatch.setattr(
+            settings, "daily_summary_window_timezone", "America/New_York"
+        )
+        monkeypatch.setattr(settings, "daily_summary_window_start_hour", 20)
+        monkeypatch.setattr(settings, "daily_summary_window_end_hour", 6)
+
+        inside = datetime(2024, 1, 16, 3, tzinfo=UTC)
+        before_window = datetime(2024, 1, 15, 23, tzinfo=UTC)
+        after_window = datetime(2024, 1, 16, 15, tzinfo=UTC)
+
+        articles = {
+            10: {
+                "title": "Night Session",
+                "url": "https://example.com/night",
+                "engagement_score": 1.5,
+                "source": "reddit",
+                "text": "Night text",
+                "published_at": inside,
+            },
+            11: {
+                "title": "Before Window",
+                "url": "https://example.com/before",
+                "engagement_score": 0.2,
+                "source": "reddit",
+                "text": "Before text",
+                "published_at": before_window,
+            },
+            12: {
+                "title": "After Window",
+                "url": "https://example.com/after",
+                "engagement_score": 0.3,
+                "source": "reddit",
+                "text": "After text",
+                "published_at": after_window,
+            },
+        }
+
+        service = EmailTemplateService(article_loader=lambda ids: articles)
+        normalized = service._normalize_articles([10, 11, 12], date(2024, 1, 15))
+
+        assert [article["title"] for article in normalized] == ["Night Session"]

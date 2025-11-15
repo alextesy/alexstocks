@@ -253,6 +253,11 @@ class EmailTemplateService:
         if not articles_raw:
             return normalized
 
+        window_start: datetime | None = None
+        window_end: datetime | None = None
+        if summary_date:
+            window_start, window_end = self._summary_window_bounds(summary_date)
+
         article_ids: list[int] = []
         for article in articles_raw:
             if isinstance(article, int):
@@ -271,9 +276,13 @@ class EmailTemplateService:
             meta = article_map.get(article_id)
             if not meta:
                 continue
-            if summary_date and meta.get("published_at"):
-                article_date = meta["published_at"].astimezone(self._summary_tz).date()
-                if article_date != summary_date:
+            published_at = meta.get("published_at")
+            if window_start and window_end and published_at:
+                if published_at.tzinfo is None:
+                    published_utc = published_at.replace(tzinfo=UTC)
+                else:
+                    published_utc = published_at.astimezone(UTC)
+                if not (window_start <= published_utc < window_end):
                     continue
             preview_text = ensure_plain_text(meta.get("text") or "")
             if preview_text and len(preview_text) > 220:
