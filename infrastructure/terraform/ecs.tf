@@ -369,6 +369,10 @@ resource "aws_ecs_task_definition" "send_daily_emails" {
       {
         name      = "AWS_SES_REGION"
         valueFrom = data.aws_secretsmanager_secret.aws_ses_region.arn
+      },
+      {
+        name      = "TEST_EMAIL_RECIPIENT"
+        valueFrom = data.aws_secretsmanager_secret.test_email_recipient.arn
       }
     ]
 
