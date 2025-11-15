@@ -214,10 +214,10 @@ send-test-email: ## Send a test email to verify email service configuration
 	uv run python app/scripts/send_test_email.py
 
 send-daily-emails: ## Run the daily email dispatch job locally
-	cd jobs && PYTHONPATH=.. uv run python -m jobs.jobs.send_daily_emails
+	cd jobs && PYTHONPATH=.. uv run python jobs/send_daily_emails.py
 
 send-daily-emails-dry-run: ## Run the daily email dispatch job in dry-run mode
-	cd jobs && PYTHONPATH=.. uv run python -m jobs.jobs.send_daily_emails --dry-run
+	cd jobs && PYTHONPATH=.. uv run python jobs/send_daily_emails.py --dry-run
 
 # Combined Jobs (Scraping + Sentiment)
 scrape-and-analyze-posts: ## Scrape Reddit posts and analyze sentiment

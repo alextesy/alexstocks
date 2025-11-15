@@ -347,7 +347,7 @@ resource "aws_ecs_task_definition" "send_daily_emails" {
     essential = true
 
     command = [
-      "python", "-m", "jobs.jobs.send_daily_emails"
+      "python", "jobs/send_daily_emails.py"
     ]
 
     environment = [
