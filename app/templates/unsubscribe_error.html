@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Unsubscribe Error - AlexStocks{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-bold text-gray-900 mb-6">Unsubscribe Link Invalid</h1>
+    <div class="bg-white rounded-lg shadow-sm border p-6 space-y-4 text-gray-700">
+        <p>{{ error_message }}</p>
+        <p>If you need to unsubscribe, you can disable email notifications in your <a class="text-blue-600 underline" href="/settings">settings</a>.</p>
+        <p class="text-sm text-gray-500">If you continue to have issues, please contact us at <a class="text-blue-600 underline" href="mailto:{{ settings.email_from_address }}">{{ settings.email_from_address }}</a>.</p>
+    </div>
+</div>
+{% endblock %}
+

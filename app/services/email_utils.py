@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from urllib.parse import quote_plus, urljoin
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from jose import jwt
+from jose import JWTError, jwt
 
 from app.config import settings
 from app.db.models import LLMSentimentCategory
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -144,6 +147,38 @@ def generate_unsubscribe_token(user_id: int) -> str:
     return token
 
 
+def verify_unsubscribe_token(token: str) -> int:
+    """Verify and decode JWT unsubscribe token.
+
+    Args:
+        token: JWT token to verify
+
+    Returns:
+        User ID extracted from token
+
+    Raises:
+        ValueError: If token is invalid, expired, or wrong type
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.session_secret_key,
+            algorithms=["HS256"],
+        )
+        # Verify token type
+        if payload.get("type") != "unsubscribe":
+            raise ValueError("Invalid token type")
+        # Extract user_id
+        user_id_str = payload.get("sub")
+        if not user_id_str:
+            raise ValueError("Missing user ID in token")
+        return int(user_id_str)
+    except JWTError as e:
+        raise ValueError(f"Invalid or expired token: {str(e)}") from e
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid token format: {str(e)}") from e
+
+
 def build_unsubscribe_url(token: str) -> str:
     """Generate unsubscribe URL from base URL and signed token."""
     base_url = settings.app_base_url.rstrip("/")
@@ -181,3 +216,66 @@ def normalize_article_payload(article: Any) -> dict[str, Any] | None:
         "engagement_score": article.get("engagement_score"),
         "source": article.get("source"),
     }
+
+
+def verify_sns_message_signature(
+    payload: dict[str, Any],
+    raw_body: bytes,  # noqa: ARG001
+) -> bool:
+    """Verify AWS SNS message signature.
+
+    Currently performs basic validation only. Full cryptographic signature
+    verification is TODO.
+
+    Args:
+        payload: Parsed JSON payload from SNS
+        raw_body: Raw request body bytes (for signature verification)
+
+    Returns:
+        True if basic checks pass, False otherwise
+
+    TODO:
+        - Download certificate from SigningCertURL
+        - Verify certificate is from AWS SNS (CN/SAN validation)
+        - Verify message signature using certificate's public key
+    """
+    # Check required fields
+    signature = payload.get("Signature")
+    signing_cert_url = payload.get("SigningCertURL")
+    topic_arn = payload.get("TopicArn")
+
+    if not signature or not signing_cert_url:
+        logger.warning("SNS message missing signature or SigningCertURL")
+        return False
+
+    # Validate certificate URL is from AWS
+    if (
+        not signing_cert_url.startswith("https://sns.")
+        or ".amazonaws.com" not in signing_cert_url
+    ):
+        logger.error(
+            "Invalid SigningCertURL - not from AWS SNS",
+            extra={"url": signing_cert_url},
+        )
+        return False
+
+    # Optionally validate TopicArn matches expected value
+    if settings.aws_sns_topic_arn and topic_arn != settings.aws_sns_topic_arn:
+        logger.error(
+            "TopicArn mismatch",
+            extra={
+                "expected": settings.aws_sns_topic_arn,
+                "received": topic_arn,
+            },
+        )
+        return False
+
+    # TODO: Download certificate from SigningCertURL
+    # TODO: Verify certificate is from AWS SNS (check CN and SAN)
+    # TODO: Verify message signature cryptographically using certificate's public key
+
+    # For now, if basic checks pass, accept the message
+    logger.info(
+        "SNS message passed basic validation (full signature verification TODO)"
+    )
+    return True
