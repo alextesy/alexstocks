@@ -429,6 +429,18 @@ ecs-run-send-emails: ## Manually trigger send daily emails task
 		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
 		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1
 
+ecs-run-send-emails-dry-run: ## Manually trigger send daily emails task in dry-run mode
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-send-daily-emails)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r 'join(",")' || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1 \
+		--overrides '{"containerOverrides":[{"name":"send-daily-emails","command":["python","jobs/send_daily_emails.py","--dry-run"]}]}'
+
 ecs-logs-send-emails: ## Tail logs for send daily emails
 	aws logs tail /ecs/market-pulse-jobs/send-daily-emails --follow
 
