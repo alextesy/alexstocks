@@ -15,6 +15,8 @@ from app.repos.user_repo import UserRepository
 from app.services.email_dispatch_service import DispatchStats, EmailDispatchService
 from app.services.email_service import get_email_service
 
+logger = logging.getLogger(__name__)
+
 
 def setup_logging(verbose: bool = False) -> None:
     """Configure logging for the script."""
@@ -132,6 +134,10 @@ def main() -> int:
                 dry_run=args.dry_run,
             )
 
+            # Commit the transaction to persist EmailSendLog entries
+            session.commit()
+            logger.info("Transaction committed successfully")
+
             print(format_stats(stats))
 
             # Exit with error code if there were failures
@@ -142,10 +148,14 @@ def main() -> int:
 
         except KeyboardInterrupt:
             print("\n\n⚠️  Dispatch interrupted by user")
+            session.rollback()
+            logger.warning("Transaction rolled back due to user interrupt")
             return 130
         except Exception as e:
             print(f"\n❌ Error during dispatch: {e}", file=sys.stderr)
             logging.exception("Dispatch failed")
+            session.rollback()
+            logger.error("Transaction rolled back due to error")
             return 1
 
 
