@@ -2,8 +2,8 @@
 
 import logging
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -17,6 +17,7 @@ from app.services.sentiment_analytics import get_sentiment_analytics_service
 from app.services.stock_data import stock_service
 from app.services.stock_price_cache import ensure_fresh_stock_price
 from app.services.velocity import get_velocity_service
+from app.utils.ticker_aliases import canonicalize_symbol, expand_equivalent_symbols
 
 logger = logging.getLogger(__name__)
 
@@ -1239,8 +1240,15 @@ async def ticker_page(
     start: str | None = None,  # YYYY-MM-DD
     end: str | None = None,  # YYYY-MM-DD
     _: None = Depends(rate_limit("ticker_page", requests=60, window_seconds=60)),
-) -> HTMLResponse:
+) -> Response:
     """Ticker detail page with articles."""
+    requested_symbol = ticker.upper().strip()
+    canonical_ticker = canonicalize_symbol(requested_symbol)
+    if canonical_ticker != requested_symbol:
+        return RedirectResponse(url=f"/t/{canonical_ticker}", status_code=307)
+
+    equivalent_symbols = expand_equivalent_symbols(canonical_ticker)
+    alternate_symbols = [sym for sym in equivalent_symbols if sym != canonical_ticker]
     from datetime import UTC, datetime, timedelta
 
     from sqlalchemy import desc, func
@@ -1257,19 +1265,23 @@ async def ticker_page(
     db = SessionLocal()
     try:
         # Get ticker info
-        ticker_obj = db.query(Ticker).filter(Ticker.symbol == ticker.upper()).first()
+        ticker_obj = db.query(Ticker).filter(Ticker.symbol == canonical_ticker).first()
+        if not ticker_obj and alternate_symbols:
+            ticker_obj = (
+                db.query(Ticker).filter(Ticker.symbol.in_(alternate_symbols)).first()
+            )
 
         # Ensure we have a fresh price cached for this symbol
         await ensure_fresh_stock_price(
             db,
-            ticker.upper(),
+            canonical_ticker,
             freshness_minutes=settings.STOCK_PRICE_FRESHNESS_MINUTES,
         )
 
         # Unfiltered total article count for this ticker (for header metrics)
         unfiltered_total_article_count = (
             db.query(func.count(ArticleTicker.article_id))
-            .filter(ArticleTicker.ticker == ticker.upper())
+            .filter(ArticleTicker.ticker.in_(equivalent_symbols))
             .scalar()
             or 0
         )
@@ -1281,7 +1293,7 @@ async def ticker_page(
             db.query(func.count(ArticleTicker.article_id))
             .join(Article, ArticleTicker.article_id == Article.id)
             .filter(
-                ArticleTicker.ticker == ticker.upper(),
+                ArticleTicker.ticker.in_(equivalent_symbols),
                 Article.published_at >= today_start,
             )
             .scalar()
@@ -1296,7 +1308,7 @@ async def ticker_page(
             db.query(func.count(ArticleTicker.article_id))
             .join(Article, ArticleTicker.article_id == Article.id)
             .filter(
-                ArticleTicker.ticker == ticker.upper(),
+                ArticleTicker.ticker.in_(equivalent_symbols),
                 Article.published_at >= yesterday_start,
                 Article.published_at < yesterday_end,
             )
@@ -1320,7 +1332,7 @@ async def ticker_page(
             db.query(func.count(func.distinct(Article.author)))
             .join(ArticleTicker, Article.id == ArticleTicker.article_id)
             .filter(
-                ArticleTicker.ticker == ticker.upper(),
+                ArticleTicker.ticker.in_(equivalent_symbols),
                 Article.published_at >= today_start,
                 Article.author.isnot(None),
                 Article.author != "",
@@ -1334,7 +1346,7 @@ async def ticker_page(
             db.query(func.count(func.distinct(Article.author)))
             .join(ArticleTicker, Article.id == ArticleTicker.article_id)
             .filter(
-                ArticleTicker.ticker == ticker.upper(),
+                ArticleTicker.ticker.in_(equivalent_symbols),
                 Article.published_at >= yesterday_start,
                 Article.published_at < yesterday_end,
                 Article.author.isnot(None),
@@ -1367,9 +1379,25 @@ async def ticker_page(
                 StockPrice.exchange,
                 StockPrice.updated_at,
             )
-            .filter(StockPrice.symbol == ticker.upper())
+            .filter(StockPrice.symbol == canonical_ticker)
             .first()
         )
+        if stock_price is None and alternate_symbols:
+            stock_price = (
+                db.query(
+                    StockPrice.symbol,
+                    StockPrice.price,
+                    StockPrice.previous_close,
+                    StockPrice.change,
+                    StockPrice.change_percent,
+                    StockPrice.market_state,
+                    StockPrice.currency,
+                    StockPrice.exchange,
+                    StockPrice.updated_at,
+                )
+                .filter(StockPrice.symbol.in_(alternate_symbols))
+                .first()
+            )
         if stock_price is not None:
             stock_data = {
                 "symbol": stock_price.symbol,
@@ -1391,11 +1419,19 @@ async def ticker_page(
         chart_data = None
         historical_data = (
             db.query(StockPriceHistory)
-            .filter(StockPriceHistory.symbol == ticker.upper())
+            .filter(StockPriceHistory.symbol == canonical_ticker)
             .order_by(desc(StockPriceHistory.date))
             .limit(30)
             .all()
         )
+        if not historical_data and alternate_symbols:
+            historical_data = (
+                db.query(StockPriceHistory)
+                .filter(StockPriceHistory.symbol.in_(alternate_symbols))
+                .order_by(desc(StockPriceHistory.date))
+                .limit(30)
+                .all()
+            )
 
         if historical_data:
             chart_points = []
@@ -1436,10 +1472,10 @@ async def ticker_page(
                     )
 
             chart_data = {
-                "symbol": ticker.upper(),
+                "symbol": canonical_ticker,
                 "period": "1mo",
                 "data": chart_points,
-                "meta": {"symbol": ticker.upper(), "source": "database+current"},
+                "meta": {"symbol": canonical_ticker, "source": "database+current"},
             }
         else:
             # No historical data, try to create chart from current price + API fallback
@@ -1455,10 +1491,10 @@ async def ticker_page(
                 ]
 
                 chart_data = {
-                    "symbol": ticker.upper(),
+                    "symbol": canonical_ticker,
                     "period": "1mo",
                     "data": chart_points,
-                    "meta": {"symbol": ticker.upper(), "source": "current_only"},
+                    "meta": {"symbol": canonical_ticker, "source": "current_only"},
                 }
             else:
                 # No data at all, try to get chart data for UI (may use mock)
@@ -1482,7 +1518,7 @@ async def ticker_page(
         filtered_query_base = (
             db.query(Article, ArticleTicker.confidence, ArticleTicker.matched_terms)
             .join(ArticleTicker, Article.id == ArticleTicker.article_id)
-            .filter(ArticleTicker.ticker == ticker.upper())
+            .filter(ArticleTicker.ticker.in_(equivalent_symbols))
         )
 
         # Apply server-side filters
@@ -1618,7 +1654,7 @@ async def ticker_page(
             row[0]
             for row in db.query(Article.source)
             .join(ArticleTicker, ArticleTicker.article_id == Article.id)
-            .filter(ArticleTicker.ticker == ticker.upper())
+            .filter(ArticleTicker.ticker.in_(equivalent_symbols))
             .distinct()
             .all()
         ]
@@ -1636,7 +1672,12 @@ async def ticker_page(
                     from app.repos.user_repo import UserRepository
 
                     repo = UserRepository(db)
-                    follow = repo.get_ticker_follow(user.id, ticker.upper())
+                    follow = repo.get_ticker_follow(user.id, canonical_ticker)
+                    if not follow and alternate_symbols:
+                        for sym in alternate_symbols:
+                            follow = repo.get_ticker_follow(user.id, sym)
+                            if follow:
+                                break
                     is_following = follow is not None
             except Exception:
                 # If auth fails, just continue without follow status
@@ -1646,7 +1687,7 @@ async def ticker_page(
             "ticker.html",
             {
                 "request": request,
-                "ticker": ticker,
+                "ticker": canonical_ticker,
                 "ticker_obj": ticker_obj,
                 "articles": articles,
                 "stock_data": stock_data,

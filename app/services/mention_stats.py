@@ -17,6 +17,11 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Article, ArticleTicker
 from app.models.dto import MentionsHourlyResponseDTO, MentionsSeriesDTO
+from app.utils.ticker_aliases import (
+    canonicalize_symbol,
+    deduplicate_by_canonical,
+    expand_equivalent_symbols,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +53,7 @@ class MentionStatsService:
         if not tickers:
             return MentionsHourlyResponseDTO(labels=[], series=[], hours=hours)
 
-        normalized = [t.upper().strip() for t in tickers if t and t.strip()]
+        normalized = deduplicate_by_canonical(tickers)
         if not normalized:
             return MentionsHourlyResponseDTO(labels=[], series=[], hours=hours)
 
@@ -63,6 +68,10 @@ class MentionStatsService:
         dialect = self.session.get_bind().dialect.name
         counts_by_key: dict[_HourlyKey, int] = {}
 
+        symbols_for_query: set[str] = set()
+        for sym in normalized:
+            symbols_for_query.update(expand_equivalent_symbols(sym))
+
         if dialect == "sqlite":
             rows = (
                 self.session.query(
@@ -75,7 +84,7 @@ class MentionStatsService:
                 )
                 .join(Article, Article.id == ArticleTicker.article_id)
                 .filter(
-                    ArticleTicker.ticker.in_(normalized),
+                    ArticleTicker.ticker.in_(symbols_for_query),
                     Article.published_at >= window_start,
                     Article.published_at < window_exclusive_end,
                 )
@@ -99,9 +108,9 @@ class MentionStatsService:
                 except Exception as ex:
                     logger.warning("Failed to parse hour bucket for mentions: %s", ex)
                     continue
-                counts_by_key[_HourlyKey(symbol=r.ticker.upper(), hour=hour_dt)] = int(
-                    r.cnt or 0
-                )
+                canonical_symbol = canonicalize_symbol(r.ticker)
+                key = _HourlyKey(symbol=canonical_symbol, hour=hour_dt)
+                counts_by_key[key] = counts_by_key.get(key, 0) + int(r.cnt or 0)
         else:
             # Postgres and others supporting date_trunc
             hour_expr = func.date_trunc("hour", Article.published_at)
@@ -113,7 +122,7 @@ class MentionStatsService:
                 )
                 .join(Article, Article.id == ArticleTicker.article_id)
                 .filter(
-                    ArticleTicker.ticker.in_(normalized),
+                    ArticleTicker.ticker.in_(symbols_for_query),
                     Article.published_at >= window_start,
                     Article.published_at < window_exclusive_end,
                 )
@@ -136,9 +145,9 @@ class MentionStatsService:
                         )
                     except Exception:
                         continue
-                counts_by_key[_HourlyKey(symbol=r.ticker.upper(), hour=hour_dt)] = int(
-                    r.cnt or 0
-                )
+                canonical_symbol = canonicalize_symbol(r.ticker)
+                key = _HourlyKey(symbol=canonical_symbol, hour=hour_dt)
+                counts_by_key[key] = counts_by_key.get(key, 0) + int(r.cnt or 0)
 
         # Build continuous label range hour-by-hour
         labels: list[str] = []

@@ -47,3 +47,32 @@ def test_mentions_hourly_zero_fill_and_alignment(db_session: Session):
     series = {s.symbol: s.data for s in payload.series}
     assert series["AAPL"] == [1, 0, 1]  # -2h:1, -1h:0, 0h:1
     assert series["TSLA"] == [0, 2, 0]  # -2h:0, -1h:2, 0h:0
+
+
+def test_mentions_hourly_merges_alphabet_share_classes(db_session: Session):
+    now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+
+    # Insert both share classes across two hours
+    _insert(db_session, sym="GOOG", ts=now - timedelta(hours=1), url_suffix="goog")
+    _insert(db_session, sym="GOOGL", ts=now, url_suffix="googl")
+
+    db_session.add_all(
+        [
+            Ticker(symbol="GOOG", name="Alphabet Class C"),
+            Ticker(symbol="GOOGL", name="Alphabet Class A"),
+        ]
+    )
+    db_session.commit()
+
+    service = MentionStatsService(db_session)
+    payload = service.get_mentions_hourly(["GOOG", "GOOGL"], hours=2)
+
+    # The series should collapse into a single canonical entry
+    assert len(payload.series) == 1
+    assert payload.series[0].symbol == "GOOG"
+    assert payload.series[0].data == [1, 1]
+
+    # Requesting just GOOG should still return the canonical ticker
+    payload_single = service.get_mentions_hourly(["GOOG"], hours=2)
+    assert len(payload_single.series) == 1
+    assert payload_single.series[0].symbol == "GOOG"
