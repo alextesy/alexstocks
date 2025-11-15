@@ -132,7 +132,7 @@ class Settings(BaseSettings):
         ),
     )
     daily_summary_max_tickers: int = Field(
-        default=10,
+        default=100,
         ge=1,
         validation_alias=AliasChoices(
             "DAILY_SUMMARY_MAX_TICKERS", "daily_summary_max_tickers"

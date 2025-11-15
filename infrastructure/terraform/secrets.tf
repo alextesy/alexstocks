@@ -30,3 +30,11 @@ data "aws_secretsmanager_secret" "slack_users_channel" {
 data "aws_secretsmanager_secret" "openai_api_key" {
   name = "${var.project_name}/openai-api-key"
 }
+
+data "aws_secretsmanager_secret" "email_from_address" {
+  name = "${var.project_name}/email-from-address"
+}
+
+data "aws_secretsmanager_secret" "aws_ses_region" {
+  name = "${var.project_name}/aws-ses-region"
+}

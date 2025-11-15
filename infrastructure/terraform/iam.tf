@@ -77,6 +77,24 @@ resource "aws_iam_role_policy" "task_cloudwatch_logs" {
   })
 }
 
+# Policy for task to send emails via SES
+resource "aws_iam_role_policy" "ecs_task_ses" {
+  name = "${var.project_name}-ecs-task-ses"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ses:SendEmail",
+        "ses:SendRawEmail"
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
 # EventBridge Scheduler Role (to invoke ECS tasks)
 resource "aws_iam_role" "eventbridge_scheduler" {
   name = "${var.project_name}-eventbridge-scheduler"
@@ -112,7 +130,8 @@ resource "aws_iam_role_policy" "eventbridge_ecs" {
           aws_ecs_task_definition.reddit_scraper.arn,
           aws_ecs_task_definition.sentiment_analysis.arn,
           aws_ecs_task_definition.daily_status.arn,
-          aws_ecs_task_definition.stock_price_collector.arn
+          aws_ecs_task_definition.stock_price_collector.arn,
+          aws_ecs_task_definition.send_daily_emails.arn
         ]
       },
       {

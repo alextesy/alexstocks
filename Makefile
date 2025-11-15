@@ -213,6 +213,12 @@ check-rate-limit: ## Check if Yahoo Finance rate limit has cleared
 send-test-email: ## Send a test email to verify email service configuration
 	uv run python app/scripts/send_test_email.py
 
+send-daily-emails: ## Run the daily email dispatch job locally
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.jobs.send_daily_emails
+
+send-daily-emails-dry-run: ## Run the daily email dispatch job in dry-run mode
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.jobs.send_daily_emails --dry-run
+
 # Combined Jobs (Scraping + Sentiment)
 scrape-and-analyze-posts: ## Scrape Reddit posts and analyze sentiment
 	cd jobs && PYTHONPATH=.. uv run python -m jobs.scrape_and_analyze posts
@@ -412,12 +418,56 @@ ecs-logs-status: ## Tail logs for daily status
 ecs-logs-stock-prices: ## Tail logs for stock price collector
 	aws logs tail /ecs/market-pulse-jobs/stock-price-collector --follow
 
+ecs-run-send-emails: ## Manually trigger send daily emails task
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-send-daily-emails)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r 'join(",")' || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1
+
+ecs-logs-send-emails: ## Tail logs for send daily emails
+	aws logs tail /ecs/market-pulse-jobs/send-daily-emails --follow
+
+ecs-update-send-emails-task: ## Update send daily emails task definition with new image (TAG=tag or latest)
+	@if [ -z "$(TAG)" ]; then \
+		echo "❌ Error: TAG required"; \
+		echo "Usage: make ecs-update-send-emails-task TAG=test-20250101-120000"; \
+		echo "   or: make ecs-update-send-emails-task TAG=latest"; \
+		exit 1; \
+	fi
+	$(eval ACCOUNT_ID := $(shell aws sts get-caller-identity --query Account --output text))
+	$(eval TASK_DEF := market-pulse-send-daily-emails)
+	$(eval IMAGE := $(ACCOUNT_ID).dkr.ecr.us-east-1.amazonaws.com/market-pulse-jobs:$(TAG))
+	@echo "📦 Updating task definition $(TASK_DEF) with image $(IMAGE)..."
+	@python3 -c "import json, sys, subprocess; \
+		result = subprocess.run(['aws', 'ecs', 'describe-task-definition', '--task-definition', '$(TASK_DEF)', '--output', 'json'], \
+			capture_output=True, text=True, check=True); \
+		data = json.loads(result.stdout); \
+		td = data['taskDefinition']; \
+		td['containerDefinitions'][0]['image'] = '$(IMAGE)'; \
+		td.pop('taskDefinitionArn', None); \
+		td.pop('revision', None); \
+		td.pop('status', None); \
+		td.pop('requiresAttributes', None); \
+		td.pop('compatibilities', None); \
+		td.pop('registeredAt', None); \
+		td.pop('registeredBy', None); \
+		json.dump(td, sys.stdout)" > /tmp/task-def-new.json
+	@aws ecs register-task-definition --cli-input-json file:///tmp/task-def-new.json --output json > /tmp/task-def-result.json || (echo "❌ Failed to register task definition"; exit 1)
+	@python3 -c "import json; data=json.load(open('/tmp/task-def-result.json')); print(f\"✅ Task definition updated to revision {data['taskDefinition']['revision']}\")" || (echo "❌ Failed to read task definition result"; exit 1)
+	@echo "Run with: make ecs-run-send-emails"
+
 # EventBridge Schedule Management
 schedule-enable-all: ## Enable all EventBridge schedules
 	aws scheduler update-schedule --name market-pulse-reddit-scraper --state ENABLED
 	aws scheduler update-schedule --name market-pulse-sentiment-analysis --state ENABLED
 	aws scheduler update-schedule --name market-pulse-daily-status --state ENABLED
 	aws scheduler update-schedule --name market-pulse-stock-price-collector --state ENABLED
+	aws scheduler update-schedule --name market-pulse-send-daily-emails --state ENABLED
 	@echo "✅ All schedules enabled"
 
 schedule-disable-all: ## Disable all EventBridge schedules
@@ -425,6 +475,7 @@ schedule-disable-all: ## Disable all EventBridge schedules
 	aws scheduler update-schedule --name market-pulse-sentiment-analysis --state DISABLED
 	aws scheduler update-schedule --name market-pulse-daily-status --state DISABLED
 	aws scheduler update-schedule --name market-pulse-stock-price-collector --state DISABLED
+	aws scheduler update-schedule --name market-pulse-send-daily-emails --state DISABLED
 	@echo "⏸️  All schedules disabled"
 
 schedule-status: ## Check status of all EventBridge schedules
@@ -433,6 +484,7 @@ schedule-status: ## Check status of all EventBridge schedules
 	@aws scheduler get-schedule --name market-pulse-sentiment-analysis --query '[Name,State]' --output text
 	@aws scheduler get-schedule --name market-pulse-daily-status --query '[Name,State]' --output text
 	@aws scheduler get-schedule --name market-pulse-stock-price-collector --query '[Name,State]' --output text
+	@aws scheduler get-schedule --name market-pulse-send-daily-emails --query '[Name,State]' --output text
 
 schedule-enable-stock-prices: ## Enable stock price collector schedule only
 	aws scheduler update-schedule --name market-pulse-stock-price-collector --state ENABLED
@@ -441,3 +493,11 @@ schedule-enable-stock-prices: ## Enable stock price collector schedule only
 schedule-disable-stock-prices: ## Disable stock price collector schedule only
 	aws scheduler update-schedule --name market-pulse-stock-price-collector --state DISABLED
 	@echo "⏸️  Stock price collector schedule disabled"
+
+schedule-enable-send-emails: ## Enable send daily emails schedule only
+	aws scheduler update-schedule --name market-pulse-send-daily-emails --state ENABLED
+	@echo "✅ Send daily emails schedule enabled"
+
+schedule-disable-send-emails: ## Disable send daily emails schedule only
+	aws scheduler update-schedule --name market-pulse-send-daily-emails --state DISABLED
+	@echo "⏸️  Send daily emails schedule disabled"
