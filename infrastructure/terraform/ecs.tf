@@ -143,6 +143,10 @@ resource "aws_ecs_task_definition" "reddit_scraper" {
       {
         name      = "SLACK_DEFAULT_CHANNEL"
         valueFrom = data.aws_secretsmanager_secret.slack_default_channel.arn
+      },
+      {
+        name      = "SLACK_REDDIT_CHANNEL"
+        valueFrom = data.aws_secretsmanager_secret.slack_reddit_channel.arn
       }
     ]
 
@@ -361,6 +365,18 @@ resource "aws_ecs_task_definition" "send_daily_emails" {
       {
         name      = "POSTGRES_URL"
         valueFrom = data.aws_secretsmanager_secret.postgres_url.arn
+      },
+      {
+        name      = "SLACK_BOT_TOKEN"
+        valueFrom = data.aws_secretsmanager_secret.slack_bot_token.arn
+      },
+      {
+        name      = "SLACK_DEFAULT_CHANNEL"
+        valueFrom = data.aws_secretsmanager_secret.slack_default_channel.arn
+      },
+      {
+        name      = "SLACK_USERS_CHANNEL"
+        valueFrom = data.aws_secretsmanager_secret.slack_users_channel.arn
       },
       {
         name      = "EMAIL_FROM_ADDRESS"
