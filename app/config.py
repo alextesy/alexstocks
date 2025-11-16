@@ -112,6 +112,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("SLACK_USERS_CHANNEL", "slack_users_channel"),
     )
+    slack_reddit_channel: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SLACK_REDDIT_CHANNEL", "slack_reddit_channel"),
+    )
 
     # LLM + Daily summary configuration
     openai_api_key: str | None = Field(

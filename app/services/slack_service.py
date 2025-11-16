@@ -20,6 +20,7 @@ class SlackService:
         self._client: WebClient | None = None
         self._default_channel: str | None = None
         self._users_channel: str | None = None
+        self._reddit_channel: str | None = None
 
         if not settings.slack_bot_token:
             logger.debug("Slack bot token not configured, notifications disabled")
@@ -31,13 +32,20 @@ class SlackService:
             self._users_channel = (
                 settings.slack_users_channel or settings.slack_default_channel
             )
+            self._reddit_channel = settings.slack_reddit_channel
         except Exception as e:
             logger.warning(f"Failed to initialize Slack client: {e}")
             self._client = None
 
     def _get_channel(self, job_name: str | None = None) -> str | None:
         """Get channel ID for a job or use default."""
-        # TODO: Add per-job channel mapping if needed
+        if job_name:
+            if (
+                job_name.startswith("reddit_scraper")
+                and self._reddit_channel
+                and self._reddit_channel.strip()
+            ):
+                return self._reddit_channel
         return self._default_channel
 
     def send_message(
