@@ -46,7 +46,7 @@ class SlackService:
                 and self._reddit_channel.strip()
             ):
                 return self._reddit_channel
-        return self._default_hannel
+        return self._default_channel
 
     def send_message(
         self,
