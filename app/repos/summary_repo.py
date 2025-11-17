@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from datetime import UTC, date, datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import DailyTickerSummary
@@ -113,6 +113,14 @@ class DailyTickerSummaryRepository:
 
         rows = self.session.execute(stmt).scalars().all()
         return [self._to_dto(row) for row in rows]
+
+    def get_most_recent_summary_date(self) -> date | None:
+        """Return the most recent summary_date that has llm content."""
+
+        stmt = select(func.max(DailyTickerSummary.summary_date)).where(
+            DailyTickerSummary.llm_summary.isnot(None)
+        )
+        return self.session.execute(stmt).scalar_one_or_none()
 
     def cleanup_before(
         self, before_date: date, tickers: Iterable[str] | None = None

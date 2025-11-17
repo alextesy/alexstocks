@@ -156,6 +156,35 @@ def test_cleanup_before_returns_deleted_count(db_session, repo):
     assert [r.summary_date for r in remaining] == [date(2024, 1, 20)]
 
 
+def test_get_most_recent_summary_date_ignores_missing_content(db_session, repo):
+    """Most recent summary date should consider only rows with LLM content."""
+
+    _ensure_ticker(db_session, "AMD")
+    empty_content_date = date(2024, 4, 1)
+    recent_date = date(2024, 4, 2)
+
+    repo.upsert_summary(
+        DailyTickerSummaryUpsertDTO(
+            ticker="AMD",
+            summary_date=empty_content_date,
+            mention_count=5,
+            engagement_count=10,
+            llm_summary=None,
+        )
+    )
+    repo.upsert_summary(
+        DailyTickerSummaryUpsertDTO(
+            ticker="AMD",
+            summary_date=recent_date,
+            mention_count=25,
+            engagement_count=50,
+            llm_summary="Retail chatter increased.",
+        )
+    )
+
+    assert repo.get_most_recent_summary_date() == recent_date
+
+
 def test_llm_sentiment_enum_serialization(db_session, repo):
     """Test that LLM sentiment enum values are correctly serialized to database."""
     _ensure_ticker(db_session, "TSLA")

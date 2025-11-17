@@ -118,19 +118,6 @@ def run_send_daily_emails_job(
     thread_ts = slack.notify_job_start(JOB_NAME, metadata=metadata)
 
     try:
-        # Determine summary date
-        if summary_date is None:
-            summary_date = date.today() - timedelta(days=1)
-
-        logger.info(
-            "Starting daily email dispatch job",
-            extra={
-                "summary_date": summary_date.isoformat(),
-                "dry_run": dry_run,
-                "test_email_only": test_email_only,
-            },
-        )
-
         email_service = get_email_service()
 
         session = SessionLocal()
@@ -138,6 +125,48 @@ def run_send_daily_emails_job(
             user_repo = UserRepository(session)
             summary_repo = DailyTickerSummaryRepository(session)
             send_log_repo = EmailSendLogRepository(session)
+
+            target_summary_date = summary_date
+            if target_summary_date is None:
+                target_summary_date = summary_repo.get_most_recent_summary_date()
+                if target_summary_date is None:
+                    logger.warning(
+                        "No daily summaries with content available; skipping dispatch",
+                        extra={"dry_run": dry_run},
+                    )
+                    duration = (datetime.now(UTC) - start).total_seconds()
+                    summary_metrics = {
+                        "total_users": 0,
+                        "sent": 0,
+                        "skipped": 0,
+                        "failed": 0,
+                        "dry_run": dry_run,
+                    }
+                    slack.notify_job_complete(
+                        job_name=JOB_NAME,
+                        status="success",
+                        duration_seconds=duration,
+                        summary=summary_metrics,
+                        thread_ts=thread_ts,
+                    )
+                    return {
+                        "stats": summary_metrics,
+                        "duration_seconds": duration,
+                    }
+
+                logger.info(
+                    "Defaulting to most recent summary date",
+                    extra={"summary_date": target_summary_date.isoformat()},
+                )
+
+            logger.info(
+                "Starting daily email dispatch job",
+                extra={
+                    "summary_date": target_summary_date.isoformat(),
+                    "dry_run": dry_run,
+                    "test_email_only": test_email_only,
+                },
+            )
 
             dispatch_service = EmailDispatchService(
                 session=session,
@@ -186,7 +215,7 @@ def run_send_daily_emails_job(
                 dispatch_service.get_eligible_users = get_test_user_only  # type: ignore[method-assign]
 
             stats = dispatch_service.dispatch_daily_briefings(
-                summary_date=summary_date,
+                summary_date=target_summary_date,
                 batch_size=50,
                 max_users=None,
                 dry_run=dry_run,
