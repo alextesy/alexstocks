@@ -91,7 +91,8 @@ class EmailDispatchService:
                 )
                 continue
 
-            tickers = [follow.ticker for follow in follows]
+            tickers = [follow.ticker.upper() for follow in follows]
+
             summaries = self.summary_repo.get_summaries(
                 tickers=tickers, start_date=summary_date, end_date=summary_date
             )
@@ -100,7 +101,7 @@ class EmailDispatchService:
             summaries_with_content = [s for s in summaries if s.llm_summary is not None]
 
             if not summaries_with_content:
-                logger.debug(
+                logger.info(
                     "Skipping user - no summaries with content",
                     extra={
                         "user_id": user.id,

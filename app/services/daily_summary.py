@@ -514,8 +514,10 @@ class DailySummaryService:
                 f"Invalid timezone for daily summary: {settings.daily_summary_window_timezone}"
             ) from exc
 
-        now_local = datetime.now(tz)
-        target_date = now_local.date() - timedelta(days=1)
+        # Anchor to the previous UTC day so runs near midnight in the summary
+        # timezone don't drift backwards another day.
+        now_utc = datetime.now(UTC)
+        target_date = now_utc.date() - timedelta(days=1)
 
         start_hour = settings.daily_summary_window_start_hour
         end_hour = settings.daily_summary_window_end_hour
@@ -525,7 +527,19 @@ class DailySummaryService:
         if end_local <= start_local:
             end_local += timedelta(days=1)
 
-        return start_local.astimezone(UTC), end_local.astimezone(UTC)
+        window_start_utc = start_local.astimezone(UTC)
+        window_end_utc = end_local.astimezone(UTC)
+        logger.info(
+            "Daily summary window computed | now_utc=%s target_date=%s window_start_local=%s window_end_local=%s window_start_utc=%s window_end_utc=%s window_tz=%s",
+            now_utc.isoformat(),
+            target_date.isoformat(),
+            start_local.isoformat(),
+            end_local.isoformat(),
+            window_start_utc.isoformat(),
+            window_end_utc.isoformat(),
+            settings.daily_summary_window_timezone,
+        )
+        return window_start_utc, window_end_utc
 
     def _fetch_top_tickers(
         self,
