@@ -103,6 +103,7 @@ class DailyTickerSummaryRepository:
         stmt = select(DailyTickerSummary).where(
             DailyTickerSummary.ticker.in_(list(tickers))
         )
+
         stmt = self._apply_date_filters(stmt, start_date, end_date)
         stmt = stmt.order_by(
             DailyTickerSummary.ticker.asc(),

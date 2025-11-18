@@ -50,16 +50,21 @@ def setup_logging(verbose: bool = False) -> None:
 
 
 def parse_summary_date(value: str | None) -> date:
-    """Parse summary date from string or return previous day.
+    """Parse summary date from string or return previous UTC day.
 
     Args:
         value: Date string in YYYY-MM-DD format or None
 
     Returns:
-        Parsed date or previous day if None
+        Parsed date or previous UTC day if None
     """
     if not value:
-        return date.today() - timedelta(days=1)
+        resolved_date = datetime.now(UTC).date() - timedelta(days=1)
+        logger.info(
+            "Send daily emails: no --date provided; defaulting to previous UTC day | summary_date=%s",
+            resolved_date.isoformat(),
+        )
+        return resolved_date
 
     try:
         return datetime.strptime(value, "%Y-%m-%d").date()
@@ -155,8 +160,13 @@ def run_send_daily_emails_job(
                     }
 
                 logger.info(
-                    "Defaulting to most recent summary date",
-                    extra={"summary_date": target_summary_date.isoformat()},
+                    "Send daily emails: defaulting to most recent summary date | summary_date=%s",
+                    target_summary_date.isoformat(),
+                )
+            else:
+                logger.info(
+                    "Send daily emails: summary date provided via args | summary_date=%s",
+                    target_summary_date.isoformat(),
                 )
 
             logger.info(
