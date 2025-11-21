@@ -1024,6 +1024,9 @@ async def get_all_tickers(
 
     db = SessionLocal()
     try:
+        # Normalize search input to handle accidental whitespace
+        search = search.strip() if search else None
+
         # Calculate pagination with clamps and offset guard
         limit = min(limit, settings.MAX_LIMIT_TICKERS)
         offset = (page - 1) * limit
@@ -1191,9 +1194,11 @@ async def browse_tickers(
 ) -> HTMLResponse:
     """Browse all tickers with pagination and search."""
 
+    normalized_search = search.strip() if search else None
+
     # Get ticker data via API endpoint logic
     api_data = await get_all_tickers(
-        page=page, search=search, sort_by=sort_by, limit=50
+        page=page, search=normalized_search, sort_by=sort_by, limit=50
     )
 
     followed_tickers: list[str] = []
@@ -1223,7 +1228,7 @@ async def browse_tickers(
             "request": request,
             "tickers": api_data["tickers"],
             "pagination": api_data["pagination"],
-            "search": search or "",
+            "search": normalized_search or "",
             "sort_by": sort_by,
             "followed_tickers": followed_tickers,
         },

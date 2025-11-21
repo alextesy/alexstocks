@@ -48,6 +48,7 @@ def test_enum_serialization():
 
         print("\nSaving to database...")
         created = repo.upsert_summary(dto)
+        assert created.llm_sentiment is not None
         print(f"✓ Successfully saved! ID: {created.id}")
         print(f"✓ Sentiment enum: {created.llm_sentiment}")
         print(f"✓ Sentiment value: {created.llm_sentiment.value}")
@@ -62,6 +63,7 @@ def test_enum_serialization():
         )
 
         if entity:
+            assert entity.llm_sentiment is not None
             print("\n✓ Verified in database:")
             print(f"  - Sentiment enum: {entity.llm_sentiment}")
             print(f"  - Sentiment value: {entity.llm_sentiment.value}")
@@ -91,6 +93,7 @@ def test_enum_serialization():
                 llm_model="gpt-test",
             )
             result = repo.upsert_summary(test_dto)
+            assert result.llm_sentiment is not None
             print(
                 f"✓ {sentiment_enum.name} -> {sentiment_enum.value} (saved as ID: {result.id})"
             )
