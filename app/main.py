@@ -958,6 +958,20 @@ async def get_stock_history(
                     },
                 )
 
+            # Aggregate to daily for week/month periods (to match sentiment timeline granularity)
+            if period in ("week", "month"):
+                # Group by date and keep only the last (most recent) price for each day
+                from collections import OrderedDict
+
+                daily_data = OrderedDict()
+                for point in reversed(historical_data):  # Process chronologically
+                    date_key = point.date.strftime("%Y-%m-%d")
+                    # Always keep the latest point for each date
+                    daily_data[date_key] = point
+
+                # Convert back to list for formatting
+                historical_data = list(daily_data.values())
+
             # Format response data
             price_data = []
             for point in reversed(historical_data):  # Reverse to chronological order
