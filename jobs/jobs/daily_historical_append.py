@@ -60,6 +60,7 @@ async def run_daily_append(
     batch_size: int = 10,
     delay: float = 1.0,
     min_articles: int = 10,
+    fill_gaps: bool = True,
 ) -> dict:
     """
     Run the daily historical price append job.
@@ -70,6 +71,7 @@ async def run_daily_append(
         batch_size: Tickers per batch
         delay: Seconds between batches
         min_articles: Minimum article count threshold (default: 10)
+        fill_gaps: Whether to fill weekend/holiday gaps after appending (default: True)
 
     Returns:
         Statistics dictionary
@@ -93,6 +95,18 @@ async def run_daily_append(
             delay_between_batches=delay,
             min_article_threshold=min_articles,
         )
+
+        # Fill weekend/holiday gaps after appending new data
+        if fill_gaps:
+            logger.info("\n" + "=" * 80)
+            logger.info("Running weekend/holiday gap filling...")
+            logger.info("=" * 80 + "\n")
+
+            gap_fill_result = await collector.fill_weekend_holiday_gaps(
+                db=db, symbols=symbols, days_back=max(days_back, 90)
+            )
+
+            result["gap_fill"] = gap_fill_result
 
         return result
 
@@ -135,6 +149,11 @@ def main() -> dict:
         default=10,
         help="Minimum article count threshold (default: 10)",
     )
+    parser.add_argument(
+        "--no-fill-gaps",
+        action="store_true",
+        help="Skip weekend/holiday gap filling (default: gaps are filled)",
+    )
 
     args = parser.parse_args()
 
@@ -145,6 +164,7 @@ def main() -> dict:
             batch_size=args.batch_size,
             delay=args.delay,
             min_articles=args.min_articles,
+            fill_gaps=not args.no_fill_gaps,
         )
     )
 

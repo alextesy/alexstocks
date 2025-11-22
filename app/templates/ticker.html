@@ -105,12 +105,12 @@
     </div>
 </div>
 
-<!-- Sentiment Timeline Chart -->
+<!-- Combined Price & Sentiment Timeline Chart -->
 <div class="bg-white rounded-lg shadow-sm border p-4 md:p-6 mb-6">
     <div class="mb-4">
         <h2 class="text-lg font-semibold text-gray-900 mb-3">
-            <i class="fas fa-chart-area text-blue-600 mr-2"></i>
-            {{ ticker }} Sentiment Over Time
+            <i class="fas fa-chart-line text-blue-600 mr-2"></i>
+            {{ ticker }} Price & Sentiment Over Time
         </h2>
         <div class="flex flex-col sm:flex-row sm:items-center gap-3">
             <div class="flex items-center space-x-2">
@@ -131,22 +131,29 @@
         </div>
     </div>
     
-    <div class="h-64 mb-4">
-        <canvas id="sentimentAreaChart"></canvas>
+    <div class="h-80 mb-4">
+        <canvas id="combinedChart"></canvas>
     </div>
     
-    <div class="flex items-center justify-center space-x-4 text-xs text-gray-600">
-        <div class="flex items-center space-x-1">
+    <div class="flex flex-wrap items-center justify-center gap-4 text-xs text-gray-600">
+        <div class="flex items-center space-x-1 cursor-pointer hover:opacity-75" onclick="toggleDataset(0)">
+            <div class="w-3 h-3 rounded-full" style="background-color: rgb(255, 159, 64);"></div>
+            <span class="font-semibold">💰 Price</span>
+        </div>
+        <div class="flex items-center space-x-1 cursor-pointer hover:opacity-75" onclick="toggleDataset(1)">
             <div class="w-3 h-3 rounded-full bg-blue-400"></div>
             <span id="legend-total">Total Comments</span>
         </div>
-        <div class="flex items-center space-x-1">
+        <div class="flex items-center space-x-1 cursor-pointer hover:opacity-75" onclick="toggleDataset(2)">
             <div class="w-3 h-3 rounded-full bg-green-500"></div>
             <span>Positive</span>
         </div>
-        <div class="flex items-center space-x-1">
+        <div class="flex items-center space-x-1 cursor-pointer hover:opacity-75" onclick="toggleDataset(3)">
             <div class="w-3 h-3 rounded-full bg-red-500"></div>
             <span>Negative</span>
+        </div>
+        <div class="text-gray-500 ml-4">
+            <i class="fas fa-info-circle"></i> Click legend to show/hide
         </div>
     </div>
 </div>
@@ -413,10 +420,241 @@
 {% endif %}
 
 <script>
-// Sentiment Area Chart
+// Shared ticker variable and chart instance
 const ticker = '{{ ticker }}';
-let sentimentChart = null;
+let combinedChart = null;
 
+// Combined Chart Functions
+async function loadCombinedChart(period, metric) {
+    try {
+        // Fetch both price and sentiment data in parallel
+        const [priceResponse, sentimentResponse] = await Promise.all([
+            fetch(`/api/stock/${ticker}/history?period=${period}`),
+            fetch(`/api/ticker/${ticker}/sentiment-timeline?period=${period}&metric=${metric}`)
+        ]);
+        
+        if (!priceResponse.ok || !sentimentResponse.ok) {
+            throw new Error('Failed to fetch chart data');
+        }
+        
+        const priceData = await priceResponse.json();
+        const sentimentData = await sentimentResponse.json();
+        
+        renderCombinedChart(priceData, sentimentData, period, metric);
+    } catch (error) {
+        console.error('Error loading combined chart:', error);
+    }
+}
+
+function toggleDataset(datasetIndex) {
+    if (!combinedChart) return;
+    
+    const dataset = combinedChart.data.datasets[datasetIndex];
+    dataset.hidden = !dataset.hidden;
+    combinedChart.update();
+}
+
+function renderCombinedChart(priceData, sentimentData, period, metric) {
+    const ctx = document.getElementById('combinedChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if it exists
+    if (combinedChart) {
+        combinedChart.destroy();
+    }
+    
+    // Use sentiment data labels as the base (more comprehensive)
+    const labels = sentimentData.data.map(d => formatTimestamp(d.timestamp, period));
+    
+    // Create price data array aligned with sentiment labels
+    const priceDataPoints = [];
+    const priceMap = new Map();
+    priceData.data.forEach(p => {
+        const key = p.date.substring(0, 10); // YYYY-MM-DD
+        priceMap.set(key, p.close);
+    });
+    
+    // Align price data with sentiment timestamps
+    sentimentData.data.forEach(s => {
+        const key = s.timestamp.substring(0, 10);
+        priceDataPoints.push(priceMap.get(key) || null);
+    });
+    
+    const totalData = sentimentData.data.map(d => d.total);
+    const positiveData = sentimentData.data.map(d => d.positive);
+    const negativeData = sentimentData.data.map(d => d.negative);
+    
+    // Dynamic labels based on metric
+    const metricLabel = metric === 'users' ? 'Users' : 'Comments';
+    const totalLabel = metric === 'users' ? 'Total Users' : 'Total Comments';
+    
+    // Update legend text
+    const legendTotal = document.getElementById('legend-total');
+    if (legendTotal) {
+        legendTotal.textContent = totalLabel;
+    }
+    
+    combinedChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Price ($)',
+                    data: priceDataPoints,
+                    yAxisID: 'y-price',
+                    borderColor: 'rgb(255, 159, 64)', // Orange - very visible
+                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                    borderWidth: 4, // Thick line
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: 'rgb(255, 159, 64)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    fill: false,
+                    order: 0 // Draw on top
+                },
+                {
+                    label: totalLabel,
+                    data: totalData,
+                    yAxisID: 'y-sentiment',
+                    fill: true,
+                    backgroundColor: 'rgba(96, 165, 250, 0.2)',
+                    borderColor: 'rgba(96, 165, 250, 0.8)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    order: 3
+                },
+                {
+                    label: 'Positive',
+                    data: positiveData,
+                    yAxisID: 'y-sentiment',
+                    fill: true,
+                    backgroundColor: 'rgba(16, 185, 129, 0.3)',
+                    borderColor: 'rgba(16, 185, 129, 0.8)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    order: 2
+                },
+                {
+                    label: 'Negative',
+                    data: negativeData,
+                    yAxisID: 'y-sentiment',
+                    fill: true,
+                    backgroundColor: 'rgba(239, 68, 68, 0.3)',
+                    borderColor: 'rgba(239, 68, 68, 0.8)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                'y-price': {
+                    type: 'linear',
+                    position: 'right',
+                    beginAtZero: false,
+                    grid: {
+                        drawOnChartArea: false, // Don't draw grid lines
+                    },
+                    ticks: {
+                        color: 'rgb(255, 159, 64)',
+                        callback: function(value) {
+                            return '$' + value.toFixed(2);
+                        },
+                        font: {
+                            weight: 'bold'
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Price ($)',
+                        color: 'rgb(255, 159, 64)',
+                        font: {
+                            weight: 'bold',
+                            size: 14
+                        }
+                    }
+                },
+                'y-sentiment': {
+                    type: 'linear',
+                    position: 'left',
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        precision: 0
+                    },
+                    title: {
+                        display: true,
+                        text: metricLabel,
+                        font: {
+                            weight: 'bold',
+                            size: 14
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        autoSkip: true,
+                        maxTicksLimit: period === 'day' ? 12 : 15
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false  // Custom legend below
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(context) {
+                            const dataIndex = context[0].dataIndex;
+                            const timestamp = sentimentData.data[dataIndex].timestamp;
+                            const date = new Date(timestamp);
+                            
+                            if (period === 'day') {
+                                const hh = String(date.getHours()).padStart(2, '0');
+                                const mi = String(date.getMinutes()).padStart(2, '0');
+                                return `Hour: ${hh}:${mi}`;
+                            } else {
+                                const mm = date.getMonth() + 1;
+                                const dd = date.getDate();
+                                const yyyy = date.getFullYear();
+                                return `Date: ${mm}/${dd}/${yyyy}`;
+                            }
+                        },
+                        label: function(context) {
+                            const label = context.dataset.label || '';
+                            const value = context.parsed.y;
+                            
+                            if (label.includes('Price')) {
+                                return `${label}: $${value.toFixed(2)}`;
+                            } else {
+                                return `${label}: ${value} ${metricLabel.toLowerCase()}`;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Sentiment Timeline Chart Functions
 async function loadSentimentTimeline(period, metric) {
     try {
         const response = await fetch(`/api/ticker/${ticker}/sentiment-timeline?period=${period}&metric=${metric}`);
@@ -424,7 +662,13 @@ async function loadSentimentTimeline(period, metric) {
             throw new Error('Failed to fetch sentiment timeline data');
         }
         const data = await response.json();
-        renderSentimentChart(data, period, metric);
+        
+        // Create time buckets if not already created
+        if (!currentTimeBuckets) {
+            currentTimeBuckets = createTimeBuckets(period);
+        }
+        
+        renderSentimentChart(data, period, metric, currentTimeBuckets);
     } catch (error) {
         console.error('Error loading sentiment timeline:', error);
     }
@@ -446,183 +690,30 @@ function formatTimestamp(timestamp, period) {
     }
 }
 
-function renderSentimentChart(data, period, metric) {
-    const ctx = document.getElementById('sentimentAreaChart');
-    if (!ctx) return;
-    
-    // Destroy existing chart if it exists
-    if (sentimentChart) {
-        sentimentChart.destroy();
-    }
-    
-    const labels = data.data.map(d => formatTimestamp(d.timestamp, period));
-    const totalData = data.data.map(d => d.total);
-    const positiveData = data.data.map(d => d.positive);
-    const negativeData = data.data.map(d => d.negative);
-    const neutralData = data.data.map(d => d.neutral);
-    
-    // Dynamic labels based on metric
-    const metricLabel = metric === 'users' ? 'Users' : 'Comments';
-    const totalLabel = metric === 'users' ? 'Total Users' : 'Total Comments';
-    
-    // Update legend text
-    const legendTotal = document.getElementById('legend-total');
-    if (legendTotal) {
-        legendTotal.textContent = totalLabel;
-    }
-    
-    sentimentChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: totalLabel,
-                    data: totalData,
-                    fill: true,
-                    backgroundColor: 'rgba(96, 165, 250, 0.2)', // blue-400 with opacity
-                    borderColor: 'rgba(96, 165, 250, 0.8)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    order: 3
-                },
-                {
-                    label: 'Positive',
-                    data: positiveData,
-                    fill: true,
-                    backgroundColor: 'rgba(16, 185, 129, 0.3)', // green-500 with opacity
-                    borderColor: 'rgba(16, 185, 129, 0.8)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    order: 2
-                },
-                {
-                    label: 'Negative',
-                    data: negativeData,
-                    fill: true,
-                    backgroundColor: 'rgba(239, 68, 68, 0.3)', // red-500 with opacity
-                    borderColor: 'rgba(239, 68, 68, 0.8)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    order: 1
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    stacked: false,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    },
-                    ticks: {
-                        precision: 0
-                    }
-                },
-                x: {
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    },
-                    ticks: {
-                        maxRotation: 45,
-                        minRotation: 45,
-                        autoSkip: true,
-                        maxTicksLimit: period === 'day' ? 12 : 15
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false  // We have custom legend below the chart
-                },
-                tooltip: {
-                    displayColors: false,
-                    callbacks: {
-                        title: function(context) {
-                            const dataIndex = context[0].dataIndex;
-                            const timestamp = data.data[dataIndex].timestamp;
-                            const date = new Date(timestamp);
-                            
-                            if (period === 'day') {
-                                // Format as "Hour: 14:00" in local timezone
-                                const hh = String(date.getHours()).padStart(2, '0');
-                                const mi = String(date.getMinutes()).padStart(2, '0');
-                                return `Hour: ${hh}:${mi}`;
-                            } else {
-                                // Format as "Date: 10/24/2025" in local timezone
-                                const mm = date.getMonth() + 1;
-                                const dd = date.getDate();
-                                const yyyy = date.getFullYear();
-                                return `Date: ${mm}/${dd}/${yyyy}`;
-                            }
-                        },
-                        beforeBody: function(context) {
-                            const dataIndex = context[0].dataIndex;
-                            const total = totalData[dataIndex];
-                            const positive = positiveData[dataIndex];
-                            const negative = negativeData[dataIndex];
-                            const neutral = neutralData[dataIndex];
-                            
-                            // Build tooltip in order: Total, bigger sentiment, smaller sentiment, neutral
-                            const lines = [];
-                            lines.push(`${totalLabel}: ${total} ${metricLabel.toLowerCase()}`);
-                            lines.push('');  // Add spacing
-                            
-                            if (positive > negative) {
-                                lines.push(`Positive: ${positive} ${metricLabel.toLowerCase()}`);
-                                lines.push(`Negative: ${negative} ${metricLabel.toLowerCase()}`);
-                            } else if (negative > positive) {
-                                lines.push(`Negative: ${negative} ${metricLabel.toLowerCase()}`);
-                                lines.push(`Positive: ${positive} ${metricLabel.toLowerCase()}`);
-                            } else {
-                                // Equal, show positive first
-                                lines.push(`Positive: ${positive} ${metricLabel.toLowerCase()}`);
-                                lines.push(`Negative: ${negative} ${metricLabel.toLowerCase()}`);
-                            }
-                            
-                            lines.push(`Neutral: ${neutral} ${metricLabel.toLowerCase()}`);
-                            
-                            return lines;
-                        },
-                        label: function(context) {
-                            // Hide default labels since we're using beforeBody
-                            return null;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
 // Load initial data on page load
 document.addEventListener('DOMContentLoaded', function() {
     const periodSelector = document.getElementById('period-selector');
     const metricSelector = document.getElementById('metric-selector');
     
-    // Load initial chart with default values (day, comments)
-    loadSentimentTimeline('day', 'comments');
+    // Load initial combined chart with default values
+    const initialPeriod = 'day';
+    const initialMetric = 'comments';
+    
+    loadCombinedChart(initialPeriod, initialMetric);
     
     // Handle period selector changes
     if (periodSelector) {
         periodSelector.addEventListener('change', function() {
             const currentMetric = metricSelector ? metricSelector.value : 'comments';
-            loadSentimentTimeline(this.value, currentMetric);
+            loadCombinedChart(this.value, currentMetric);
         });
     }
     
     // Handle metric selector changes
     if (metricSelector) {
         metricSelector.addEventListener('change', function() {
-            const currentPeriod = periodSelector ? periodSelector.value : 'month';
-            loadSentimentTimeline(currentPeriod, this.value);
+            const currentPeriod = periodSelector ? periodSelector.value : 'day';
+            loadCombinedChart(currentPeriod, this.value);
         });
     }
 });
