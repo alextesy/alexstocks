@@ -98,6 +98,13 @@ resource "aws_cloudwatch_log_group" "historical_backfill" {
   tags = local.common_tags
 }
 
+resource "aws_cloudwatch_log_group" "daily_historical_append" {
+  name              = "/ecs/${var.project_name}-jobs/daily-historical-append"
+  retention_in_days = var.log_retention_days
+
+  tags = local.common_tags
+}
+
 # ECS Task Definition: Reddit Scraper
 resource "aws_ecs_task_definition" "reddit_scraper" {
   family                   = "${var.project_name}-reddit-scraper"
@@ -470,6 +477,62 @@ resource "aws_ecs_task_definition" "historical_backfill" {
   tags = local.common_tags
 }
 
+# ECS Task Definition: Daily Historical Append
+resource "aws_ecs_task_definition" "daily_historical_append" {
+  family                   = "${var.project_name}-daily-historical-append"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.task_cpu
+  memory                   = var.task_memory
+  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([{
+    name      = "daily-historical-append"
+    image     = "${local.ecr_repository_url}:${var.ecr_image_tag}"
+    essential = true
+
+    command = [
+      "python", "-m", "jobs.daily_historical_append"
+    ]
+
+    environment = [
+      {
+        name  = "ENVIRONMENT"
+        value = var.environment
+      }
+    ]
+
+    secrets = [
+      {
+        name      = "POSTGRES_URL"
+        valueFrom = data.aws_secretsmanager_secret.postgres_url.arn
+      },
+      {
+        name      = "SLACK_BOT_TOKEN"
+        valueFrom = data.aws_secretsmanager_secret.slack_bot_token.arn
+      },
+      {
+        name      = "SLACK_DEFAULT_CHANNEL"
+        valueFrom = data.aws_secretsmanager_secret.slack_default_channel.arn
+      }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.daily_historical_append.name
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "ecs"
+      }
+    }
+
+    stopTimeout = 120
+  }])
+
+  tags = local.common_tags
+}
+
 # Outputs
 output "ecs_cluster_name" {
   description = "ECS cluster name"
@@ -509,4 +572,9 @@ output "historical_backfill_task_definition_arn" {
 output "send_daily_emails_task_definition_arn" {
   description = "Send daily emails task definition ARN"
   value       = aws_ecs_task_definition.send_daily_emails.arn
+}
+
+output "daily_historical_append_task_definition_arn" {
+  description = "Daily historical stock price append task definition ARN"
+  value       = aws_ecs_task_definition.daily_historical_append.arn
 }
