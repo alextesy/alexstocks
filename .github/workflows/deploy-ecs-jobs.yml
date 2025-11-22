@@ -267,7 +267,6 @@ jobs:
             echo "ℹ️  Skipped task definitions:"
             echo -e "$SKIPPED_TASKS"
           fi
-          
           echo "updated_tasks<<EOF" >> $GITHUB_OUTPUT
           if [ -n "$UPDATED_TASKS" ]; then
             echo -e "$UPDATED_TASKS" >> $GITHUB_OUTPUT
