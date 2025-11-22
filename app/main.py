@@ -977,9 +977,17 @@ async def get_stock_history(
             # Format response data - reverse to chronological (oldest to newest)
             price_data = []
             for point in reversed(historical_data):
+                # For day period (hourly data), include time; for week/month, date only
+                if period == "day":
+                    # Include hour for intraday alignment with sentiment timeline
+                    date_str = point.date.isoformat()
+                else:
+                    # Daily data - just the date
+                    date_str = point.date.strftime("%Y-%m-%d")
+
                 price_data.append(
                     {
-                        "date": point.date.strftime("%Y-%m-%d"),
+                        "date": date_str,
                         "open": point.open_price,
                         "high": point.high_price,
                         "low": point.low_price,
