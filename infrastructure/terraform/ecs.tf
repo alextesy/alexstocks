@@ -464,7 +464,7 @@ resource "aws_ecs_task_definition" "historical_backfill" {
       }
     }
 
-    stopTimeout = 300  # 5 minutes - longer timeout for graceful shutdown
+    stopTimeout = 120  # 2 minutes - Fargate max
   }])
 
   tags = local.common_tags

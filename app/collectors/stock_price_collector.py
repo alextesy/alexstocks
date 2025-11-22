@@ -312,6 +312,7 @@ class StockPriceCollector:
         run_id: str,
         start_date: datetime,
         end_date: datetime | None = None,
+        symbols: list[str] | None = None,
         min_article_threshold: int = 10,
         batch_size: int = 50,
         delay_between_batches: float = 2.0,
@@ -325,7 +326,8 @@ class StockPriceCollector:
             run_id: Unique identifier for this backfill run (for resumability)
             start_date: Start date for backfill (timezone-aware)
             end_date: End date for backfill (defaults to now)
-            min_article_threshold: Minimum number of articles to include ticker
+            symbols: Optional list of specific symbols to backfill (bypasses threshold query)
+            min_article_threshold: Minimum number of articles to include ticker (ignored if symbols provided)
             batch_size: Number of tickers to process before committing
             delay_between_batches: Seconds to wait between batches
             resume: Whether to skip already processed tickers
@@ -351,31 +353,36 @@ class StockPriceCollector:
         logger.info(f"Resume mode: {resume}")
         logger.info("=" * 80)
 
-        # Get active tickers (those with sufficient article coverage)
-        from app.db.models import ArticleTicker
+        # Get symbols to backfill
+        if symbols is not None:
+            # Use provided symbols (for testing)
+            logger.info(f"Using provided symbols: {symbols}")
+        else:
+            # Get active tickers (those with sufficient article coverage)
+            from app.db.models import ArticleTicker
 
-        active_tickers_subq = (
-            db.query(ArticleTicker.ticker, func.count().label("article_count"))
-            .group_by(ArticleTicker.ticker)
-            .having(func.count() >= min_article_threshold)
-            .subquery()
-        )
-
-        active_tickers = (
-            db.query(
-                Ticker.symbol,
-                active_tickers_subq.c.article_count,
+            active_tickers_subq = (
+                db.query(ArticleTicker.ticker, func.count().label("article_count"))
+                .group_by(ArticleTicker.ticker)
+                .having(func.count() >= min_article_threshold)
+                .subquery()
             )
-            .join(
-                active_tickers_subq,
-                Ticker.symbol == active_tickers_subq.c.ticker,
-            )
-            .order_by(Ticker.symbol)
-            .all()
-        )
 
-        symbols = [symbol for symbol, count in active_tickers]
-        logger.info(f"Found {len(symbols)} active tickers to backfill")
+            active_tickers = (
+                db.query(
+                    Ticker.symbol,
+                    active_tickers_subq.c.article_count,
+                )
+                .join(
+                    active_tickers_subq,
+                    Ticker.symbol == active_tickers_subq.c.ticker,
+                )
+                .order_by(Ticker.symbol)
+                .all()
+            )
+
+            symbols = [symbol for symbol, count in active_tickers]
+            logger.info(f"Found {len(symbols)} active tickers to backfill")
 
         if not symbols:
             logger.warning("No active tickers found matching criteria")
