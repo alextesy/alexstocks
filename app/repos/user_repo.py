@@ -114,7 +114,6 @@ class UserRepository:
                 UserNotificationChannel.is_enabled == True,  # noqa: E712
                 UserNotificationChannel.is_verified == True,  # noqa: E712
                 UserNotificationChannel.email_bounced == False,  # noqa: E712
-
                 cast(
                     UserNotificationChannel.preferences["notify_on_daily_briefing"],
                     Text,
