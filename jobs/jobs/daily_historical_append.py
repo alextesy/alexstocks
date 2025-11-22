@@ -59,7 +59,7 @@ async def run_daily_append(
     days_back: int = 7,
     batch_size: int = 10,
     delay: float = 1.0,
-    min_articles: int | None = None,
+    min_articles: int = 10,
 ) -> dict:
     """
     Run the daily historical price append job.
@@ -69,7 +69,7 @@ async def run_daily_append(
         days_back: Maximum days to look back if no history exists
         batch_size: Tickers per batch
         delay: Seconds between batches
-        min_articles: Minimum article count threshold (None = all tickers)
+        min_articles: Minimum article count threshold (default: 10)
 
     Returns:
         Statistics dictionary
@@ -78,7 +78,7 @@ async def run_daily_append(
     if symbols:
         logger.info(f"Processing specific symbols: {symbols}")
     else:
-        logger.info("Processing all tickers")
+        logger.info(f"Processing tickers with at least {min_articles} article mentions")
 
     # Initialize collector and run append
     collector = StockPriceCollector()
@@ -132,7 +132,8 @@ def main() -> dict:
     parser.add_argument(
         "--min-articles",
         type=int,
-        help="Minimum article count threshold (default: None = all tickers)",
+        default=10,
+        help="Minimum article count threshold (default: 10)",
     )
 
     args = parser.parse_args()

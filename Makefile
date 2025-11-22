@@ -239,6 +239,13 @@ daily-historical-append-backfill-new-ticker: ## Backfill new ticker from October
 	@echo "Backfilling $(SYMBOL) from October 2025 to now (~60 days)..."
 	cd jobs && PYTHONPATH=.. uv run python -m jobs.daily_historical_append --symbols $(SYMBOL) --days-back 60
 
+hourly-historical-append: ## Run hourly historical append locally (top 50 + followed tickers)
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.hourly_historical_append
+
+hourly-historical-append-custom: ## Run hourly append with custom top N (TOP_N=100)
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.hourly_historical_append \
+		$(if $(TOP_N),--top-n $(TOP_N),)
+
 setup-stock-cron: ## Setup cron job to collect stock prices every 15 minutes
 	./scripts/setup-stock-price-cron.sh
 
@@ -563,6 +570,37 @@ ecs-run-daily-historical-append-backfill: ## Backfill new ticker from October 20
 
 ecs-logs-daily-historical-append: ## Tail logs for daily historical append
 	aws logs tail /ecs/market-pulse-jobs/daily-historical-append --follow
+
+ecs-run-hourly-historical-append: ## Manually trigger hourly historical append task (top 50 + followed)
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-hourly-historical-append)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r 'join(",")' || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1
+
+ecs-run-hourly-historical-append-custom: ## Run hourly append with custom top N (e.g., make ecs-run-hourly-historical-append-custom TOP_N=100)
+	@if [ -z "$(TOP_N)" ]; then \
+		echo "❌ Error: TOP_N required"; \
+		echo "Usage: make ecs-run-hourly-historical-append-custom TOP_N=100"; \
+		exit 1; \
+	fi
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-hourly-historical-append)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r 'join(",")' || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1 \
+		--overrides '{"containerOverrides":[{"name":"hourly-historical-append","command":["python","-m","jobs.hourly_historical_append","--top-n","$(TOP_N)"]}]}'
+
+ecs-logs-hourly-historical-append: ## Tail logs for hourly historical append
+	aws logs tail /ecs/market-pulse-jobs/hourly-historical-append --follow
 
 ecs-run-send-emails: ## Manually trigger send daily emails task
 	$(eval CLUSTER := market-pulse-jobs)
