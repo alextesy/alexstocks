@@ -95,7 +95,7 @@ class UserRepository:
 
     def get_users_with_daily_briefing_enabled(self) -> list[UserDTO]:
         """Get all users with daily briefing notifications enabled.
-        
+
         Excludes users with bounced email addresses.
 
         Returns:
