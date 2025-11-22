@@ -804,6 +804,200 @@ async def get_stock_chart_data(symbol: str, period: str = "1mo"):
         return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
+@app.get("/api/stock/{symbol}/history")
+async def get_stock_history(
+    symbol: str,
+    period: str | None = Query(
+        None,
+        description="Time period: 'day' (24h), 'week' (7d), or 'month' (30d). Takes precedence over date range.",
+        regex="^(day|week|month)$",
+    ),
+    start_date: str | None = Query(
+        None,
+        description="Start date in YYYY-MM-DD format (inclusive). Ignored if period is provided.",
+    ),
+    end_date: str | None = Query(
+        None,
+        description="End date in YYYY-MM-DD format (inclusive). Ignored if period is provided.",
+    ),
+    _: None = Depends(rate_limit("stock_history", requests=60, window_seconds=60)),
+):
+    """Get historical stock price data (OHLCV) for a symbol.
+
+    Supports two modes:
+    1. Period-based: Use 'period' parameter for predefined ranges (day/week/month)
+    2. Date range: Use 'start_date' and 'end_date' for custom ranges
+
+    Args:
+        symbol: Stock symbol (e.g., AAPL, TSLA)
+        period: Time period - "day" (last 24h/most recent day), "week" (last 7 days), or "month" (last 30 days).
+                Takes precedence over date range parameters.
+        start_date: Optional start date in YYYY-MM-DD format. Only used if period is not provided.
+        end_date: Optional end date in YYYY-MM-DD format. Only used if period is not provided.
+
+    Returns:
+        JSON response with historical price data including open, high, low, close, volume
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import desc
+
+    from app.db.models import StockPriceHistory, Ticker
+    from app.db.session import SessionLocal
+
+    try:
+        db = SessionLocal()
+        try:
+            # Normalize symbol
+            symbol_upper = symbol.upper()
+
+            # Verify ticker exists
+            ticker_obj = db.query(Ticker).filter(Ticker.symbol == symbol_upper).first()
+            if not ticker_obj:
+                return JSONResponse(
+                    status_code=404, content={"error": f"Ticker {symbol} not found"}
+                )
+
+            # Determine date range based on period or date parameters
+            if period:
+                # Period-based mode (consistent with sentiment timeline endpoint)
+                if period == "day":
+                    # Last 24 hours - get most recent day's data
+                    days_back = 1
+                elif period == "week":
+                    # Last 7 days
+                    days_back = 7
+                else:  # month
+                    # Last 30 days
+                    days_back = 30
+
+                end_dt = datetime.now(UTC).replace(
+                    hour=23, minute=59, second=59, tzinfo=UTC
+                )
+                start_dt = (datetime.now(UTC) - timedelta(days=days_back)).replace(
+                    hour=0, minute=0, second=0, tzinfo=UTC
+                )
+            else:
+                # Date range mode
+                try:
+                    if start_date:
+                        start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(
+                            tzinfo=UTC
+                        )
+                    else:
+                        # Default to 30 days ago
+                        start_dt = datetime.now(UTC) - timedelta(days=30)
+
+                    if end_date:
+                        end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(
+                            hour=23, minute=59, second=59, tzinfo=UTC
+                        )
+                    else:
+                        # Default to today
+                        end_dt = datetime.now(UTC).replace(
+                            hour=23, minute=59, second=59, tzinfo=UTC
+                        )
+
+                    # Validate date range
+                    if start_dt > end_dt:
+                        return JSONResponse(
+                            status_code=400,
+                            content={
+                                "error": "Invalid date range",
+                                "message": "start_date must be before or equal to end_date",
+                            },
+                        )
+
+                    # Limit date range to prevent excessive queries (max 5 years)
+                    max_range_days = 365 * 5
+                    if (end_dt - start_dt).days > max_range_days:
+                        return JSONResponse(
+                            status_code=400,
+                            content={
+                                "error": "Date range too large",
+                                "message": f"Maximum date range is {max_range_days} days (5 years)",
+                            },
+                        )
+
+                except ValueError as e:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": "Invalid date format",
+                            "message": "Dates must be in YYYY-MM-DD format",
+                            "details": str(e),
+                        },
+                    )
+
+            # Query historical data
+            query = (
+                db.query(StockPriceHistory)
+                .filter(
+                    StockPriceHistory.symbol == symbol_upper,
+                    StockPriceHistory.date >= start_dt,
+                    StockPriceHistory.date <= end_dt,
+                )
+                .order_by(desc(StockPriceHistory.date))
+            )
+
+            historical_data = query.all()
+
+            if not historical_data:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "error": "No historical data found",
+                        "message": f"No price history found for {symbol} in the specified date range",
+                        "symbol": symbol_upper,
+                        "period": period,
+                        "start_date": start_date
+                        or (datetime.now(UTC) - timedelta(days=30)).strftime(
+                            "%Y-%m-%d"
+                        ),
+                        "end_date": end_date or datetime.now(UTC).strftime("%Y-%m-%d"),
+                    },
+                )
+
+            # Format response data
+            price_data = []
+            for point in reversed(historical_data):  # Reverse to chronological order
+                price_data.append(
+                    {
+                        "date": point.date.strftime("%Y-%m-%d"),
+                        "open": point.open_price,
+                        "high": point.high_price,
+                        "low": point.low_price,
+                        "close": point.close_price,
+                        "volume": point.volume,
+                    }
+                )
+
+            response_data = {
+                "symbol": symbol_upper,
+                "count": len(price_data),
+                "data": price_data,
+            }
+
+            # Include period or date range in response
+            if period:
+                response_data["period"] = period
+            else:
+                response_data["start_date"] = start_date or (
+                    datetime.now(UTC) - timedelta(days=30)
+                ).strftime("%Y-%m-%d")
+                response_data["end_date"] = end_date or datetime.now(UTC).strftime(
+                    "%Y-%m-%d"
+                )
+
+            return response_data
+        finally:
+            db.close()
+
+    except Exception as e:
+        logger.error(f"Error in stock history API: {e}")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, page: int = 1) -> HTMLResponse:
     """Home page with ticker grid showing top 50 most discussed tickers in last 24h."""
