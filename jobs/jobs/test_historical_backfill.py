@@ -122,7 +122,7 @@ async def run_test_backfill(
             run_id=run_id,
             start_date=start_dt,
             end_date=end_dt,
-            min_article_threshold=0,  # Skip article threshold for test
+            symbols=test_symbols,  # Use only the top N tickers
             batch_size=top_n,  # Process all in one batch
             delay_between_batches=1.0,  # Shorter delay for test
             resume=False,  # Always start fresh for tests
