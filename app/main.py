@@ -964,17 +964,19 @@ async def get_stock_history(
                 from collections import OrderedDict
 
                 daily_data = OrderedDict()
-                for point in reversed(historical_data):  # Process chronologically
+                # historical_data is already in descending order (newest first)
+                for point in historical_data:
                     date_key = point.date.strftime("%Y-%m-%d")
-                    # Always keep the latest point for each date
-                    daily_data[date_key] = point
+                    # Keep first occurrence (latest time) for each date
+                    if date_key not in daily_data:
+                        daily_data[date_key] = point
 
-                # Convert back to list for formatting
+                # Convert back to list, maintaining descending order
                 historical_data = list(daily_data.values())
 
-            # Format response data
+            # Format response data - reverse to chronological (oldest to newest)
             price_data = []
-            for point in reversed(historical_data):  # Reverse to chronological order
+            for point in reversed(historical_data):
                 price_data.append(
                     {
                         "date": point.date.strftime("%Y-%m-%d"),
