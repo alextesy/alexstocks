@@ -95,6 +95,8 @@ class UserRepository:
 
     def get_users_with_daily_briefing_enabled(self) -> list[UserDTO]:
         """Get all users with daily briefing notifications enabled.
+        
+        Excludes users with bounced email addresses.
 
         Returns:
             List of UserDTOs with daily briefing enabled
@@ -111,6 +113,8 @@ class UserRepository:
                 UserNotificationChannel.channel_type == "email",
                 UserNotificationChannel.is_enabled == True,  # noqa: E712
                 UserNotificationChannel.is_verified == True,  # noqa: E712
+                UserNotificationChannel.email_bounced == False,  # noqa: E712
+
                 cast(
                     UserNotificationChannel.preferences["notify_on_daily_briefing"],
                     Text,
