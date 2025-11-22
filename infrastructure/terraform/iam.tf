@@ -131,7 +131,9 @@ resource "aws_iam_role_policy" "eventbridge_ecs" {
           aws_ecs_task_definition.sentiment_analysis.arn,
           aws_ecs_task_definition.daily_status.arn,
           aws_ecs_task_definition.stock_price_collector.arn,
-          aws_ecs_task_definition.send_daily_emails.arn
+          aws_ecs_task_definition.send_daily_emails.arn,
+          aws_ecs_task_definition.daily_historical_append.arn,
+          aws_ecs_task_definition.hourly_historical_append.arn
         ]
       },
       {

@@ -7,7 +7,7 @@ Runs every 15 minutes to keep homepage stock prices fresh.
 import asyncio
 import logging
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 # Load environment variables FIRST
 from dotenv import load_dotenv
@@ -18,18 +18,19 @@ load_dotenv()
 sys.path.append(".")
 
 # Now import app modules
-from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.db.models import Article, ArticleTicker, StockPrice, Ticker
+from app.db.models import StockPrice
 from app.db.session import SessionLocal
 from app.services.stock_data import StockDataService
 
 # Import slack_wrapper - handle both local (jobs.jobs) and Docker (jobs) contexts
 try:
     from jobs.slack_wrapper import run_with_slack  # Docker context
+    from jobs.ticker_utils import get_top_n_tickers  # Docker context
 except ImportError:
     from jobs.jobs.slack_wrapper import run_with_slack  # Local context
+    from jobs.jobs.ticker_utils import get_top_n_tickers  # Local context
 
 # Set up logging
 logging.basicConfig(
@@ -44,41 +45,6 @@ class StockPriceCollector:
 
     def __init__(self):
         self.stock_service = StockDataService()
-
-    def get_top_n_tickers(self, db: Session, n: int = 50, hours: int = 24) -> list[str]:
-        """
-        Get top N most active tickers by article count in the last N hours.
-
-        Args:
-            db: Database session
-            n: Number of top tickers to return
-            hours: Time window in hours
-
-        Returns:
-            List of ticker symbols
-        """
-        cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
-
-        top_tickers = (
-            db.query(
-                ArticleTicker.ticker,
-                func.count(ArticleTicker.article_id).label("article_count"),
-            )
-            .join(Article, ArticleTicker.article_id == Article.id)
-            .join(Ticker, Ticker.symbol == ArticleTicker.ticker)
-            .filter(
-                Article.published_at >= cutoff_time,
-                or_(Ticker.name.is_(None), ~Ticker.name.ilike("%ETF%")),
-            )
-            .group_by(ArticleTicker.ticker)
-            .order_by(func.count(ArticleTicker.article_id).desc())
-            .limit(n)
-            .all()
-        )
-
-        symbols = [ticker for ticker, count in top_tickers]
-        logger.info(f"Top {n} tickers in last {hours}h: {symbols}")
-        return symbols
 
     def validate_price_data(self, data: dict) -> bool:
         """
@@ -248,7 +214,7 @@ class StockPriceCollector:
 
         try:
             # Get top 50 tickers
-            symbols = self.get_top_n_tickers(db, n=50, hours=24)
+            symbols = get_top_n_tickers(db, n=50, hours=24)
 
             if not symbols:
                 logger.warning("No tickers found in the last 24 hours")

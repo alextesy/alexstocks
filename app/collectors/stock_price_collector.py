@@ -667,6 +667,284 @@ class StockPriceCollector:
             "errors": errors[:100],  # Limit errors in response
         }
 
+    async def collect_daily_historical_append(
+        self,
+        db: Session,
+        symbols: list[str] | None = None,
+        days_back: int = 7,
+        batch_size: int = 10,
+        delay_between_batches: float = 1.0,
+        min_article_threshold: int | None = None,
+    ) -> dict:
+        """
+        Append missing historical data for tickers.
+
+        This job:
+        - Finds the last date in stock_price_history for each ticker
+        - Fetches data from (last_date + 1) to now
+        - Inserts any missing records
+        - Can be run for specific symbols or all active tickers
+
+        Args:
+            db: Database session
+            symbols: Optional list of specific symbols (bypasses threshold if provided)
+            days_back: Maximum days to look back if no history exists (default: 7)
+            batch_size: Number of tickers to process before committing
+            delay_between_batches: Seconds to wait between batches
+            min_article_threshold: Minimum articles to include ticker (default: None = all tickers)
+
+        Returns:
+            Statistics about the append operation
+        """
+        logger.info("=" * 80)
+        logger.info("Starting Daily Historical Stock Price Append")
+        logger.info(f"Days back (if no history): {days_back}")
+        logger.info(f"Batch size: {batch_size}")
+        logger.info("=" * 80)
+
+        now = datetime.now(UTC)
+
+        # Get symbols to process
+        if symbols is not None:
+            logger.info(f"Using provided symbols: {symbols}")
+            tickers_to_process = symbols
+        else:
+            # Get all active tickers
+            if min_article_threshold:
+                from app.db.models import ArticleTicker
+
+                active_tickers_subq = (
+                    db.query(ArticleTicker.ticker, func.count().label("article_count"))
+                    .group_by(ArticleTicker.ticker)
+                    .having(func.count() >= min_article_threshold)
+                    .subquery()
+                )
+
+                tickers = (
+                    db.query(Ticker.symbol)
+                    .join(
+                        active_tickers_subq,
+                        Ticker.symbol == active_tickers_subq.c.ticker,
+                    )
+                    .order_by(Ticker.symbol)
+                    .all()
+                )
+            else:
+                # Get all tickers
+                tickers = db.query(Ticker.symbol).order_by(Ticker.symbol).all()
+
+            tickers_to_process = [symbol for (symbol,) in tickers]
+            logger.info(
+                f"Found {len(tickers_to_process)} tickers to check for missing data"
+            )
+
+        if not tickers_to_process:
+            logger.warning("No tickers found to process")
+            return {
+                "success": 0,
+                "failed": 0,
+                "skipped": 0,
+                "total_records_inserted": 0,
+                "errors": [],
+            }
+
+        success_count = 0
+        failed_count = 0
+        skipped_count = 0
+        total_records_inserted = 0
+        errors = []
+
+        # Process in batches
+        for i in range(0, len(tickers_to_process), batch_size):
+            batch = tickers_to_process[i : i + batch_size]
+            batch_num = i // batch_size + 1
+            total_batches = (len(tickers_to_process) - 1) // batch_size + 1
+
+            logger.info("-" * 80)
+            logger.info(
+                f"Processing batch {batch_num}/{total_batches}: {', '.join(batch)}"
+            )
+
+            for symbol in batch:
+                try:
+                    # Find the last date we have data for this ticker
+                    last_record = (
+                        db.query(StockPriceHistory)
+                        .filter(StockPriceHistory.symbol == symbol)
+                        .order_by(StockPriceHistory.date.desc())
+                        .first()
+                    )
+
+                    if last_record:
+                        # Fetch from last date + 1 hour to now
+                        start_date = last_record.date + timedelta(hours=1)
+                        logger.info(
+                            f"{symbol}: Last data at {last_record.date}, fetching from {start_date}"
+                        )
+                    else:
+                        # No history, fetch last N days
+                        start_date = now - timedelta(days=days_back)
+                        logger.info(
+                            f"{symbol}: No history, fetching last {days_back} days from {start_date}"
+                        )
+
+                    # Skip if start_date is in the future or very recent (< 1 hour ago)
+                    if start_date >= now - timedelta(hours=1):
+                        logger.info(f"{symbol}: Up to date, skipping")
+                        skipped_count += 1
+                        continue
+
+                    # Determine interval based on date range
+                    days_diff = (now - start_date).days
+                    if days_diff <= 7:
+                        interval = "1h"
+                    elif days_diff <= 60:
+                        interval = "1h"
+                    else:
+                        interval = "1d"
+
+                    logger.info(
+                        f"{symbol}: Fetching data with interval={interval} from {start_date} to {now}"
+                    )
+
+                    # Get historical data
+                    hist_data_list = await self.stock_service.get_historical_data_range(
+                        symbol, start=start_date, end=now, interval=interval
+                    )
+
+                    if not hist_data_list:
+                        logger.warning(f"{symbol}: No data returned from API")
+                        skipped_count += 1
+                        continue
+
+                    # Parse and insert records
+                    records_to_insert = []
+                    for point in hist_data_list:
+                        try:
+                            # Parse timestamp
+                            if "timestamp" in point:
+                                point_date = point["timestamp"]
+                                if isinstance(point_date, str):
+                                    point_date = datetime.fromisoformat(
+                                        point_date.replace("Z", "+00:00")
+                                    )
+                                elif point_date.tzinfo is None:
+                                    point_date = point_date.replace(tzinfo=UTC)
+                            elif "datetime" in point:
+                                point_date = datetime.fromisoformat(
+                                    point["datetime"].replace("Z", "+00:00")
+                                )
+                            elif "date" in point:
+                                point_date = datetime.strptime(
+                                    point["date"], "%Y-%m-%d"
+                                ).replace(tzinfo=UTC)
+                            else:
+                                continue
+
+                            # Check if within our range
+                            if not (start_date <= point_date <= now):
+                                continue
+
+                            # Get close price
+                            close_price = point.get("close") or point.get("price")
+                            if close_price is None:
+                                continue
+
+                            records_to_insert.append(
+                                {
+                                    "symbol": symbol,
+                                    "date": point_date,
+                                    "open_price": point.get("open"),
+                                    "high_price": point.get("high"),
+                                    "low_price": point.get("low"),
+                                    "close_price": close_price,
+                                    "volume": point.get("volume", 0),
+                                    "created_at": datetime.now(UTC),
+                                }
+                            )
+                        except Exception as parse_error:
+                            logger.debug(
+                                f"Error parsing data point for {symbol}: {parse_error}"
+                            )
+                            continue
+
+                    if not records_to_insert:
+                        logger.info(f"{symbol}: No new records to insert")
+                        skipped_count += 1
+                        continue
+
+                    # Insert records (skip duplicates)
+                    inserted_count = 0
+                    for record in records_to_insert:
+                        try:
+                            # Check if record already exists
+                            existing = (
+                                db.query(StockPriceHistory)
+                                .filter(
+                                    and_(
+                                        StockPriceHistory.symbol == record["symbol"],
+                                        StockPriceHistory.date == record["date"],
+                                    )
+                                )
+                                .first()
+                            )
+
+                            if not existing:
+                                db.add(StockPriceHistory(**record))
+                                inserted_count += 1
+                        except Exception as insert_error:
+                            logger.debug(
+                                f"Skipping duplicate for {symbol} at {record['date']}: {insert_error}"
+                            )
+                            continue
+
+                    total_records_inserted += inserted_count
+                    success_count += 1
+                    logger.info(
+                        f"✓ {symbol}: Inserted {inserted_count}/{len(records_to_insert)} new records"
+                    )
+
+                except Exception as e:
+                    failed_count += 1
+                    error_msg = f"{symbol}: {str(e)}"
+                    errors.append(error_msg)
+                    logger.error(error_msg)
+
+            # Commit after each batch
+            try:
+                db.commit()
+                logger.info(
+                    f"Batch {batch_num} committed: {success_count} success, {failed_count} failed, {skipped_count} skipped"
+                )
+            except Exception as commit_error:
+                logger.error(f"Error committing batch: {commit_error}")
+                db.rollback()
+                raise
+
+            # Delay between batches
+            if i + batch_size < len(tickers_to_process):
+                logger.info(f"Waiting {delay_between_batches}s before next batch...")
+                await asyncio.sleep(delay_between_batches)
+
+        logger.info("=" * 80)
+        logger.info("Daily Historical Append Summary:")
+        logger.info(f"  Total processed: {len(tickers_to_process)}")
+        logger.info(f"  Successful: {success_count}")
+        logger.info(f"  Failed: {failed_count}")
+        logger.info(f"  Skipped (up to date): {skipped_count}")
+        logger.info(f"  Total records inserted: {total_records_inserted}")
+        if errors:
+            logger.warning(f"  Errors (first 10): {errors[:10]}")
+        logger.info("=" * 80)
+
+        return {
+            "success": success_count,
+            "failed": failed_count,
+            "skipped": skipped_count,
+            "total_records_inserted": total_records_inserted,
+            "errors": errors[:100],
+        }
+
 
 async def main():
     """Main function for testing the collector."""

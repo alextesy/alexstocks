@@ -33,12 +33,10 @@ class TestStockPriceCollector:
 
     def test_get_top_n_tickers(self, db_session, sample_articles_with_tickers):
         """Test getting top N tickers by article count."""
-        from jobs.jobs.stock_price_collector import StockPriceCollector
-
-        collector = StockPriceCollector()
+        from jobs.jobs.ticker_utils import get_top_n_tickers
 
         # Get top 10 tickers from last 24 hours
-        top_tickers = collector.get_top_n_tickers(db_session, n=10, hours=24)
+        top_tickers = get_top_n_tickers(db_session, n=10, hours=24)
 
         # Should return list of ticker symbols
         assert isinstance(top_tickers, list)
@@ -53,33 +51,28 @@ class TestStockPriceCollector:
         self, db_session, sample_articles_with_tickers
     ):
         """Ensure ETF tickers are excluded even with high mention counts."""
-        from jobs.jobs.stock_price_collector import StockPriceCollector
+        from jobs.jobs.ticker_utils import get_top_n_tickers
 
-        collector = StockPriceCollector()
-
-        top_tickers = collector.get_top_n_tickers(db_session, n=5, hours=24)
+        top_tickers = get_top_n_tickers(db_session, n=5, hours=24)
 
         assert "SPY" not in top_tickers
 
     def test_get_top_n_tickers_empty_db(self, db_session):
         """Test getting top tickers when database is empty."""
-        from jobs.jobs.stock_price_collector import StockPriceCollector
+        from jobs.jobs.ticker_utils import get_top_n_tickers
 
-        collector = StockPriceCollector()
-        top_tickers = collector.get_top_n_tickers(db_session, n=50, hours=24)
+        top_tickers = get_top_n_tickers(db_session, n=50, hours=24)
 
         # Should return empty list when no articles
         assert top_tickers == []
 
     def test_get_top_n_tickers_ordering(self, db_session, sample_articles_with_tickers):
         """Test that tickers are ordered by article count (descending)."""
-        from jobs.jobs.stock_price_collector import StockPriceCollector
-
-        collector = StockPriceCollector()
+        from jobs.jobs.ticker_utils import get_top_n_tickers
 
         # Create articles with different ticker counts
         # This assumes sample_articles_with_tickers creates varied data
-        top_tickers = collector.get_top_n_tickers(db_session, n=5, hours=24)
+        top_tickers = get_top_n_tickers(db_session, n=5, hours=24)
 
         if len(top_tickers) > 1:
             # Verify ordering by checking article counts
@@ -365,13 +358,12 @@ class TestStockPriceCollector:
         with patch.object(
             collector.stock_service, "get_stock_price", side_effect=mock_get_price
         ):
-            # Override get_top_n_tickers to use our test session
-            original_get_top = collector.get_top_n_tickers
+            # Mock get_top_n_tickers to use our test session
+            with patch(
+                "jobs.jobs.stock_price_collector.get_top_n_tickers"
+            ) as mock_get_top:
+                mock_get_top.return_value = ["AAPL", "GOOGL"]
 
-            def mock_get_top(db, n=50, hours=24):
-                return original_get_top(db_session, n, hours)
-
-            with patch.object(collector, "get_top_n_tickers", side_effect=mock_get_top):
                 # Mock SessionLocal to return our test session
                 with patch("jobs.jobs.stock_price_collector.SessionLocal") as mock_sl:
                     mock_sl.return_value = db_session
