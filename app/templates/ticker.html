@@ -440,6 +440,132 @@
 const ticker = '{{ ticker }}';
 let sentimentChart = null;
 let priceChart = null;
+let currentTimeBuckets = null; // Store the time buckets for synchronization
+
+// Helper function to create time buckets
+function createTimeBuckets(period) {
+    const now = new Date();
+    const buckets = [];
+    
+    if (period === 'day') {
+        // Last 24 hours, hourly buckets
+        for (let i = 23; i >= 0; i--) {
+            const date = new Date(now);
+            date.setHours(now.getHours() - i, 0, 0, 0);
+            buckets.push(date);
+        }
+    } else if (period === 'week') {
+        // Last 7 days, daily buckets
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date(now);
+            date.setDate(now.getDate() - i);
+            date.setHours(0, 0, 0, 0);
+            buckets.push(date);
+        }
+    } else { // month
+        // Last 30 days, daily buckets
+        for (let i = 29; i >= 0; i--) {
+            const date = new Date(now);
+            date.setDate(now.getDate() - i);
+            date.setHours(0, 0, 0, 0);
+            buckets.push(date);
+        }
+    }
+    
+    return buckets;
+}
+
+// Helper function to forward-fill price data to match time buckets
+function alignPriceDataToTimeBuckets(priceData, timeBuckets, period) {
+    const aligned = [];
+    let lastPrice = null;
+    
+    // Create a map of price data by date string for quick lookup
+    const priceMap = new Map();
+    priceData.forEach(p => {
+        const date = new Date(p.date);
+        let key;
+        if (period === 'day') {
+            // For hourly, use hour precision
+            key = date.toISOString().substring(0, 13); // YYYY-MM-DDTHH
+        } else {
+            // For daily, use day precision
+            key = date.toISOString().substring(0, 10); // YYYY-MM-DD
+        }
+        // Keep the latest price for this bucket if multiple exist
+        if (!priceMap.has(key) || new Date(p.date) > new Date(priceMap.get(key).date)) {
+            priceMap.set(key, p);
+        }
+    });
+    
+    // Fill aligned array with prices or forward-filled values
+    for (const bucket of timeBuckets) {
+        let key;
+        if (period === 'day') {
+            key = bucket.toISOString().substring(0, 13);
+        } else {
+            key = bucket.toISOString().substring(0, 10);
+        }
+        
+        if (priceMap.has(key)) {
+            lastPrice = priceMap.get(key).close;
+            aligned.push(lastPrice);
+        } else if (lastPrice !== null) {
+            // Forward-fill: use last available price
+            aligned.push(lastPrice);
+        } else {
+            // No price data yet, leave as null
+            aligned.push(null);
+        }
+    }
+    
+    return aligned;
+}
+
+// Helper function to align sentiment data to time buckets
+function alignSentimentDataToTimeBuckets(sentimentData, timeBuckets, period) {
+    const aligned = [];
+    
+    // Create a map of sentiment data by timestamp key
+    const sentimentMap = new Map();
+    sentimentData.forEach(s => {
+        const date = new Date(s.timestamp);
+        let key;
+        if (period === 'day') {
+            // For hourly, use hour precision
+            key = date.toISOString().substring(0, 13); // YYYY-MM-DDTHH
+        } else {
+            // For daily, use day precision
+            key = date.toISOString().substring(0, 10); // YYYY-MM-DD
+        }
+        sentimentMap.set(key, s);
+    });
+    
+    // Fill aligned array
+    for (const bucket of timeBuckets) {
+        let key;
+        if (period === 'day') {
+            key = bucket.toISOString().substring(0, 13);
+        } else {
+            key = bucket.toISOString().substring(0, 10);
+        }
+        
+        if (sentimentMap.has(key)) {
+            aligned.push(sentimentMap.get(key));
+        } else {
+            // No data for this bucket, use zeros
+            aligned.push({
+                timestamp: bucket.toISOString(),
+                positive: 0,
+                negative: 0,
+                neutral: 0,
+                total: 0
+            });
+        }
+    }
+    
+    return aligned;
+}
 
 // Price History Chart Functions
 async function loadPriceHistory(period) {
@@ -449,13 +575,19 @@ async function loadPriceHistory(period) {
             throw new Error('Failed to fetch price history data');
         }
         const data = await response.json();
-        renderPriceChart(data, period);
+        
+        // Create time buckets if not already created
+        if (!currentTimeBuckets) {
+            currentTimeBuckets = createTimeBuckets(period);
+        }
+        
+        renderPriceChart(data, period, currentTimeBuckets);
     } catch (error) {
         console.error('Error loading price history:', error);
     }
 }
 
-function renderPriceChart(data, period) {
+function renderPriceChart(data, period, timeBuckets) {
     const ctx = document.getElementById('priceHistoryChart');
     if (!ctx) return;
     
@@ -464,9 +596,9 @@ function renderPriceChart(data, period) {
         priceChart.destroy();
     }
     
-    // Extract and format data
-    const labels = data.data.map(d => formatTimestamp(d.date, period));
-    const priceData = data.data.map(d => d.close);
+    // Align price data to time buckets with forward-fill
+    const priceData = alignPriceDataToTimeBuckets(data.data, timeBuckets, period);
+    const labels = timeBuckets.map(bucket => formatTimestamp(bucket.toISOString(), period));
     
     priceChart = new Chart(ctx, {
         type: 'line',
@@ -526,7 +658,7 @@ function renderPriceChart(data, period) {
                     callbacks: {
                         title: function(context) {
                             const dataIndex = context[0].dataIndex;
-                            const timestamp = data.data[dataIndex].date;
+                            const timestamp = timeBuckets[dataIndex].toISOString();
                             const date = new Date(timestamp);
                             
                             if (period === 'day') {
@@ -560,7 +692,13 @@ async function loadSentimentTimeline(period, metric) {
             throw new Error('Failed to fetch sentiment timeline data');
         }
         const data = await response.json();
-        renderSentimentChart(data, period, metric);
+        
+        // Create time buckets if not already created
+        if (!currentTimeBuckets) {
+            currentTimeBuckets = createTimeBuckets(period);
+        }
+        
+        renderSentimentChart(data, period, metric, currentTimeBuckets);
     } catch (error) {
         console.error('Error loading sentiment timeline:', error);
     }
@@ -582,7 +720,7 @@ function formatTimestamp(timestamp, period) {
     }
 }
 
-function renderSentimentChart(data, period, metric) {
+function renderSentimentChart(data, period, metric, timeBuckets) {
     const ctx = document.getElementById('sentimentAreaChart');
     if (!ctx) return;
     
@@ -591,11 +729,14 @@ function renderSentimentChart(data, period, metric) {
         sentimentChart.destroy();
     }
     
-    const labels = data.data.map(d => formatTimestamp(d.timestamp, period));
-    const totalData = data.data.map(d => d.total);
-    const positiveData = data.data.map(d => d.positive);
-    const negativeData = data.data.map(d => d.negative);
-    const neutralData = data.data.map(d => d.neutral);
+    // Align sentiment data to time buckets
+    const alignedData = alignSentimentDataToTimeBuckets(data.data, timeBuckets, period);
+    
+    const labels = timeBuckets.map(bucket => formatTimestamp(bucket.toISOString(), period));
+    const totalData = alignedData.map(d => d.total);
+    const positiveData = alignedData.map(d => d.positive);
+    const negativeData = alignedData.map(d => d.negative);
+    const neutralData = alignedData.map(d => d.neutral);
     
     // Dynamic labels based on metric
     const metricLabel = metric === 'users' ? 'Users' : 'Comments';
@@ -683,7 +824,7 @@ function renderSentimentChart(data, period, metric) {
                     callbacks: {
                         title: function(context) {
                             const dataIndex = context[0].dataIndex;
-                            const timestamp = data.data[dataIndex].timestamp;
+                            const timestamp = alignedData[dataIndex].timestamp;
                             const date = new Date(timestamp);
                             
                             if (period === 'day') {
@@ -747,6 +888,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const initialPeriod = 'day';
     const initialMetric = 'comments';
     
+    // Create time buckets for initial load
+    currentTimeBuckets = createTimeBuckets(initialPeriod);
+    
+    // Load both charts with the same time buckets
     loadPriceHistory(initialPeriod);
     loadSentimentTimeline(initialPeriod, initialMetric);
     
@@ -756,7 +901,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const currentMetric = metricSelector ? metricSelector.value : 'comments';
             const selectedPeriod = this.value;
             
-            // Update both charts with the new period
+            // Reset time buckets for new period
+            currentTimeBuckets = createTimeBuckets(selectedPeriod);
+            
+            // Update both charts with the new period and same time buckets
             loadPriceHistory(selectedPeriod);
             loadSentimentTimeline(selectedPeriod, currentMetric);
         });
