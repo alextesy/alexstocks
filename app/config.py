@@ -76,6 +76,14 @@ class Settings(BaseSettings):
     # Stock price cache configuration
     STOCK_PRICE_FRESHNESS_MINUTES: int = 15
 
+    # Historical Data Configuration
+    historical_backfill_start_month: int = 10
+    historical_backfill_start_day: int = 1
+    historical_backfill_interval: str = "1h"
+    historical_backfill_enable: bool = True
+    historical_daily_interval: str = "1h"
+    historical_daily_days_back: int = 1
+
     # User limits
     USER_MAX_TICKER_FOLLOWS: int = 100
 

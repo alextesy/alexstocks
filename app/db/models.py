@@ -345,6 +345,10 @@ class StockPriceHistory(Base):
     # Relationships
     ticker_obj: Mapped["Ticker"] = relationship("Ticker")
 
+    __table_args__ = (
+        UniqueConstraint("symbol", "date", name="uq_stock_price_history_symbol_date"),
+    )
+
 
 class StockDataCollection(Base):
     """Track stock data collection runs."""

@@ -3,10 +3,14 @@
 import asyncio
 import logging
 import time
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
+from sqlalchemy import and_, desc
+from sqlalchemy.orm import Session
+
+from app.db.models import StockPriceHistory
 
 logger = logging.getLogger(__name__)
 
@@ -370,6 +374,185 @@ class StockDataService:
         Returns None if data unavailable (no mock data fallback).
         """
         return await self.get_stock_chart_data(symbol, period)
+
+    async def get_historical_data_range(
+        self,
+        symbol: str,
+        start: datetime,
+        end: datetime,
+        interval: str = "1h",
+    ) -> list[dict]:
+        """
+        Fetch historical data for a specific range using yfinance.
+
+        Args:
+            symbol: Ticker symbol
+            start: Start datetime
+            end: End datetime
+            interval: Data interval (e.g., "1h", "1d")
+
+        Returns:
+            List of price data dictionaries
+        """
+        normalized_symbol = self._normalize_symbol(symbol)
+
+        try:
+            # Rate limit
+            await self._rate_limit()
+
+            # Run in executor
+            loop = asyncio.get_event_loop()
+
+            def fetch_history():
+                ticker = yf.Ticker(normalized_symbol)
+                return ticker.history(start=start, end=end, interval=interval)
+
+            hist = await loop.run_in_executor(None, fetch_history)
+
+            if hist.empty:
+                return []
+
+            results = []
+            for index, row in hist.iterrows():
+                # Handle index timezone
+                timestamp = index
+                if timestamp.tzinfo is None:
+                    timestamp = timestamp.replace(tzinfo=UTC)
+
+                results.append(
+                    {
+                        "timestamp": timestamp,
+                        "open": float(row["Open"]),
+                        "high": float(row["High"]),
+                        "low": float(row["Low"]),
+                        "close": float(row["Close"]),
+                        "volume": int(row["Volume"]),
+                    }
+                )
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Error fetching history range for {symbol}: {e}")
+            return []
+
+    async def get_price_history(
+        self, db: Session, symbol: str, days: int = 30
+    ) -> list[dict]:
+        """
+        Get price history with smart DB fallback/backfill.
+
+        Strategy:
+        1. Query DB for range [now - days, now]
+        2. If data gap detected (specifically missing recent data), fetch from API
+        3. Backfill DB
+        4. Return combined/sorted data
+        """
+        try:
+            cutoff_date = datetime.now(UTC) - timedelta(days=days)
+
+            # 1. Query DB
+            db_history = (
+                db.query(StockPriceHistory)
+                .filter(
+                    StockPriceHistory.symbol == symbol.upper(),
+                    StockPriceHistory.date >= cutoff_date,
+                )
+                .order_by(desc(StockPriceHistory.date))
+                .all()
+            )
+
+            # 2. Check for recent data
+            needs_backfill = False
+            backfill_start = None
+
+            if not db_history:
+                # No data at all -> fetch full range
+                needs_backfill = True
+                backfill_start = cutoff_date
+            else:
+                # Check if latest data is fresh enough (e.g. within last 24h or last trading day)
+                # For simplicity, if latest DB point is older than 2 days, fetch missing tail
+                latest_db_date = db_history[0].date
+                if latest_db_date.tzinfo is None:
+                    latest_db_date = latest_db_date.replace(tzinfo=UTC)
+
+                if (datetime.now(UTC) - latest_db_date) > timedelta(days=2):
+                    needs_backfill = True
+                    backfill_start = latest_db_date
+
+            # 3. Backfill if needed
+            if needs_backfill and backfill_start:
+                logger.info(f"Backfilling history for {symbol} from {backfill_start}")
+                new_data = await self.get_historical_data_range(
+                    symbol,
+                    start=backfill_start,
+                    end=datetime.now(UTC),
+                    interval="1h",
+                )
+
+                if new_data:
+                    new_rows_count = 0
+                    for point in new_data:
+                        # Upsert logic (check if exists first to avoid error)
+                        exists = (
+                            db.query(StockPriceHistory)
+                            .filter(
+                                and_(
+                                    StockPriceHistory.symbol == symbol.upper(),
+                                    StockPriceHistory.date == point["timestamp"],
+                                )
+                            )
+                            .first()
+                        )
+
+                        if not exists:
+                            history = StockPriceHistory(
+                                symbol=symbol.upper(),
+                                date=point["timestamp"],
+                                open_price=point["open"],
+                                high_price=point["high"],
+                                low_price=point["low"],
+                                close_price=point["close"],
+                                volume=point["volume"],
+                            )
+                            db.add(history)
+                            new_rows_count += 1
+
+                    if new_rows_count > 0:
+                        db.commit()
+                        logger.info(
+                            f"Added {new_rows_count} new history rows for {symbol}"
+                        )
+
+                        # Re-query DB to get complete sorted list
+                        db_history = (
+                            db.query(StockPriceHistory)
+                            .filter(
+                                StockPriceHistory.symbol == symbol.upper(),
+                                StockPriceHistory.date >= cutoff_date,
+                            )
+                            .order_by(desc(StockPriceHistory.date))
+                            .all()
+                        )
+
+            # 4. Format result
+            return [
+                {
+                    "timestamp": h.date.isoformat(),
+                    "open": h.open_price,
+                    "high": h.high_price,
+                    "low": h.low_price,
+                    "close": h.close_price,
+                    "volume": h.volume,
+                }
+                for h in db_history
+            ]
+
+        except Exception as e:
+            logger.error(f"Error in get_price_history for {symbol}: {e}")
+            # Fallback to empty list or partial data
+            return []
 
 
 # Create service instance
