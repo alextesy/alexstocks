@@ -26,6 +26,144 @@ class StockPriceCollector:
     def __init__(self):
         self.stock_service = StockDataService()
 
+    async def fill_weekend_holiday_gaps(
+        self, db: Session, symbols: list[str] | None = None, days_back: int = 90
+    ) -> dict:
+        """
+        Fill weekend and holiday gaps in stock price history by forward-filling from the last trading day.
+
+        This ensures continuous price data for charting, even when markets are closed.
+
+        Args:
+            db: Database session
+            symbols: Optional list of specific symbols (default: all symbols with history)
+            days_back: How many days back to check for gaps (default: 90)
+
+        Returns:
+            Statistics about the fill operation
+        """
+        logger.info("=" * 80)
+        logger.info("Filling Weekend/Holiday Gaps in Stock Price History")
+        logger.info(f"Days back: {days_back}")
+        logger.info("=" * 80)
+
+        now = datetime.now(UTC)
+        cutoff_date = now - timedelta(days=days_back)
+
+        # Get symbols to process
+        if symbols:
+            symbols_to_process = symbols
+        else:
+            # Get all symbols that have at least one history record
+            result = (
+                db.query(StockPriceHistory.symbol)
+                .distinct()
+                .order_by(StockPriceHistory.symbol)
+                .all()
+            )
+            symbols_to_process = [symbol for (symbol,) in result]
+
+        logger.info(f"Processing {len(symbols_to_process)} symbols")
+
+        total_filled = 0
+        symbols_processed = 0
+
+        for symbol in symbols_to_process:
+            try:
+                # Get all existing dates for this symbol within the range
+                existing_records = (
+                    db.query(StockPriceHistory)
+                    .filter(
+                        StockPriceHistory.symbol == symbol,
+                        StockPriceHistory.date >= cutoff_date,
+                    )
+                    .order_by(StockPriceHistory.date)
+                    .all()
+                )
+
+                if not existing_records:
+                    continue
+
+                # Create a map of dates to records
+                records_by_date = {}
+                for record in existing_records:
+                    date_key = record.date.date()
+                    records_by_date[date_key] = record
+
+                # Get first and last dates
+                first_date = existing_records[0].date.date()
+                last_date = existing_records[-1].date.date()
+
+                # Fill gaps between first and last date
+                current_date = first_date
+                last_trading_record = existing_records[0]
+                filled_count = 0
+
+                while current_date <= last_date:
+                    if current_date in records_by_date:
+                        # Update last trading record
+                        last_trading_record = records_by_date[current_date]
+                    else:
+                        # Gap found - forward-fill from last trading day
+                        # Check if we already have a forward-filled record for this date
+                        date_with_time = datetime.combine(
+                            current_date, datetime.min.time()
+                        ).replace(tzinfo=UTC)
+
+                        existing = (
+                            db.query(StockPriceHistory)
+                            .filter(
+                                and_(
+                                    StockPriceHistory.symbol == symbol,
+                                    func.date(StockPriceHistory.date) == current_date,
+                                )
+                            )
+                            .first()
+                        )
+
+                        if not existing:
+                            # Create forward-filled record
+                            filled_record = StockPriceHistory(
+                                symbol=symbol,
+                                date=date_with_time,
+                                open_price=last_trading_record.close_price,
+                                high_price=last_trading_record.close_price,
+                                low_price=last_trading_record.close_price,
+                                close_price=last_trading_record.close_price,
+                                volume=0,  # No trading volume on non-trading days
+                                created_at=datetime.now(UTC),
+                            )
+                            db.add(filled_record)
+                            filled_count += 1
+                            total_filled += 1
+
+                    current_date += timedelta(days=1)
+
+                if filled_count > 0:
+                    logger.info(f"✓ {symbol}: Filled {filled_count} gap days")
+                    symbols_processed += 1
+
+            except Exception as e:
+                logger.error(f"Error processing {symbol}: {e}")
+                continue
+
+        # Commit all fills
+        try:
+            db.commit()
+            logger.info("=" * 80)
+            logger.info(
+                f"Completed: {symbols_processed} symbols, {total_filled} days filled"
+            )
+            logger.info("=" * 80)
+        except Exception as commit_error:
+            logger.error(f"Error committing fills: {commit_error}")
+            db.rollback()
+
+        return {
+            "symbols_processed": symbols_processed,
+            "total_filled": total_filled,
+        }
+
     async def collect_current_prices(
         self, db: Session, symbols: list[str] | None = None
     ) -> dict:
