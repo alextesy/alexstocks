@@ -101,7 +101,7 @@ async def run_backfill(
     else:
         # Default to configured start date (October 1, 2024)
         start_dt = datetime(
-            2024,
+            2025,
             settings.historical_backfill_start_month,
             settings.historical_backfill_start_day,
             tzinfo=UTC,

@@ -313,7 +313,7 @@ class StockPriceCollector:
         start_date: datetime,
         end_date: datetime | None = None,
         min_article_threshold: int = 10,
-        batch_size: int = 5,
+        batch_size: int = 50,
         delay_between_batches: float = 2.0,
         resume: bool = True,
     ) -> dict:
