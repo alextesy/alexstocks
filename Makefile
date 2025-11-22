@@ -194,7 +194,7 @@ collect-historical-backfill: ## Backfill historical stock prices (durable, resum
 collect-historical-backfill-resume: ## Resume historical backfill (provide RUN_ID=xxx)
 	@if [ -z "$(RUN_ID)" ]; then \
 		echo "❌ Error: RUN_ID required"; \
-		echo "Usage: make collect-historical-backfill-resume RUN_ID=backfill-20241122-123456-abcd1234"; \
+		echo "Usage: make collect-historical-backfill-resume RUN_ID=backfill-20251022-123456-abcd1234"; \
 		exit 1; \
 	fi
 	cd jobs && PYTHONPATH=.. uv run python -m jobs.collect_historical_prices_backfill --run-id $(RUN_ID)
@@ -202,7 +202,7 @@ collect-historical-backfill-resume: ## Resume historical backfill (provide RUN_I
 collect-historical-backfill-custom: ## Custom backfill (START=YYYY-MM-DD END=YYYY-MM-DD MIN_ARTICLES=N)
 	@if [ -z "$(START)" ]; then \
 		echo "❌ Error: START date required"; \
-		echo "Usage: make collect-historical-backfill-custom START=2024-10-01 END=2024-11-01 MIN_ARTICLES=5"; \
+		echo "Usage: make collect-historical-backfill-custom START=2025-10-01 END=2025-11-01 MIN_ARTICLES=5"; \
 		exit 1; \
 	fi
 	cd jobs && PYTHONPATH=.. uv run python -m jobs.collect_historical_prices_backfill \
@@ -478,7 +478,7 @@ ecs-run-historical-backfill-test: ## Manually trigger historical backfill TEST (
 ecs-run-historical-backfill-resume: ## Resume historical backfill with specific RUN_ID
 	@if [ -z "$(RUN_ID)" ]; then \
 		echo "❌ Error: RUN_ID required"; \
-		echo "Usage: make ecs-run-historical-backfill-resume RUN_ID=backfill-20241122-123456-abcd1234"; \
+		echo "Usage: make ecs-run-historical-backfill-resume RUN_ID=backfill-20251022-123456-abcd1234"; \
 		exit 1; \
 	fi
 	$(eval CLUSTER := market-pulse-jobs)
