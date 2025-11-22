@@ -31,17 +31,22 @@ load_dotenv()
 sys.path.append(".")
 
 
-from sqlalchemy import func  # noqa: E402
-
 from app.collectors.stock_price_collector import StockPriceCollector  # noqa: E402
-from app.db.models import ArticleTicker, Ticker, UserTickerFollow  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
 
-# Import slack_wrapper - handle both local (jobs.jobs) and Docker (jobs) contexts
+# Import slack_wrapper and ticker_utils - handle both local (jobs.jobs) and Docker (jobs) contexts
 try:
     from jobs.slack_wrapper import run_with_slack  # Docker context
+    from jobs.ticker_utils import (  # Docker context
+        get_followed_tickers,
+        get_top_n_tickers,
+    )
 except ImportError:
     from jobs.jobs.slack_wrapper import run_with_slack  # Local context
+    from jobs.jobs.ticker_utils import (  # Local context
+        get_followed_tickers,
+        get_top_n_tickers,
+    )
 
 # Set up logging
 logging.basicConfig(
@@ -49,29 +54,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-def get_top_tickers(db, top_n: int = 50) -> list[str]:
-    """Get top N tickers by article mentions."""
-    top_tickers = (
-        db.query(ArticleTicker.ticker, func.count().label("mention_count"))
-        .group_by(ArticleTicker.ticker)
-        .order_by(func.count().desc())
-        .limit(top_n)
-        .all()
-    )
-    return [ticker for ticker, count in top_tickers]
-
-
-def get_followed_tickers(db) -> list[str]:
-    """Get all user-followed tickers."""
-    followed = (
-        db.query(UserTickerFollow.ticker)
-        .distinct()
-        .join(Ticker, UserTickerFollow.ticker == Ticker.symbol)
-        .all()
-    )
-    return [ticker for (ticker,) in followed]
 
 
 async def run_hourly_append(
@@ -93,21 +75,22 @@ async def run_hourly_append(
         Statistics dictionary
     """
     logger.info(f"Hourly historical append starting at {datetime.now(UTC)}")
-    logger.info(f"Processing top {top_n} tickers + followed tickers")
+    logger.info(f"Processing top {top_n} tickers (last 24h) + followed tickers")
 
     # Initialize database session
     db = SessionLocal()
 
     try:
-        # Get top tickers
-        top_tickers = get_top_tickers(db, top_n)
-        logger.info(f"Found {len(top_tickers)} top tickers by mentions")
+        # Get top N tickers from last 24 hours (same logic as stock_price_collector)
+        top_tickers = get_top_n_tickers(db, n=top_n, hours=24)
+        logger.info(
+            f"Found {len(top_tickers)} top tickers in last 24h (excluding ETFs)"
+        )
 
         # Get followed tickers
         followed_tickers = []
         if include_followed:
             followed_tickers = get_followed_tickers(db)
-            logger.info(f"Found {len(followed_tickers)} user-followed tickers")
 
         # Combine and deduplicate
         all_symbols = list(set(top_tickers + followed_tickers))
