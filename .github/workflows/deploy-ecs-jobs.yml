@@ -188,94 +188,99 @@ jobs:
         run: |
           echo "Updating ECS task definitions with new image..."
           UPDATED_TASKS=""
+          SKIPPED_TASKS=""
+          HAS_FAILURES=0
           
-          # Update Reddit Scraper task definition
-          echo "Updating market-pulse-reddit-scraper..."
-          aws ecs describe-task-definition \
-            --task-definition market-pulse-reddit-scraper \
-            --query taskDefinition > task-def-reddit.json
+          # Helper function to update a task definition if it exists
+          update_task_definition() {
+            local TASK_NAME=$1
+            local TASK_FILE=$2
+            
+            echo "Checking $TASK_NAME..."
+            
+            # Check if task definition exists
+            if aws ecs describe-task-definition \
+              --task-definition "$TASK_NAME" \
+              --query taskDefinition > "$TASK_FILE.json" 2>/dev/null; then
+              
+              echo "Updating $TASK_NAME..."
+              jq --arg IMAGE "$IMAGE_URI" \
+                '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+                "$TASK_FILE.json" > "$TASK_FILE-updated.json"
 
-          jq --arg IMAGE "$IMAGE_URI" \
-            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
-            task-def-reddit.json > task-def-reddit-updated.json
-
-          aws ecs register-task-definition \
-            --cli-input-json file://task-def-reddit-updated.json > /dev/null
-          UPDATED_TASKS="$UPDATED_TASKS\n- market-pulse-reddit-scraper"
-
-          # Update Sentiment Analysis task definition
-          echo "Updating market-pulse-sentiment-analysis..."
-          aws ecs describe-task-definition \
-            --task-definition market-pulse-sentiment-analysis \
-            --query taskDefinition > task-def-sentiment.json
-
-          jq --arg IMAGE "$IMAGE_URI" \
-            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
-            task-def-sentiment.json > task-def-sentiment-updated.json
-
-          aws ecs register-task-definition \
-            --cli-input-json file://task-def-sentiment-updated.json > /dev/null
-          UPDATED_TASKS="$UPDATED_TASKS\n- market-pulse-sentiment-analysis"
-
-          # Update Daily Status task definition
-          echo "Updating market-pulse-daily-status..."
-          aws ecs describe-task-definition \
-            --task-definition market-pulse-daily-status \
-            --query taskDefinition > task-def-status.json
-
-          jq --arg IMAGE "$IMAGE_URI" \
-            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
-            task-def-status.json > task-def-status-updated.json
-
-          aws ecs register-task-definition \
-            --cli-input-json file://task-def-status-updated.json > /dev/null
-          UPDATED_TASKS="$UPDATED_TASKS\n- market-pulse-daily-status"
-
-          # Update Stock Price Collector task definition
-          echo "Updating market-pulse-stock-price-collector..."
-          aws ecs describe-task-definition \
-            --task-definition market-pulse-stock-price-collector \
-            --query taskDefinition > task-def-stock-price.json
-
-          jq --arg IMAGE "$IMAGE_URI" \
-            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
-            task-def-stock-price.json > task-def-stock-price-updated.json
-
-          aws ecs register-task-definition \
-            --cli-input-json file://task-def-stock-price-updated.json > /dev/null
-          UPDATED_TASKS="$UPDATED_TASKS\n- market-pulse-stock-price-collector"
-
-          # Update Send Daily Emails task definition
-          echo "Updating market-pulse-send-daily-emails..."
-          aws ecs describe-task-definition \
-            --task-definition market-pulse-send-daily-emails \
-            --query taskDefinition > task-def-send-emails.json
-
-          jq --arg IMAGE "$IMAGE_URI" \
-            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
-            task-def-send-emails.json > task-def-send-emails-updated.json
-
-          aws ecs register-task-definition \
-            --cli-input-json file://task-def-send-emails-updated.json > /dev/null
-          UPDATED_TASKS="$UPDATED_TASKS\n- market-pulse-send-daily-emails"
-
-          # Update Historical Backfill task definition
-          echo "Updating market-pulse-historical-backfill..."
-          aws ecs describe-task-definition \
-            --task-definition market-pulse-historical-backfill \
-            --query taskDefinition > task-def-historical-backfill.json
-
-          jq --arg IMAGE "$IMAGE_URI" \
-            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
-            task-def-historical-backfill.json > task-def-historical-backfill-updated.json
-
-          aws ecs register-task-definition \
-            --cli-input-json file://task-def-historical-backfill-updated.json > /dev/null
-          UPDATED_TASKS="$UPDATED_TASKS\n- market-pulse-historical-backfill"
-
-          echo "✅ Updated all ECS task definitions"
+              # Registration failures are real errors and should fail the workflow
+              if aws ecs register-task-definition \
+                --cli-input-json file://"$TASK_FILE-updated.json" > /dev/null; then
+                echo "✅ Successfully updated $TASK_NAME"
+                UPDATED_TASKS="$UPDATED_TASKS\n- $TASK_NAME"
+                return 0
+              else
+                echo "❌ Failed to register updated task definition for $TASK_NAME"
+                echo "This indicates a real deployment error (IAM permissions, validation, etc.)"
+                return 1  # Registration failure - should fail workflow
+              fi
+            else
+              echo "ℹ️  Task definition $TASK_NAME does not exist yet (will be created by Terraform)"
+              SKIPPED_TASKS="$SKIPPED_TASKS\n- $TASK_NAME (does not exist)"
+              return 0  # Missing tasks are OK, continue
+            fi
+          }
+          
+          # Update all task definitions
+          # Only suppress errors for tasks that don't exist (return 0)
+          # Registration failures (return 1) should fail the workflow
+          update_task_definition "market-pulse-reddit-scraper" "task-def-reddit" || {
+            if [ $? -eq 1 ]; then HAS_FAILURES=1; fi
+          }
+          update_task_definition "market-pulse-sentiment-analysis" "task-def-sentiment" || {
+            if [ $? -eq 1 ]; then HAS_FAILURES=1; fi
+          }
+          update_task_definition "market-pulse-daily-status" "task-def-status" || {
+            if [ $? -eq 1 ]; then HAS_FAILURES=1; fi
+          }
+          update_task_definition "market-pulse-stock-price-collector" "task-def-stock-price" || {
+            if [ $? -eq 1 ]; then HAS_FAILURES=1; fi
+          }
+          update_task_definition "market-pulse-send-daily-emails" "task-def-send-emails" || {
+            if [ $? -eq 1 ]; then HAS_FAILURES=1; fi
+          }
+          update_task_definition "market-pulse-historical-backfill" "task-def-historical-backfill" || {
+            if [ $? -eq 1 ]; then HAS_FAILURES=1; fi
+          }
+          
+          # Fail the workflow if any registration failed
+          if [ $HAS_FAILURES -eq 1 ]; then
+            echo ""
+            echo "❌ One or more task definition registrations failed."
+            echo "This indicates a real deployment error (IAM permissions, validation, etc.) that must be fixed."
+            exit 1
+          fi
+          
+          echo ""
+          if [ -n "$UPDATED_TASKS" ]; then
+            echo "✅ Updated task definitions:"
+            echo -e "$UPDATED_TASKS"
+          fi
+          
+          if [ -n "$SKIPPED_TASKS" ]; then
+            echo ""
+            echo "ℹ️  Skipped task definitions:"
+            echo -e "$SKIPPED_TASKS"
+          fi
           echo "updated_tasks<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$UPDATED_TASKS" >> $GITHUB_OUTPUT
+          if [ -n "$UPDATED_TASKS" ]; then
+            echo -e "$UPDATED_TASKS" >> $GITHUB_OUTPUT
+          else
+            echo "- (none)" >> $GITHUB_OUTPUT
+          fi
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "skipped_tasks<<EOF" >> $GITHUB_OUTPUT
+          if [ -n "$SKIPPED_TASKS" ]; then
+            echo -e "$SKIPPED_TASKS" >> $GITHUB_OUTPUT
+          else
+            echo "- (none)" >> $GITHUB_OUTPUT
+          fi
           echo "EOF" >> $GITHUB_OUTPUT
 
       # ============================================================================
@@ -470,8 +475,21 @@ jobs:
           
           echo "## 🔄 ECS Task Definitions Updated" >> $GITHUB_STEP_SUMMARY
           if [ "$JOBS_CHANGED" = "true" ] && [ "$IMAGE_PUSHED" = "true" ]; then
-            echo "$UPDATED_TASKS" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
+            UPDATED_TASKS_VALUE="${{ steps.update-tasks.outputs.updated_tasks }}"
+            SKIPPED_TASKS_VALUE="${{ steps.update-tasks.outputs.skipped_tasks }}"
+            
+            if [ -n "$UPDATED_TASKS_VALUE" ] && [ "$UPDATED_TASKS_VALUE" != "- (none)" ]; then
+              echo "**Updated:**" >> $GITHUB_STEP_SUMMARY
+              echo "$UPDATED_TASKS_VALUE" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ -n "$SKIPPED_TASKS_VALUE" ] && [ "$SKIPPED_TASKS_VALUE" != "- (none)" ]; then
+              echo "**Skipped (will be created by Terraform):**" >> $GITHUB_STEP_SUMMARY
+              echo "$SKIPPED_TASKS_VALUE" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
             echo "**View Logs**:" >> $GITHUB_STEP_SUMMARY
             echo "- [Reddit Scraper Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Freddit-scraper)" >> $GITHUB_STEP_SUMMARY
             echo "- [Sentiment Analysis Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Fsentiment-analysis)" >> $GITHUB_STEP_SUMMARY
