@@ -427,14 +427,35 @@ class StockPriceCollector:
             )
 
             for symbol in batch:
-                progress = BackfillProgress(
-                    run_id=run_id,
-                    symbol=symbol,
-                    status="pending",
-                    started_at=datetime.now(UTC),
+                # Check if progress row already exists (for resume mode)
+                progress = (
+                    db.query(BackfillProgress)
+                    .filter(
+                        BackfillProgress.run_id == run_id,
+                        BackfillProgress.symbol == symbol,
+                    )
+                    .first()
                 )
-                db.add(progress)
-                db.flush()  # Get the ID
+
+                if progress:
+                    # Update existing progress row
+                    logger.debug(
+                        f"{symbol}: Resuming from previous status '{progress.status}'"
+                    )
+                    progress.status = "pending"
+                    progress.started_at = datetime.now(UTC)
+                    progress.error_message = None
+                else:
+                    # Create new progress row
+                    progress = BackfillProgress(
+                        run_id=run_id,
+                        symbol=symbol,
+                        status="pending",
+                        started_at=datetime.now(UTC),
+                    )
+                    db.add(progress)
+
+                db.flush()  # Ensure we have the ID
 
                 try:
                     logger.info(f"Fetching historical data for {symbol}...")
@@ -471,7 +492,17 @@ class StockPriceCollector:
                     for point in hist_data["data"]:
                         try:
                             # Parse the date from the API response
-                            if "datetime" in point:
+                            # get_historical_data_range returns "timestamp" key
+                            if "timestamp" in point:
+                                point_date = point["timestamp"]
+                                # Ensure timezone-aware
+                                if isinstance(point_date, str):
+                                    point_date = datetime.fromisoformat(
+                                        point_date.replace("Z", "+00:00")
+                                    )
+                                elif point_date.tzinfo is None:
+                                    point_date = point_date.replace(tzinfo=UTC)
+                            elif "datetime" in point:
                                 point_date = datetime.fromisoformat(
                                     point["datetime"].replace("Z", "+00:00")
                                 )
@@ -480,10 +511,21 @@ class StockPriceCollector:
                                     point["date"], "%Y-%m-%d"
                                 ).replace(tzinfo=UTC)
                             else:
+                                logger.debug(
+                                    f"Skipping point for {symbol}: no timestamp/datetime/date key"
+                                )
                                 continue
 
                             # Check if within our backfill range
                             if start_date <= point_date <= end_date:
+                                # get_historical_data_range uses "close", not "price"
+                                close_price = point.get("close") or point.get("price")
+                                if close_price is None:
+                                    logger.debug(
+                                        f"Skipping point for {symbol} at {point_date}: no close price"
+                                    )
+                                    continue
+
                                 records_to_insert.append(
                                     {
                                         "symbol": symbol,
@@ -491,9 +533,7 @@ class StockPriceCollector:
                                         "open_price": point.get("open"),
                                         "high_price": point.get("high"),
                                         "low_price": point.get("low"),
-                                        "close_price": point.get(
-                                            "price", point.get("close")
-                                        ),
+                                        "close_price": close_price,
                                         "volume": point.get("volume", 0),
                                         "created_at": datetime.now(UTC),
                                     }
