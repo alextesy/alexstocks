@@ -13,7 +13,7 @@ Usage:
     uv run python -m jobs.jobs.collect_historical_prices_backfill --run-id YOUR_RUN_ID
 
     # Custom date range
-    uv run python -m jobs.jobs.collect_historical_prices_backfill --start-date 2024-10-01 --end-date 2024-11-01
+    uv run python -m jobs.jobs.collect_historical_prices_backfill --start-date 2025-10-01 --end-date 2025-11-01
 
     # Adjust article threshold
     uv run python -m jobs.jobs.collect_historical_prices_backfill --min-articles 5
@@ -99,7 +99,7 @@ async def run_backfill(
     if start_date:
         start_dt = parse_date(start_date)
     else:
-        # Default to configured start date (October 1, 2024)
+        # Default to configured start date (October 1, 2025)
         start_dt = datetime(
             2025,
             settings.historical_backfill_start_month,
@@ -149,7 +149,7 @@ def main() -> dict:
     parser.add_argument(
         "--start-date",
         type=str,
-        help="Start date in YYYY-MM-DD format (default: 2024-10-01)",
+        help="Start date in YYYY-MM-DD format (default: 2025-10-01)",
     )
     parser.add_argument(
         "--end-date",

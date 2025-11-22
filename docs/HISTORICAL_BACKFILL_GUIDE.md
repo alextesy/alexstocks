@@ -104,10 +104,10 @@ To resume:
 
 ```bash
 # ECS (recommended)
-make ecs-run-historical-backfill-resume RUN_ID=backfill-20241122-123456-abcd1234
+make ecs-run-historical-backfill-resume RUN_ID=backfill-20251022-123456-abcd1234
 
 # Or locally
-make collect-historical-backfill-resume RUN_ID=backfill-20241122-123456-abcd1234
+make collect-historical-backfill-resume RUN_ID=backfill-20251022-123456-abcd1234
 ```
 
 ## 📊 Monitoring
@@ -157,7 +157,7 @@ Currently requires code change in `jobs/jobs/collect_historical_prices_backfill.
 ```python
 # Change default year from 2025 to your desired year
 start_dt = datetime(
-    2024,  # <-- Change this
+    2025,  # <-- Change this
     settings.historical_backfill_start_month,
     settings.historical_backfill_start_day,
     tzinfo=UTC,
