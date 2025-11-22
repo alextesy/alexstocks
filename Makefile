@@ -188,6 +188,28 @@ test-stock-collection: ## Test stock data collection with 3 sample tickers
 collect-top50-prices: ## Collect stock prices for top 50 tickers (production job)
 	cd jobs && PYTHONPATH=.. uv run python -m jobs.stock_price_collector
 
+collect-historical-backfill: ## Backfill historical stock prices (durable, resumable)
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.collect_historical_prices_backfill
+
+collect-historical-backfill-resume: ## Resume historical backfill (provide RUN_ID=xxx)
+	@if [ -z "$(RUN_ID)" ]; then \
+		echo "❌ Error: RUN_ID required"; \
+		echo "Usage: make collect-historical-backfill-resume RUN_ID=backfill-20241122-123456-abcd1234"; \
+		exit 1; \
+	fi
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.collect_historical_prices_backfill --run-id $(RUN_ID)
+
+collect-historical-backfill-custom: ## Custom backfill (START=YYYY-MM-DD END=YYYY-MM-DD MIN_ARTICLES=N)
+	@if [ -z "$(START)" ]; then \
+		echo "❌ Error: START date required"; \
+		echo "Usage: make collect-historical-backfill-custom START=2024-10-01 END=2024-11-01 MIN_ARTICLES=5"; \
+		exit 1; \
+	fi
+	cd jobs && PYTHONPATH=.. uv run python -m jobs.collect_historical_prices_backfill \
+		--start-date $(START) \
+		$(if $(END),--end-date $(END),) \
+		$(if $(MIN_ARTICLES),--min-articles $(MIN_ARTICLES),)
+
 setup-stock-cron: ## Setup cron job to collect stock prices every 15 minutes
 	./scripts/setup-stock-price-cron.sh
 
