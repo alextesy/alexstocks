@@ -7,7 +7,13 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
-from app.db.models import StockDataCollection, StockPrice, StockPriceHistory, Ticker
+from app.db.models import (
+    BackfillProgress,
+    StockDataCollection,
+    StockPrice,
+    StockPriceHistory,
+    Ticker,
+)
 from app.db.session import SessionLocal
 from app.services.stock_data import StockDataService
 
@@ -299,6 +305,360 @@ class StockPriceCollector:
             db.rollback()
             logger.error(f"Historical data collection failed: {e}")
             raise
+
+    async def collect_historical_backfill(
+        self,
+        db: Session,
+        run_id: str,
+        start_date: datetime,
+        end_date: datetime | None = None,
+        min_article_threshold: int = 10,
+        batch_size: int = 50,
+        delay_between_batches: float = 2.0,
+        resume: bool = True,
+    ) -> dict:
+        """
+        Backfill historical hourly stock price data with durability and rate limit handling.
+
+        Args:
+            db: Database session
+            run_id: Unique identifier for this backfill run (for resumability)
+            start_date: Start date for backfill (timezone-aware)
+            end_date: End date for backfill (defaults to now)
+            min_article_threshold: Minimum number of articles to include ticker
+            batch_size: Number of tickers to process before committing
+            delay_between_batches: Seconds to wait between batches
+            resume: Whether to skip already processed tickers
+
+        Returns:
+            Statistics about the backfill operation
+        """
+        if end_date is None:
+            end_date = datetime.now(UTC)
+
+        # Ensure dates are timezone-aware
+        if start_date.tzinfo is None:
+            start_date = start_date.replace(tzinfo=UTC)
+        if end_date.tzinfo is None:
+            end_date = end_date.replace(tzinfo=UTC)
+
+        logger.info("=" * 80)
+        logger.info("Starting Historical Price Backfill")
+        logger.info(f"Run ID: {run_id}")
+        logger.info(f"Date range: {start_date.date()} to {end_date.date()}")
+        logger.info(f"Min article threshold: {min_article_threshold}")
+        logger.info(f"Batch size: {batch_size}")
+        logger.info(f"Resume mode: {resume}")
+        logger.info("=" * 80)
+
+        # Get active tickers (those with sufficient article coverage)
+        from app.db.models import ArticleTicker
+
+        active_tickers_subq = (
+            db.query(ArticleTicker.ticker, func.count().label("article_count"))
+            .group_by(ArticleTicker.ticker)
+            .having(func.count() >= min_article_threshold)
+            .subquery()
+        )
+
+        active_tickers = (
+            db.query(
+                Ticker.symbol,
+                active_tickers_subq.c.article_count,
+            )
+            .join(
+                active_tickers_subq,
+                Ticker.symbol == active_tickers_subq.c.ticker,
+            )
+            .order_by(Ticker.symbol)
+            .all()
+        )
+
+        symbols = [symbol for symbol, count in active_tickers]
+        logger.info(f"Found {len(symbols)} active tickers to backfill")
+
+        if not symbols:
+            logger.warning("No active tickers found matching criteria")
+            return {
+                "run_id": run_id,
+                "requested": 0,
+                "success": 0,
+                "failed": 0,
+                "skipped": 0,
+                "rate_limited": 0,
+                "errors": [],
+            }
+
+        # If resuming, skip already processed symbols
+        processed_symbols = set()
+        if resume:
+            processed = (
+                db.query(BackfillProgress.symbol)
+                .filter(
+                    BackfillProgress.run_id == run_id,
+                    BackfillProgress.status.in_(["success", "rate_limited"]),
+                )
+                .all()
+            )
+            processed_symbols = {symbol for (symbol,) in processed}
+            if processed_symbols:
+                logger.info(
+                    f"Resuming: skipping {len(processed_symbols)} already processed tickers"
+                )
+                symbols = [s for s in symbols if s not in processed_symbols]
+
+        logger.info(f"Processing {len(symbols)} tickers")
+
+        success_count = 0
+        failed_count = 0
+        skipped_count = len(processed_symbols)
+        rate_limited_count = 0
+        errors = []
+
+        # Process in batches
+        for i in range(0, len(symbols), batch_size):
+            batch = symbols[i : i + batch_size]
+            batch_num = i // batch_size + 1
+            total_batches = (len(symbols) - 1) // batch_size + 1
+
+            logger.info("-" * 80)
+            logger.info(
+                f"Processing batch {batch_num}/{total_batches}: {', '.join(batch)}"
+            )
+
+            for symbol in batch:
+                # Check if progress row already exists (for resume mode)
+                progress = (
+                    db.query(BackfillProgress)
+                    .filter(
+                        BackfillProgress.run_id == run_id,
+                        BackfillProgress.symbol == symbol,
+                    )
+                    .first()
+                )
+
+                if progress:
+                    # Update existing progress row
+                    logger.debug(
+                        f"{symbol}: Resuming from previous status '{progress.status}'"
+                    )
+                    progress.status = "pending"
+                    progress.started_at = datetime.now(UTC)
+                    progress.error_message = None
+                else:
+                    # Create new progress row
+                    progress = BackfillProgress(
+                        run_id=run_id,
+                        symbol=symbol,
+                        status="pending",
+                        started_at=datetime.now(UTC),
+                    )
+                    db.add(progress)
+
+                db.flush()  # Ensure we have the ID
+
+                try:
+                    logger.info(f"Fetching historical data for {symbol}...")
+
+                    # Determine interval based on date range
+                    days_diff = (end_date - start_date).days
+                    if days_diff <= 7:
+                        interval = "1h"
+                    elif days_diff <= 60:
+                        interval = "1h"
+                    else:
+                        interval = "1d"
+
+                    # Get historical data using date range
+                    hist_data_list = await self.stock_service.get_historical_data_range(
+                        symbol, start=start_date, end=end_date, interval=interval
+                    )
+
+                    # Convert list to dict format expected by rest of code
+                    hist_data = {"data": hist_data_list} if hist_data_list else None
+
+                    if not hist_data or not hist_data.get("data"):
+                        progress.status = "failed"
+                        progress.error_message = "No data returned from API"
+                        progress.completed_at = datetime.now(UTC)
+                        failed_count += 1
+                        error_msg = f"{symbol}: No data returned"
+                        errors.append(error_msg)
+                        logger.warning(error_msg)
+                        continue
+
+                    # Filter data to our date range
+                    records_to_insert = []
+                    for point in hist_data["data"]:
+                        try:
+                            # Parse the date from the API response
+                            # get_historical_data_range returns "timestamp" key
+                            if "timestamp" in point:
+                                point_date = point["timestamp"]
+                                # Ensure timezone-aware
+                                if isinstance(point_date, str):
+                                    point_date = datetime.fromisoformat(
+                                        point_date.replace("Z", "+00:00")
+                                    )
+                                elif point_date.tzinfo is None:
+                                    point_date = point_date.replace(tzinfo=UTC)
+                            elif "datetime" in point:
+                                point_date = datetime.fromisoformat(
+                                    point["datetime"].replace("Z", "+00:00")
+                                )
+                            elif "date" in point:
+                                point_date = datetime.strptime(
+                                    point["date"], "%Y-%m-%d"
+                                ).replace(tzinfo=UTC)
+                            else:
+                                logger.debug(
+                                    f"Skipping point for {symbol}: no timestamp/datetime/date key"
+                                )
+                                continue
+
+                            # Check if within our backfill range
+                            if start_date <= point_date <= end_date:
+                                # get_historical_data_range uses "close", not "price"
+                                close_price = point.get("close") or point.get("price")
+                                if close_price is None:
+                                    logger.debug(
+                                        f"Skipping point for {symbol} at {point_date}: no close price"
+                                    )
+                                    continue
+
+                                records_to_insert.append(
+                                    {
+                                        "symbol": symbol,
+                                        "date": point_date,
+                                        "open_price": point.get("open"),
+                                        "high_price": point.get("high"),
+                                        "low_price": point.get("low"),
+                                        "close_price": close_price,
+                                        "volume": point.get("volume", 0),
+                                        "created_at": datetime.now(UTC),
+                                    }
+                                )
+                        except Exception as parse_error:
+                            logger.debug(
+                                f"Error parsing data point for {symbol}: {parse_error}"
+                            )
+                            continue
+
+                    if not records_to_insert:
+                        progress.status = "success"
+                        progress.records_inserted = 0
+                        progress.completed_at = datetime.now(UTC)
+                        success_count += 1
+                        logger.info(
+                            f"{symbol}: No records in date range, marked as success"
+                        )
+                        continue
+
+                    # Bulk insert with conflict resolution (ignore duplicates)
+                    inserted_count = 0
+                    for record in records_to_insert:
+                        try:
+                            # Check if record already exists
+                            existing = (
+                                db.query(StockPriceHistory)
+                                .filter(
+                                    and_(
+                                        StockPriceHistory.symbol == record["symbol"],
+                                        StockPriceHistory.date == record["date"],
+                                    )
+                                )
+                                .first()
+                            )
+
+                            if not existing:
+                                db.add(StockPriceHistory(**record))
+                                inserted_count += 1
+                        except Exception as insert_error:
+                            logger.debug(
+                                f"Skipping duplicate for {symbol} at {record['date']}: {insert_error}"
+                            )
+                            continue
+
+                    progress.status = "success"
+                    progress.records_inserted = inserted_count
+                    progress.completed_at = datetime.now(UTC)
+                    success_count += 1
+                    logger.info(
+                        f"✓ {symbol}: Inserted {inserted_count}/{len(records_to_insert)} records"
+                    )
+
+                except Exception as e:
+                    error_str = str(e).lower()
+
+                    # Check if it's a rate limit error
+                    if (
+                        "429" in error_str
+                        or "rate limit" in error_str
+                        or "too many requests" in error_str
+                    ):
+                        progress.status = "rate_limited"
+                        progress.error_message = f"Rate limited: {str(e)}"
+                        progress.completed_at = datetime.now(UTC)
+                        rate_limited_count += 1
+                        error_msg = f"{symbol}: Rate limited - {str(e)}"
+                        errors.append(error_msg)
+                        logger.error(error_msg)
+                        logger.warning(
+                            "Rate limit detected! Consider waiting before resuming."
+                        )
+                    else:
+                        progress.status = "failed"
+                        progress.error_message = str(e)[:500]  # Truncate long errors
+                        progress.completed_at = datetime.now(UTC)
+                        failed_count += 1
+                        error_msg = f"{symbol}: {str(e)}"
+                        errors.append(error_msg)
+                        logger.error(error_msg)
+
+            # Commit after each batch for durability
+            try:
+                db.commit()
+                logger.info(
+                    f"Batch {batch_num} committed: {success_count} success, {failed_count} failed, {rate_limited_count} rate limited"
+                )
+            except Exception as commit_error:
+                logger.error(f"Error committing batch: {commit_error}")
+                db.rollback()
+                raise
+
+            # If we hit rate limits, stop processing
+            if rate_limited_count > 0:
+                logger.warning(
+                    "Rate limit encountered. Stopping backfill. Use resume=True to continue later."
+                )
+                break
+
+            # Delay between batches to avoid rate limiting
+            if i + batch_size < len(symbols):
+                logger.info(f"Waiting {delay_between_batches}s before next batch...")
+                await asyncio.sleep(delay_between_batches)
+
+        logger.info("=" * 80)
+        logger.info("Backfill Summary:")
+        logger.info(f"  Run ID: {run_id}")
+        logger.info(f"  Total requested: {len(symbols) + skipped_count}")
+        logger.info(f"  Successful: {success_count}")
+        logger.info(f"  Failed: {failed_count}")
+        logger.info(f"  Skipped (already done): {skipped_count}")
+        logger.info(f"  Rate limited: {rate_limited_count}")
+        if errors:
+            logger.warning(f"  Errors (first 10): {errors[:10]}")
+        logger.info("=" * 80)
+
+        return {
+            "run_id": run_id,
+            "requested": len(symbols) + skipped_count,
+            "success": success_count,
+            "failed": failed_count,
+            "skipped": skipped_count,
+            "rate_limited": rate_limited_count,
+            "errors": errors[:100],  # Limit errors in response
+        }
 
 
 async def main():

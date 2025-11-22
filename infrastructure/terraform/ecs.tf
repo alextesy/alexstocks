@@ -91,6 +91,13 @@ resource "aws_cloudwatch_log_group" "send_daily_emails" {
   tags = local.common_tags
 }
 
+resource "aws_cloudwatch_log_group" "historical_backfill" {
+  name              = "/ecs/${var.project_name}-jobs/historical-backfill"
+  retention_in_days = var.log_retention_days
+
+  tags = local.common_tags
+}
+
 # ECS Task Definition: Reddit Scraper
 resource "aws_ecs_task_definition" "reddit_scraper" {
   family                   = "${var.project_name}-reddit-scraper"
@@ -407,6 +414,62 @@ resource "aws_ecs_task_definition" "send_daily_emails" {
   tags = local.common_tags
 }
 
+# ECS Task Definition: Historical Stock Price Backfill
+resource "aws_ecs_task_definition" "historical_backfill" {
+  family                   = "${var.project_name}-historical-backfill"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "1024"  # 1 vCPU - more than default for faster processing
+  memory                   = "2048"  # 2GB RAM - more than default for data buffering
+  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([{
+    name      = "historical-backfill"
+    image     = "${local.ecr_repository_url}:${var.ecr_image_tag}"
+    essential = true
+
+    command = [
+      "python", "-m", "jobs.collect_historical_prices_backfill"
+    ]
+
+    environment = [
+      {
+        name  = "ENVIRONMENT"
+        value = var.environment
+      }
+    ]
+
+    secrets = [
+      {
+        name      = "POSTGRES_URL"
+        valueFrom = data.aws_secretsmanager_secret.postgres_url.arn
+      },
+      {
+        name      = "SLACK_BOT_TOKEN"
+        valueFrom = data.aws_secretsmanager_secret.slack_bot_token.arn
+      },
+      {
+        name      = "SLACK_DEFAULT_CHANNEL"
+        valueFrom = data.aws_secretsmanager_secret.slack_default_channel.arn
+      }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.historical_backfill.name
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "ecs"
+      }
+    }
+
+    stopTimeout = 300  # 5 minutes - longer timeout for graceful shutdown
+  }])
+
+  tags = local.common_tags
+}
+
 # Outputs
 output "ecs_cluster_name" {
   description = "ECS cluster name"
@@ -436,6 +499,11 @@ output "daily_status_task_definition_arn" {
 output "stock_price_collector_task_definition_arn" {
   description = "Stock price collector task definition ARN"
   value       = aws_ecs_task_definition.stock_price_collector.arn
+}
+
+output "historical_backfill_task_definition_arn" {
+  description = "Historical stock price backfill task definition ARN"
+  value       = aws_ecs_task_definition.historical_backfill.arn
 }
 
 output "send_daily_emails_task_definition_arn" {

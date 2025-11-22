@@ -374,6 +374,36 @@ class StockDataCollection(Base):
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
+class BackfillProgress(Base):
+    """Track progress of historical price backfill for durability and resumability."""
+
+    __tablename__ = "backfill_progress"
+
+    id: Mapped[int] = mapped_column(
+        BigIntegerCompat, primary_key=True, autoincrement=True
+    )
+    run_id: Mapped[str] = mapped_column(
+        String(100), nullable=False, index=True
+    )  # UUID for this backfill run
+    symbol: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # 'pending', 'success', 'failed', 'rate_limited'
+    records_inserted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "symbol", name="uq_backfill_progress_run_symbol"),
+        Index("idx_backfill_progress_run_status", "run_id", "status"),
+    )
+
+
 class ScrapingStatus(Base):
     """Track scraping status for different sources."""
 
