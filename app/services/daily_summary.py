@@ -372,7 +372,7 @@ class DailySummaryService:
         )
 
         # Format date as "November 7th" or "November 7"
-        trading_date = window_end.date()
+        trading_date = window_start.date()
         month_name = trading_date.strftime("%B")
         day = trading_date.day
         day_suffix = (
@@ -395,6 +395,7 @@ class DailySummaryService:
             f"during the previous trading window ({window_range}). "
             f"The summary must reflect discussions specific to {month_name} {day}{day_suffix}, {year}."
         )
+        specific_date = f"{month_name} {day}{day_suffix}, {year}"
         instructions = (
             "Analyze the provided articles and synthesize a comprehensive summary. "
             "Your response must be structured as JSON with 'summary' and 'sentiment' fields.\n\n"
@@ -403,8 +404,9 @@ class DailySummaryService:
             "Sentiment: Classify the overall retail investor sentiment by analyzing the collective tone, "
             "language patterns, and emotional indicators across all discussions. Consider the intensity and "
             "consistency of sentiment signals, not just isolated comments.\n\n"
-            "Be explicit that findings apply to the specified date only. Do not reference earlier years unless "
-            "directly compared as part of that day's discussion."
+            f"The output summary must mention the specific date ({specific_date}) and must not reference or "
+            "mention any other dates. Be explicit that findings apply to this date only. Do not reference "
+            "earlier years unless directly compared as part of that day's discussion."
         )
 
         lines = [
