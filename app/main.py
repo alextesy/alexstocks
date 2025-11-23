@@ -942,21 +942,27 @@ async def get_stock_history(
 
             historical_data = query.all()
 
+            # If no historical data, return empty array instead of 404
+            # This allows frontend to display sentiment data even without price data
             if not historical_data:
-                return JSONResponse(
-                    status_code=404,
-                    content={
-                        "error": "No historical data found",
-                        "message": f"No price history found for {symbol} in the specified date range",
-                        "symbol": symbol_upper,
-                        "period": period,
-                        "start_date": start_date
-                        or (datetime.now(UTC) - timedelta(days=30)).strftime(
-                            "%Y-%m-%d"
-                        ),
-                        "end_date": end_date or datetime.now(UTC).strftime("%Y-%m-%d"),
-                    },
-                )
+                response_data = {
+                    "symbol": symbol_upper,
+                    "count": 0,
+                    "data": [],
+                }
+
+                # Include period or date range in response
+                if period:
+                    response_data["period"] = period
+                else:
+                    response_data["start_date"] = start_date or (
+                        datetime.now(UTC) - timedelta(days=30)
+                    ).strftime("%Y-%m-%d")
+                    response_data["end_date"] = end_date or datetime.now(UTC).strftime(
+                        "%Y-%m-%d"
+                    )
+
+                return response_data
 
             # Aggregate to daily for week/month periods (to match sentiment timeline granularity)
             if period in ("week", "month"):
