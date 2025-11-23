@@ -5,7 +5,7 @@
 {% block content %}
 <div class="mb-8">
     <h1 class="text-3xl font-bold text-gray-900 mb-2">AlexStocks</h1>
-    <p class="text-gray-600">Real-time market news analytics and sentiment tracking</p>
+    <p class="text-gray-600">Real-time market news analytics and sentiment tracking based on the last 25 hours of activity</p>
 </div>
 
 <!-- Quick Search -->
@@ -31,7 +31,7 @@
     <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-gray-900">
             <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
-            Overall Market Sentiment (Today)
+            Overall Market Sentiment (Last 25 Hours)
         </h2>
         {% if scraping_status %}
         <div class="text-xs text-gray-500">
@@ -58,6 +58,9 @@
             <span class="text-gray-500">(ex-neutral, confidence {{ (overall_lean.confidence * 100)|round(0)|int }}%)</span>
         </div>
     </div>
+    <p class="text-xs text-gray-600 text-center mb-3">
+        The bar compares positive vs. negative mentions after removing neutral posts. The neutral share is shown below so you can see the full mix.
+    </p>
     <div class="flex h-4 bg-gray-200 rounded-full overflow-hidden" aria-label="Overall leaning bar">
         {% set pos_width = (overall_lean.pos_share_ex_neutral * 100) if overall_lean.pos_share_ex_neutral else 0 %}
         {% set neg_width = (overall_lean.neg_share_ex_neutral * 100) if overall_lean.neg_share_ex_neutral else 0 %}
@@ -70,9 +73,9 @@
     </div>
     <div class="text-xs text-gray-500 mt-2 text-center">
         {% if sentiment_histogram.percentages %}
-            Neutral {{ sentiment_histogram.percentages.neutral }}% • Total articles analyzed: {{ sentiment_histogram["total"] }}
+            Neutral {{ sentiment_histogram.percentages.neutral }}% • Total articles analyzed in last 25 hours: {{ sentiment_histogram["total"] }}
         {% else %}
-            No articles with sentiment in the last 24h.
+            No articles with sentiment in the last 25h.
         {% endif %}
     </div>
     {% endif %}
@@ -93,13 +96,13 @@
 </div>
 {% endif %}
 
-<!-- Mentions Hourly (Last 24h) -->
+<!-- Mentions Hourly (Last 25h) -->
 {% if default_mention_symbols %}
 <div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 space-y-3 md:space-y-0">
         <h2 class="text-lg font-semibold text-gray-900">
             <i class="fas fa-chart-line text-blue-600 mr-2"></i>
-            Mentions by Hour (Last 24h)
+            Mentions by Hour (Last 25h)
         </h2>
         <div class="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
             <input id="mentions-add-input" type="text" placeholder="Add ticker (e.g., AAPL)" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
@@ -137,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function fetchMentions(symbols) {
         if (!symbols || symbols.length === 0) return null;
-        const params = new URLSearchParams({ tickers: symbols.join(','), hours: '24' });
+        const params = new URLSearchParams({ tickers: symbols.join(','), hours: '25' });
         const resp = await fetch(`/api/mentions/hourly?${params.toString()}`);
         if (!resp.ok) throw new Error('Failed to load mentions');
         return await resp.json();
@@ -244,13 +247,14 @@ document.addEventListener('DOMContentLoaded', function() {
 {% endif %}
 
 <!-- Ticker Grid -->
+<div class="text-sm text-gray-600 mb-3">Ticker cards summarize sentiment and price signals from the past 25 hours. Click a card to dive into the full ticker view.</div>
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="ticker-grid">
     {% for ticker in tickers %}
-    <div class="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
-        <div class="flex items-center justify-between mb-3">
+    <div class="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow relative cursor-pointer" role="link" tabindex="0" onclick="window.location='/t/{{ ticker.symbol }}'" onkeydown="if (event.key === 'Enter' || event.key === ' ') { window.location='/t/{{ ticker.symbol }}'; }">
+        <div class="flex items-center justify-between mb-3 relative z-10">
             <h3 class="text-lg font-semibold text-gray-900">{{ ticker.symbol }}</h3>
             <div class="flex items-center gap-2">
-                <button 
+                <button
                     class="watchlist-btn px-2 py-1 text-xs font-medium rounded-md bg-transparent hover:bg-gray-100 transition-colors"
                     data-symbol="{{ ticker.symbol }}"
                     data-following="{% if ticker.symbol in followed_tickers %}true{% else %}false{% endif %}"
@@ -265,10 +269,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 </span>
             </div>
         </div>
-        
-        <p class="text-sm text-gray-600 mb-3">{{ ticker.name }}</p>
-        
-        <div class="space-y-3 mb-4">
+
+        <p class="text-sm text-gray-600 mb-3 relative z-10">{{ ticker.name }}</p>
+
+        <div class="space-y-3 mb-4 relative z-10">
             <div class="flex items-center justify-between">
                 <div class="text-sm">
                     <span class="text-gray-500">Articles:</span>
@@ -323,9 +327,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             {% endif %}
         </div>
-        
+
+        <p class="text-xs text-gray-500 relative z-10 mb-2">Sentiment compares positive vs. negative mentions from the past 25 hours after excluding neutral posts.</p>
+
         <!-- Stock Price Info -->
-        <div class="mt-4 mb-3">
+        <div class="mt-4 mb-3 relative z-10">
             <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-md p-3 border border-blue-100">
                 <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center space-x-2">
