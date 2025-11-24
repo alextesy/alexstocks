@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -456,12 +457,23 @@ async def search_tickers(
     if not q or len(q.strip()) < 1:
         return []
 
-    search_term = f"%{q.upper().strip()}%"
+    normalized_query = q.strip()
+    upper_query = normalized_query.upper()
+    search_term = f"%{upper_query}%"
+    prefix_term = f"{upper_query}%"
     max_limit = min(limit, 50)
+
+    relevance_order = case(
+        (func.lower(Ticker.symbol) == upper_query.lower(), 0),
+        (Ticker.symbol.ilike(prefix_term), 1),
+        (Ticker.symbol.ilike(search_term), 2),
+        else_=3,
+    )
 
     tickers = (
         db.query(Ticker)
         .filter(Ticker.symbol.ilike(search_term) | Ticker.name.ilike(search_term))
+        .order_by(relevance_order, Ticker.symbol)
         .limit(max_limit)
         .all()
     )
