@@ -468,17 +468,46 @@ function renderCombinedChart(priceData, sentimentData, period, metric) {
     // Use sentiment data labels as the base (more comprehensive)
     const labels = sentimentData.data.map(d => formatTimestamp(d.timestamp, period));
     
+    // Helper function to normalize timestamp for matching based on period
+    function normalizeTimestampForMatching(timestamp, period) {
+        if (period === 'day') {
+            // For hourly data, match by date + hour, rounding to nearest hour
+            // Sentiment buckets are on the hour (17:00), price data might be at half-hours (17:30)
+            if (timestamp.includes('T')) {
+                try {
+                    const date = new Date(timestamp);
+                    // Round to nearest hour
+                    date.setMinutes(0, 0, 0);
+                    // Format as "YYYY-MM-DDTHH" for matching
+                    const year = date.getUTCFullYear();
+                    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+                    const day = String(date.getUTCDate()).padStart(2, '0');
+                    const hour = String(date.getUTCHours()).padStart(2, '0');
+                    return `${year}-${month}-${day}T${hour}`;
+                } catch (e) {
+                    // Fallback: extract date and hour from string
+                    return timestamp.substring(0, 13);
+                }
+            }
+            // Fallback for date-only format
+            return timestamp.substring(0, 10);
+        } else {
+            // For week/month (daily data), match by date only
+            return timestamp.substring(0, 10); // YYYY-MM-DD
+        }
+    }
+    
     // Create price data array aligned with sentiment labels
     const priceDataPoints = [];
     const priceMap = new Map();
     priceData.data.forEach(p => {
-        const key = p.date.substring(0, 10); // YYYY-MM-DD
+        const key = normalizeTimestampForMatching(p.date, period);
         priceMap.set(key, p.close);
     });
     
     // Align price data with sentiment timestamps
     sentimentData.data.forEach(s => {
-        const key = s.timestamp.substring(0, 10);
+        const key = normalizeTimestampForMatching(s.timestamp, period);
         priceDataPoints.push(priceMap.get(key) || null);
     });
     
