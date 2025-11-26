@@ -243,68 +243,232 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endif %}
 
-{% if mention_surge_ticker or price_surge_ticker %}
+{% if mention_surge_tickers or positive_mention_surge_tickers or negative_mention_surge_tickers %}
 <div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
         <div>
             <h2 class="text-lg font-semibold text-gray-900">Today's surges</h2>
-            <p class="text-sm text-gray-600">Quick view of the biggest jumps in discussion and price.</p>
+            <p class="text-sm text-gray-600">Overall, positive, and negative discussion surges with price context.</p>
         </div>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {% if mention_surge_ticker %}
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {% if mention_surge_tickers %}
+        {% set mention_feature = mention_surge_tickers[0] %}
+        {% set mention_rest = mention_surge_tickers[1:] %}
         <div class="border rounded-lg p-4 bg-gradient-to-br from-indigo-50 to-blue-50">
             <div class="flex items-center justify-between mb-2">
                 <div>
-                    <div class="text-xs uppercase text-indigo-600 font-semibold">Highest surge in mentions</div>
-                    <div class="text-2xl font-bold text-gray-900">{{ mention_surge_ticker.symbol }}</div>
-                    <div class="text-sm text-gray-600">{{ mention_surge_ticker.name }}</div>
+                    <div class="text-xs uppercase text-indigo-600 font-semibold">Top mention surge</div>
+                    {% set feature_price = mention_feature.stock_data if mention_feature.stock_data is defined else None %}
+                    {% set feature_price_change_color = 'text-emerald-700' if feature_price and feature_price.change_percent >= 0 else 'text-red-700' %}
+                    <div class="flex items-center gap-2">
+                        <div class="text-2xl font-bold text-gray-900">
+                            <a href="/t/{{ mention_feature.symbol }}" class="hover:text-indigo-700">{{ mention_feature.symbol }}</a>
+                        </div>
+                        {% if feature_price %}
+                        <div class="flex items-center gap-2 text-sm text-gray-900">
+                            <span class="font-semibold">${{ '%.2f'|format(feature_price.price) }}</span>
+                            <span class="text-xs {{ feature_price_change_color }}">
+                                {{ '+' if feature_price.change_percent >= 0 else '' }}{{ '%.2f'|format(feature_price.change_percent) }}%
+                            </span>
+                        </div>
+                        {% else %}
+                        <span class="text-xs text-gray-500">Price n/a</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-sm text-gray-600">{{ mention_feature.name }}</div>
                 </div>
                 <span class="px-3 py-1 text-xs font-medium rounded-full bg-white text-indigo-700 border border-indigo-100">Mentions</span>
             </div>
             <div class="flex items-center justify-between text-sm mb-2">
                 <div class="text-gray-600">Past 24h</div>
-                <div class="font-semibold text-gray-900">{{ mention_surge_ticker.velocity.recent_count }} articles</div>
+                <div class="font-semibold text-gray-900">{{ mention_feature.velocity.recent_count }} articles</div>
             </div>
             <div class="flex items-center justify-between text-sm mb-1">
                 <div class="text-gray-600">Velocity score</div>
                 <div class="px-2 py-1 rounded-md bg-indigo-600 text-white font-semibold">
-                    {{ '%.2f'|format(mention_surge_ticker.velocity.velocity_score) }}
+                    {{ '%.2f'|format(mention_feature.velocity.velocity_score) }}
                 </div>
             </div>
-            <div class="text-xs text-gray-600">Baseline avg: {{ '%.2f'|format(mention_surge_ticker.velocity.baseline_avg) }} mentions/day</div>
+            <div class="text-xs text-gray-600">Baseline avg: {{ '%.2f'|format(mention_feature.velocity.baseline_avg) }} mentions/day</div>
             <div class="mt-3">
-                <a href="/t/{{ mention_surge_ticker.symbol }}" class="text-indigo-700 font-medium text-sm hover:text-indigo-900">View ticker →</a>
+                <a href="/t/{{ mention_feature.symbol }}" class="text-indigo-700 font-medium text-sm hover:text-indigo-900">View ticker →</a>
             </div>
+            {% if mention_rest %}
+            <div class="mt-4 border-t border-indigo-100 pt-3">
+                <div class="text-xs uppercase text-indigo-600 font-semibold mb-2">Next runners</div>
+                <ul class="divide-y divide-indigo-100">
+                    {% for ticker in mention_rest %}
+                    <li class="py-2 flex items-center justify-between">
+                        <div>
+                            {% set ticker_price = ticker.stock_data if ticker.stock_data is defined else None %}
+                            {% set ticker_price_color = 'text-emerald-700' if ticker_price and ticker_price.change_percent >= 0 else 'text-red-700' %}
+                            <div class="flex items-center gap-2 font-semibold text-gray-900">
+                                <a href="/t/{{ ticker.symbol }}" class="hover:text-indigo-700">{{ ticker.symbol }}</a>
+                                {% if ticker_price %}
+                                <span class="text-xs font-semibold text-gray-900">${{ '%.2f'|format(ticker_price.price) }}</span>
+                                <span class="text-[11px] {{ ticker_price_color }}">
+                                    {{ '+' if ticker_price.change_percent >= 0 else '' }}{{ '%.2f'|format(ticker_price.change_percent) }}%
+                                </span>
+                                {% endif %}
+                            </div>
+                            <div class="text-xs text-gray-600">{{ ticker.name }}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm font-semibold text-gray-900">{{ ticker.velocity.recent_count }} articles</div>
+                            <div class="text-xs text-indigo-700">Score {{ '%.2f'|format(ticker.velocity.velocity_score) }}</div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
 
-        {% if price_surge_ticker and price_surge_ticker.stock_data %}
+        {% if positive_mention_surge_tickers %}
+        {% set pos_feature = positive_mention_surge_tickers[0] %}
+        {% set pos_rest = positive_mention_surge_tickers[1:] %}
         <div class="border rounded-lg p-4 bg-gradient-to-br from-emerald-50 to-green-50">
             <div class="flex items-center justify-between mb-2">
                 <div>
-                    <div class="text-xs uppercase text-emerald-600 font-semibold">Highest surge in price</div>
-                    <div class="text-2xl font-bold text-gray-900">{{ price_surge_ticker.symbol }}</div>
-                    <div class="text-sm text-gray-600">{{ price_surge_ticker.name }}</div>
+                    <div class="text-xs uppercase text-emerald-600 font-semibold">Top positive sentiment surge</div>
+                    {% set feature_price = pos_feature.stock_data if pos_feature.stock_data is defined else None %}
+                    {% set feature_price_change_color = 'text-emerald-700' if feature_price and feature_price.change_percent >= 0 else 'text-red-700' %}
+                    <div class="flex items-center gap-2">
+                        <div class="text-2xl font-bold text-gray-900">
+                            <a href="/t/{{ pos_feature.symbol }}" class="hover:text-emerald-700">{{ pos_feature.symbol }}</a>
+                        </div>
+                        {% if feature_price %}
+                        <div class="flex items-center gap-2 text-sm text-gray-900">
+                            <span class="font-semibold">${{ '%.2f'|format(feature_price.price) }}</span>
+                            <span class="text-xs {{ feature_price_change_color }}">
+                                {{ '+' if feature_price.change_percent >= 0 else '' }}{{ '%.2f'|format(feature_price.change_percent) }}%
+                            </span>
+                        </div>
+                        {% else %}
+                        <span class="text-xs text-gray-500">Price n/a</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-sm text-gray-600">{{ pos_feature.name }}</div>
                 </div>
-                <span class="px-3 py-1 text-xs font-medium rounded-full bg-white text-emerald-700 border border-emerald-100">Price</span>
+                <span class="px-3 py-1 text-xs font-medium rounded-full bg-white text-emerald-700 border border-emerald-100">Positive</span>
             </div>
             <div class="flex items-center justify-between text-sm mb-2">
-                <div class="text-gray-600">Last price</div>
-                <div class="font-semibold text-gray-900">${{ '%.2f'|format(price_surge_ticker.stock_data.price) }}</div>
+                <div class="text-gray-600">Avg sentiment</div>
+                <div class="font-semibold text-gray-900">{{ '%.2f'|format(pos_feature.avg_sentiment) }}</div>
             </div>
             <div class="flex items-center justify-between text-sm mb-1">
-                <div class="text-gray-600">Change</div>
-                {% set change_color = 'text-emerald-700' if price_surge_ticker.stock_data.change >= 0 else 'text-red-700' %}
-                <div class="px-2 py-1 rounded-md bg-white border border-emerald-100 {{ change_color }} font-semibold">
-                    {{ '+' if price_surge_ticker.stock_data.change >= 0 else '' }}${{ '%.2f'|format(price_surge_ticker.stock_data.change) }}
-                    ({{ '+' if price_surge_ticker.stock_data.change_percent >= 0 else '' }}{{ '%.2f'|format(price_surge_ticker.stock_data.change_percent) }}%)
+                <div class="text-gray-600">Mentions</div>
+                <div class="px-2 py-1 rounded-md bg-white border border-emerald-100 text-emerald-700 font-semibold">
+                    {{ pos_feature.velocity.recent_count }} recent • Score {{ '%.2f'|format(pos_feature.velocity.velocity_score) }}
                 </div>
             </div>
-            <div class="text-xs text-gray-600">Market: {{ price_surge_ticker.stock_data.exchange }} • {{ price_surge_ticker.stock_data.currency }}</div>
             <div class="mt-3">
-                <a href="/t/{{ price_surge_ticker.symbol }}" class="text-emerald-700 font-medium text-sm hover:text-emerald-900">View ticker →</a>
+                <a href="/t/{{ pos_feature.symbol }}" class="text-emerald-700 font-medium text-sm hover:text-emerald-900">View ticker →</a>
             </div>
+            {% if pos_rest %}
+            <div class="mt-4 border-t border-emerald-100 pt-3">
+                <div class="text-xs uppercase text-emerald-600 font-semibold mb-2">Next upbeat tickers</div>
+                <ul class="divide-y divide-emerald-100">
+                    {% for ticker in pos_rest %}
+                    <li class="py-2 flex items-center justify-between">
+                        <div>
+                            {% set ticker_price = ticker.stock_data if ticker.stock_data is defined else None %}
+                            {% set ticker_price_color = 'text-emerald-700' if ticker_price and ticker_price.change_percent >= 0 else 'text-red-700' %}
+                            <div class="flex items-center gap-2 font-semibold text-gray-900">
+                                <a href="/t/{{ ticker.symbol }}" class="hover:text-emerald-700">{{ ticker.symbol }}</a>
+                                {% if ticker_price %}
+                                <span class="text-xs font-semibold text-gray-900">${{ '%.2f'|format(ticker_price.price) }}</span>
+                                <span class="text-[11px] {{ ticker_price_color }}">
+                                    {{ '+' if ticker_price.change_percent >= 0 else '' }}{{ '%.2f'|format(ticker_price.change_percent) }}%
+                                </span>
+                                {% endif %}
+                            </div>
+                            <div class="text-xs text-gray-600">{{ ticker.name }}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm font-semibold text-gray-900">{{ '%.2f'|format(ticker.avg_sentiment) }}</div>
+                            <div class="text-xs text-emerald-700">Score {{ '%.2f'|format(ticker.velocity.velocity_score) }}</div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if negative_mention_surge_tickers %}
+        {% set neg_feature = negative_mention_surge_tickers[0] %}
+        {% set neg_rest = negative_mention_surge_tickers[1:] %}
+        <div class="border rounded-lg p-4 bg-gradient-to-br from-rose-50 to-red-50">
+            <div class="flex items-center justify-between mb-2">
+                <div>
+                    <div class="text-xs uppercase text-red-600 font-semibold">Top negative sentiment surge</div>
+                    {% set feature_price = neg_feature.stock_data if neg_feature.stock_data is defined else None %}
+                    {% set feature_price_change_color = 'text-emerald-700' if feature_price and feature_price.change_percent >= 0 else 'text-red-700' %}
+                    <div class="flex items-center gap-2">
+                        <div class="text-2xl font-bold text-gray-900">
+                            <a href="/t/{{ neg_feature.symbol }}" class="hover:text-red-700">{{ neg_feature.symbol }}</a>
+                        </div>
+                        {% if feature_price %}
+                        <div class="flex items-center gap-2 text-sm text-gray-900">
+                            <span class="font-semibold">${{ '%.2f'|format(feature_price.price) }}</span>
+                            <span class="text-xs {{ feature_price_change_color }}">
+                                {{ '+' if feature_price.change_percent >= 0 else '' }}{{ '%.2f'|format(feature_price.change_percent) }}%
+                            </span>
+                        </div>
+                        {% else %}
+                        <span class="text-xs text-gray-500">Price n/a</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-sm text-gray-600">{{ neg_feature.name }}</div>
+                </div>
+                <span class="px-3 py-1 text-xs font-medium rounded-full bg-white text-red-700 border border-rose-100">Negative</span>
+            </div>
+            <div class="flex items-center justify-between text-sm mb-2">
+                <div class="text-gray-600">Avg sentiment</div>
+                <div class="font-semibold text-gray-900">{{ '%.2f'|format(neg_feature.avg_sentiment) }}</div>
+            </div>
+            <div class="flex items-center justify-between text-sm mb-1">
+                <div class="text-gray-600">Mentions</div>
+                <div class="px-2 py-1 rounded-md bg-white border border-rose-100 text-red-700 font-semibold">
+                    {{ neg_feature.velocity.recent_count }} recent • Score {{ '%.2f'|format(neg_feature.velocity.velocity_score) }}
+                </div>
+            </div>
+            <div class="mt-3">
+                <a href="/t/{{ neg_feature.symbol }}" class="text-red-700 font-medium text-sm hover:text-red-900">View ticker →</a>
+            </div>
+            {% if neg_rest %}
+            <div class="mt-4 border-t border-rose-100 pt-3">
+                <div class="text-xs uppercase text-red-600 font-semibold mb-2">Next decliners</div>
+                <ul class="divide-y divide-rose-100">
+                    {% for ticker in neg_rest %}
+                    <li class="py-2 flex items-center justify-between">
+                        <div>
+                            {% set ticker_price = ticker.stock_data if ticker.stock_data is defined else None %}
+                            {% set ticker_price_color = 'text-emerald-700' if ticker_price and ticker_price.change_percent >= 0 else 'text-red-700' %}
+                            <div class="flex items-center gap-2 font-semibold text-gray-900">
+                                <a href="/t/{{ ticker.symbol }}" class="hover:text-red-700">{{ ticker.symbol }}</a>
+                                {% if ticker_price %}
+                                <span class="text-xs font-semibold text-gray-900">${{ '%.2f'|format(ticker_price.price) }}</span>
+                                <span class="text-[11px] {{ ticker_price_color }}">
+                                    {{ '+' if ticker_price.change_percent >= 0 else '' }}{{ '%.2f'|format(ticker_price.change_percent) }}%
+                                </span>
+                                {% endif %}
+                            </div>
+                            <div class="text-xs text-gray-600">{{ ticker.name }}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm font-semibold text-gray-900">{{ '%.2f'|format(ticker.avg_sentiment) }}</div>
+                            <div class="text-xs text-red-700">Score {{ '%.2f'|format(ticker.velocity.velocity_score) }}</div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
     </div>
@@ -322,7 +486,9 @@ document.addEventListener('DOMContentLoaded', function() {
     {% for ticker in tickers %}
     <div class="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
         <div class="flex items-center justify-between mb-3">
-            <h3 class="text-lg font-semibold text-gray-900">{{ ticker.symbol }}</h3>
+            <h3 class="text-lg font-semibold text-gray-900">
+                <a href="/t/{{ ticker.symbol }}" class="hover:text-indigo-700">{{ ticker.symbol }}</a>
+            </h3>
             <div class="flex items-center gap-2">
                 <button 
                     class="watchlist-btn px-2 py-1 text-xs font-medium rounded-md bg-transparent hover:bg-gray-100 transition-colors"
