@@ -278,8 +278,8 @@ resource "aws_scheduler_schedule" "daily_historical_append" {
   description = "Append missing historical stock prices daily at 6:00 UTC"
 }
 
-# EventBridge Scheduler: Hourly Historical Append (every hour during market hours)
-# Runs for top 50 tickers + followed tickers
+# EventBridge Scheduler: Hourly Historical Append (runs 24/7)
+# Runs for all active tickers (10+ articles) + followed tickers
 resource "aws_scheduler_schedule" "hourly_historical_append" {
   name       = "${var.project_name}-hourly-historical-append"
   group_name = "default"
@@ -288,9 +288,8 @@ resource "aws_scheduler_schedule" "hourly_historical_append" {
     mode = "OFF"
   }
 
-  schedule_expression_timezone = "America/New_York"
-  # Fire every hour on business days during market hours (9 AM - 4 PM ET)
-  schedule_expression          = "cron(0 9-16 ? * MON-FRI *)"
+  # Fire every hour, 24/7, to ensure continuous hourly price data
+  schedule_expression = "cron(0 * ? * * *)"
 
   target {
     arn      = aws_ecs_cluster.jobs.arn
@@ -324,7 +323,7 @@ resource "aws_scheduler_schedule" "hourly_historical_append" {
     }
   }
 
-  description = "Append historical prices hourly for top 50 + followed tickers during market hours"
+  description = "Append historical prices every hour (24/7) for all active tickers (10+ articles) + followed tickers"
 }
 
 # Dead Letter Queues for failed task invocations

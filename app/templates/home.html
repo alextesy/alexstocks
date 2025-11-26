@@ -5,7 +5,7 @@
 {% block content %}
 <div class="mb-8">
     <h1 class="text-3xl font-bold text-gray-900 mb-2">AlexStocks</h1>
-    <p class="text-gray-600">Real-time market news analytics and sentiment tracking</p>
+    <p class="text-gray-600">Real-time market news analytics and sentiment tracking based on the last 24 hours of activity</p>
 </div>
 
 <!-- Quick Search -->
@@ -31,7 +31,7 @@
     <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-gray-900">
             <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
-            Overall Market Sentiment (Today)
+            Overall Market Sentiment (Last 24 Hours)
         </h2>
         {% if scraping_status %}
         <div class="text-xs text-gray-500">
@@ -58,6 +58,9 @@
             <span class="text-gray-500">(ex-neutral, confidence {{ (overall_lean.confidence * 100)|round(0)|int }}%)</span>
         </div>
     </div>
+    <p class="text-xs text-gray-600 text-center mb-3">
+        The bar compares positive vs. negative mentions after removing neutral posts. The neutral share is shown below so you can see the full mix.
+    </p>
     <div class="flex h-4 bg-gray-200 rounded-full overflow-hidden" aria-label="Overall leaning bar">
         {% set pos_width = (overall_lean.pos_share_ex_neutral * 100) if overall_lean.pos_share_ex_neutral else 0 %}
         {% set neg_width = (overall_lean.neg_share_ex_neutral * 100) if overall_lean.neg_share_ex_neutral else 0 %}
@@ -70,7 +73,7 @@
     </div>
     <div class="text-xs text-gray-500 mt-2 text-center">
         {% if sentiment_histogram.percentages %}
-            Neutral {{ sentiment_histogram.percentages.neutral }}% • Total articles analyzed: {{ sentiment_histogram["total"] }}
+            Neutral {{ sentiment_histogram.percentages.neutral }}% • Total articles analyzed in last 24 hours: {{ sentiment_histogram["total"] }}
         {% else %}
             No articles with sentiment in the last 24h.
         {% endif %}
@@ -479,18 +482,16 @@ document.addEventListener('DOMContentLoaded', function() {
 <div class="flex items-baseline justify-between mb-4">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Most talked about stocks</h2>
-        <p class="text-sm text-gray-600">Top names from the last 24 hours of discussion.</p>
+        <p class="text-sm text-gray-600">Ticker cards summarize sentiment and price signals from the past 24 hours. Click a card to dive into the full ticker view.</p>
     </div>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="ticker-grid">
     {% for ticker in tickers %}
-    <div class="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
-        <div class="flex items-center justify-between mb-3">
-            <h3 class="text-lg font-semibold text-gray-900">
-                <a href="/t/{{ ticker.symbol }}" class="hover:text-indigo-700">{{ ticker.symbol }}</a>
-            </h3>
+    <div class="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow relative cursor-pointer" role="link" tabindex="0" onclick="window.location='/t/{{ ticker.symbol }}'" onkeydown="if (event.key === 'Enter' || event.key === ' ') { window.location='/t/{{ ticker.symbol }}'; }">
+        <div class="flex items-center justify-between mb-3 relative z-10">
+            <h3 class="text-lg font-semibold text-gray-900">{{ ticker.symbol }}</h3>
             <div class="flex items-center gap-2">
-                <button 
+                <button
                     class="watchlist-btn px-2 py-1 text-xs font-medium rounded-md bg-transparent hover:bg-gray-100 transition-colors"
                     data-symbol="{{ ticker.symbol }}"
                     data-following="{% if ticker.symbol in followed_tickers %}true{% else %}false{% endif %}"
@@ -505,10 +506,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 </span>
             </div>
         </div>
-        
-        <p class="text-sm text-gray-600 mb-3">{{ ticker.name }}</p>
-        
-        <div class="space-y-3 mb-4">
+
+        <p class="text-sm text-gray-600 mb-3 relative z-10">{{ ticker.name }}</p>
+
+        <div class="space-y-3 mb-4 relative z-10">
             <div class="flex items-center justify-between">
                 <div class="text-sm">
                     <span class="text-gray-500">Articles:</span>
@@ -563,9 +564,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             {% endif %}
         </div>
-        
+
+        <p class="text-xs text-gray-500 relative z-10 mb-2">Sentiment compares positive vs. negative mentions from the past 24 hours after excluding neutral posts.</p>
+
         <!-- Stock Price Info -->
-        <div class="mt-4 mb-3">
+        <div class="mt-4 mb-3 relative z-10">
             <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-md p-3 border border-blue-100">
                 <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center space-x-2">
