@@ -398,6 +398,8 @@ jobs:
           import_resource "aws_scheduler_schedule" "daily_status" "default/$PROJECT_NAME-daily-status" || true
           import_resource "aws_scheduler_schedule" "stock_price_collector" "default/$PROJECT_NAME-stock-price-collector" || true
           import_resource "aws_scheduler_schedule" "send_daily_emails" "default/$PROJECT_NAME-send-daily-emails" || true
+          import_resource "aws_scheduler_schedule" "daily_historical_append" "default/$PROJECT_NAME-daily-historical-append" || true
+          import_resource "aws_scheduler_schedule" "hourly_historical_append" "default/$PROJECT_NAME-hourly-historical-append" || true
           
           echo "Import step completed. Continuing with plan..."
 
