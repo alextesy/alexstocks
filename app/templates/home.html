@@ -243,7 +243,81 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endif %}
 
+{% if mention_surge_ticker or price_surge_ticker %}
+<div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900">Today's surges</h2>
+            <p class="text-sm text-gray-600">Quick view of the biggest jumps in discussion and price.</p>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {% if mention_surge_ticker %}
+        <div class="border rounded-lg p-4 bg-gradient-to-br from-indigo-50 to-blue-50">
+            <div class="flex items-center justify-between mb-2">
+                <div>
+                    <div class="text-xs uppercase text-indigo-600 font-semibold">Highest surge in mentions</div>
+                    <div class="text-2xl font-bold text-gray-900">{{ mention_surge_ticker.symbol }}</div>
+                    <div class="text-sm text-gray-600">{{ mention_surge_ticker.name }}</div>
+                </div>
+                <span class="px-3 py-1 text-xs font-medium rounded-full bg-white text-indigo-700 border border-indigo-100">Mentions</span>
+            </div>
+            <div class="flex items-center justify-between text-sm mb-2">
+                <div class="text-gray-600">Past 24h</div>
+                <div class="font-semibold text-gray-900">{{ mention_surge_ticker.velocity.recent_count }} articles</div>
+            </div>
+            <div class="flex items-center justify-between text-sm mb-1">
+                <div class="text-gray-600">Velocity score</div>
+                <div class="px-2 py-1 rounded-md bg-indigo-600 text-white font-semibold">
+                    {{ '%.2f'|format(mention_surge_ticker.velocity.velocity_score) }}
+                </div>
+            </div>
+            <div class="text-xs text-gray-600">Baseline avg: {{ '%.2f'|format(mention_surge_ticker.velocity.baseline_avg) }} mentions/day</div>
+            <div class="mt-3">
+                <a href="/t/{{ mention_surge_ticker.symbol }}" class="text-indigo-700 font-medium text-sm hover:text-indigo-900">View ticker →</a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if price_surge_ticker and price_surge_ticker.stock_data %}
+        <div class="border rounded-lg p-4 bg-gradient-to-br from-emerald-50 to-green-50">
+            <div class="flex items-center justify-between mb-2">
+                <div>
+                    <div class="text-xs uppercase text-emerald-600 font-semibold">Highest surge in price</div>
+                    <div class="text-2xl font-bold text-gray-900">{{ price_surge_ticker.symbol }}</div>
+                    <div class="text-sm text-gray-600">{{ price_surge_ticker.name }}</div>
+                </div>
+                <span class="px-3 py-1 text-xs font-medium rounded-full bg-white text-emerald-700 border border-emerald-100">Price</span>
+            </div>
+            <div class="flex items-center justify-between text-sm mb-2">
+                <div class="text-gray-600">Last price</div>
+                <div class="font-semibold text-gray-900">${{ '%.2f'|format(price_surge_ticker.stock_data.price) }}</div>
+            </div>
+            <div class="flex items-center justify-between text-sm mb-1">
+                <div class="text-gray-600">Change</div>
+                {% set change_color = 'text-emerald-700' if price_surge_ticker.stock_data.change >= 0 else 'text-red-700' %}
+                <div class="px-2 py-1 rounded-md bg-white border border-emerald-100 {{ change_color }} font-semibold">
+                    {{ '+' if price_surge_ticker.stock_data.change >= 0 else '' }}${{ '%.2f'|format(price_surge_ticker.stock_data.change) }}
+                    ({{ '+' if price_surge_ticker.stock_data.change_percent >= 0 else '' }}{{ '%.2f'|format(price_surge_ticker.stock_data.change_percent) }}%)
+                </div>
+            </div>
+            <div class="text-xs text-gray-600">Market: {{ price_surge_ticker.stock_data.exchange }} • {{ price_surge_ticker.stock_data.currency }}</div>
+            <div class="mt-3">
+                <a href="/t/{{ price_surge_ticker.symbol }}" class="text-emerald-700 font-medium text-sm hover:text-emerald-900">View ticker →</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Ticker Grid -->
+<div class="flex items-baseline justify-between mb-4">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Most talked about stocks</h2>
+        <p class="text-sm text-gray-600">Top names from the last 24 hours of discussion.</p>
+    </div>
+</div>
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="ticker-grid">
     {% for ticker in tickers %}
     <div class="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">

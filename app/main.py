@@ -1180,6 +1180,30 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
             if len(default_mention_symbols) < 7:
                 default_mention_symbols.append(symbol)
 
+        mention_surge_ticker = None
+        mention_candidates = [
+            t
+            for t in tickers
+            if t.get("velocity") and t["velocity"].get("velocity_score") is not None
+        ]
+        if mention_candidates:
+            mention_surge_ticker = max(
+                mention_candidates,
+                key=lambda t: t["velocity"].get("velocity_score", 0),
+            )
+
+        price_surge_ticker = None
+        price_candidates = [
+            t
+            for t in tickers
+            if t.get("stock_data") and t["stock_data"].get("change_percent") is not None
+        ]
+        if price_candidates:
+            price_surge_ticker = max(
+                price_candidates,
+                key=lambda t: t["stock_data"].get("change_percent", float("-inf")),
+            )
+
         # Get scraping status
         from app.db.models import ScrapingStatus
 
@@ -1224,6 +1248,8 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "scraping_status": scraping_info,
                 "default_mention_symbols": default_mention_symbols,
                 "followed_tickers": followed_tickers,
+                "mention_surge_ticker": mention_surge_ticker,
+                "price_surge_ticker": price_surge_ticker,
             },
         )
     finally:
