@@ -1,16 +1,18 @@
 """
-Hourly Historical Stock Price Append Job for Top Tickers.
+Hourly Historical Stock Price Append Job for Active Tickers.
 
-Runs every hour during market hours to keep historical data fresh for:
-- Top 50 tickers by article mentions
+Runs every hour (24/7) to keep historical data fresh for:
+- All tickers with at least 10 article mentions (typically 50-200+ tickers)
 - User-followed tickers
 
+This ensures smooth hourly price charts and 24 data points for "Last 24 Hours" view.
+
 Usage:
-    # Run hourly for top 50 + followed tickers
+    # Run hourly for all active tickers (10+ articles) + followed tickers
     uv run python -m jobs.jobs.hourly_historical_append
 
-    # Custom top N
-    uv run python -m jobs.jobs.hourly_historical_append --top-n 100
+    # Custom article threshold
+    uv run python -m jobs.jobs.hourly_historical_append --min-articles 5
 
     # Skip followed tickers
     uv run python -m jobs.jobs.hourly_historical_append --skip-followed
@@ -31,22 +33,18 @@ load_dotenv()
 sys.path.append(".")
 
 
+from sqlalchemy import func  # noqa: E402
+
 from app.collectors.stock_price_collector import StockPriceCollector  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
 
 # Import slack_wrapper and ticker_utils - handle both local (jobs.jobs) and Docker (jobs) contexts
 try:
     from jobs.slack_wrapper import run_with_slack  # Docker context
-    from jobs.ticker_utils import (  # Docker context
-        get_followed_tickers,
-        get_top_n_tickers,
-    )
+    from jobs.ticker_utils import get_followed_tickers  # Docker context
 except ImportError:
     from jobs.jobs.slack_wrapper import run_with_slack  # Local context
-    from jobs.jobs.ticker_utils import (  # Local context
-        get_followed_tickers,
-        get_top_n_tickers,
-    )
+    from jobs.jobs.ticker_utils import get_followed_tickers  # Local context
 
 # Set up logging
 logging.basicConfig(
@@ -61,30 +59,54 @@ async def run_hourly_append(
     include_followed: bool = True,
     batch_size: int = 10,
     delay: float = 0.5,
+    min_articles: int = 10,
 ) -> dict:
     """
-    Run the hourly historical price append job for top tickers.
+    Run the hourly historical price append job for active tickers.
 
     Args:
-        top_n: Number of top tickers by mentions to include
+        top_n: Deprecated (kept for backward compatibility)
         include_followed: Whether to include user-followed tickers
         batch_size: Tickers per batch
         delay: Seconds between batches
+        min_articles: Minimum article count threshold (default: 10)
 
     Returns:
         Statistics dictionary
     """
     logger.info(f"Hourly historical append starting at {datetime.now(UTC)}")
-    logger.info(f"Processing top {top_n} tickers (last 24h) + followed tickers")
+    logger.info(
+        f"Processing tickers with at least {min_articles} article mentions + followed tickers"
+    )
 
     # Initialize database session
     db = SessionLocal()
 
     try:
-        # Get top N tickers from last 24 hours (same logic as stock_price_collector)
-        top_tickers = get_top_n_tickers(db, n=top_n, hours=24)
+        # Get all active tickers (those with sufficient article coverage)
+        # Same logic as daily_historical_append for consistency
+        from app.db.models import ArticleTicker, Ticker
+
+        active_tickers_subq = (
+            db.query(ArticleTicker.ticker, func.count().label("article_count"))
+            .group_by(ArticleTicker.ticker)
+            .having(func.count() >= min_articles)
+            .subquery()
+        )
+
+        active_tickers = (
+            db.query(Ticker.symbol)
+            .join(
+                active_tickers_subq,
+                Ticker.symbol == active_tickers_subq.c.ticker,
+            )
+            .order_by(Ticker.symbol)
+            .all()
+        )
+
+        active_ticker_symbols = [symbol for (symbol,) in active_tickers]
         logger.info(
-            f"Found {len(top_tickers)} top tickers in last 24h (excluding ETFs)"
+            f"Found {len(active_ticker_symbols)} active tickers with at least {min_articles} article mentions"
         )
 
         # Get followed tickers
@@ -93,7 +115,7 @@ async def run_hourly_append(
             followed_tickers = get_followed_tickers(db)
 
         # Combine and deduplicate
-        all_symbols = list(set(top_tickers + followed_tickers))
+        all_symbols = list(set(active_ticker_symbols + followed_tickers))
         logger.info(f"Total unique tickers to process: {len(all_symbols)}")
 
         if not all_symbols:
@@ -133,18 +155,18 @@ async def run_hourly_append(
 def main() -> dict:
     """Entry point with argument parsing."""
     parser = argparse.ArgumentParser(
-        description="Hourly append for top tickers during market hours"
+        description="Hourly append for active tickers (runs 24/7)"
     )
     parser.add_argument(
         "--top-n",
         type=int,
         default=50,
-        help="Number of top tickers to include (default: 50)",
+        help="Deprecated - kept for backward compatibility",
     )
     parser.add_argument(
         "--skip-followed",
         action="store_true",
-        help="Skip user-followed tickers (only process top N)",
+        help="Skip user-followed tickers",
     )
     parser.add_argument(
         "--batch-size",
@@ -158,6 +180,12 @@ def main() -> dict:
         default=0.5,
         help="Seconds to wait between batches (default: 0.5)",
     )
+    parser.add_argument(
+        "--min-articles",
+        type=int,
+        default=10,
+        help="Minimum article count threshold (default: 10)",
+    )
 
     args = parser.parse_args()
 
@@ -167,6 +195,7 @@ def main() -> dict:
             include_followed=not args.skip_followed,
             batch_size=args.batch_size,
             delay=args.delay,
+            min_articles=args.min_articles,
         )
     )
 
