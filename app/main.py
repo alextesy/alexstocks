@@ -1180,6 +1180,38 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
             if len(default_mention_symbols) < 7:
                 default_mention_symbols.append(symbol)
 
+        mention_surge_tickers: list[dict] = []
+        positive_mention_surge_tickers: list[dict] = []
+        negative_mention_surge_tickers: list[dict] = []
+        mention_candidates = [
+            t
+            for t in tickers
+            if t.get("velocity") and t["velocity"].get("velocity_score") is not None
+        ]
+        if mention_candidates:
+            mention_surge_tickers = sorted(
+                mention_candidates,
+                key=lambda t: t["velocity"].get("velocity_score", 0),
+                reverse=True,
+            )[:5]
+            positive_mention_surge_tickers = sorted(
+                [
+                    t
+                    for t in mention_candidates
+                    if t.get("avg_sentiment") is not None and t["avg_sentiment"] > 0
+                ],
+                key=lambda t: t.get("avg_sentiment", float("-inf")),
+                reverse=True,
+            )[:5]
+            negative_mention_surge_tickers = sorted(
+                [
+                    t
+                    for t in mention_candidates
+                    if t.get("avg_sentiment") is not None and t["avg_sentiment"] < 0
+                ],
+                key=lambda t: t.get("avg_sentiment", float("inf")),
+            )[:5]
+
         # Get scraping status
         from app.db.models import ScrapingStatus
 
@@ -1224,6 +1256,9 @@ async def home(request: Request, page: int = 1) -> HTMLResponse:
                 "scraping_status": scraping_info,
                 "default_mention_symbols": default_mention_symbols,
                 "followed_tickers": followed_tickers,
+                "mention_surge_tickers": mention_surge_tickers,
+                "positive_mention_surge_tickers": positive_mention_surge_tickers,
+                "negative_mention_surge_tickers": negative_mention_surge_tickers,
             },
         )
     finally:
