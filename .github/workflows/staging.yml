@@ -1,0 +1,107 @@
+name: Staging Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Git branch to deploy"
+        required: true
+        default: "develop"
+      instance_id:
+        description: "EC2 instance ID for staging"
+        required: true
+      staging_host:
+        description: "Public DNS or IP for SSH + health checks"
+        required: true
+      deploy_window_minutes:
+        description: "How long to keep the instance running after deploy (minutes)"
+        required: true
+        default: "60"
+      healthcheck_path:
+        description: "Path to ping for smoke tests"
+        required: false
+        default: "/health"
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  deploy:
+    name: Deploy to Staging EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Start staging instance
+        run: |
+          aws ec2 start-instances --instance-ids "${{ inputs.instance_id }}"
+          aws ec2 wait instance-status-ok --instance-ids "${{ inputs.instance_id }}"
+
+      - name: Fetch public IP
+        run: |
+          ip=$(aws ec2 describe-instances \
+            --instance-ids "${{ inputs.instance_id }}" \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text)
+          echo "STAGING_IP=$ip" >> "$GITHUB_ENV"
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/staging_key
+          chmod 600 ~/.ssh/staging_key
+          ssh-keyscan -H "${{ inputs.staging_host }}" >> ~/.ssh/known_hosts
+          echo "SSH_USER=$SSH_USER" >> "$GITHUB_ENV"
+
+      - name: Deploy branch on staging
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          ssh -i ~/.ssh/staging_key "$SSH_USER@${{ inputs.staging_host }}" <<'EOF'
+            set -euo pipefail
+            cd /opt/market-pulse-v2
+            git fetch origin
+            git checkout "$BRANCH"
+            git reset --hard "origin/$BRANCH"
+            sudo systemctl restart market-pulse
+            sleep 10
+            sudo systemctl is-active market-pulse
+          EOF
+
+      - name: Run smoke tests
+        env:
+          HEALTH_URL: "https://${{ inputs.staging_host }}${{ inputs.healthcheck_path }}"
+          FALLBACK_URL: "http://${{ inputs.staging_host }}${{ inputs.healthcheck_path }}"
+        run: |
+          set -euo pipefail
+          echo "Pinging $HEALTH_URL"
+          if curl -fsS "$HEALTH_URL" ; then
+            exit 0
+          fi
+          echo "HTTPS failed, trying HTTP fallback..."
+          curl -fsS "$FALLBACK_URL"
+
+      - name: Post-deploy reminder
+        env:
+          WINDOW_MINUTES: ${{ inputs.deploy_window_minutes }}
+        run: |
+          cat <<MSG
+          Staging deploy completed.
+          The instance will remain up for ~${WINDOW_MINUTES} minutes unless you stop it sooner.
+          Run scripts/staging-stop.sh once testing finishes or stop the instance manually.
+          MSG
+

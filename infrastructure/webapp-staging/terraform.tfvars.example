@@ -1,0 +1,14 @@
+aws_region          = "us-east-1"
+project_name        = "market-pulse"
+deployment_target   = "staging"
+ami_id              = "ami-0123456789abcdef0"
+instance_type       = "t3.medium"
+subnet_id           = "subnet-0123456789abcdef0"
+security_group_ids  = ["sg-0123456789abcdef0"]
+associate_public_ip = true
+ssh_key_name        = "market-pulse-deployer"
+instance_profile    = "market-pulse-webapp"
+root_volume_size_gb = 60
+default_branch      = "develop"
+# user_data_base64 = filebase64("./user_data.sh")
+

@@ -1,0 +1,6 @@
+# Copy to scripts/staging.conf and fill with your values.
+
+export AWS_REGION="us-east-1"
+export STAGING_INSTANCE_ID="i-0123456789abcdef0"
+export STAGING_SSH_HOST="staging.alexstocks.com"
+
