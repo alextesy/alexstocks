@@ -21,8 +21,8 @@ sys.path.append(".")
 
 from app.db.models import Article  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
-from app.services.llm_sentiment import get_llm_sentiment_service  # noqa: E402
-from app.services.sentiment import get_sentiment_service_hybrid  # noqa: E402
+from app.services.sentiment_config import SentimentConfig  # noqa: E402
+from app.services.sentiment_selector import build_sentiment_service  # noqa: E402
 
 # Import slack_wrapper - handle both local (jobs.jobs) and Docker (jobs) contexts
 try:
@@ -89,24 +89,18 @@ def get_articles_without_sentiment(
 
 
 def analyze_single_article_sentiment(
-    article: Article, use_llm_only: bool = False
+    article: Article, sentiment_service: Any
 ) -> tuple[int, float | None]:
     """Analyze sentiment for a single article.
 
     Args:
         article: Article to analyze
-        use_llm_only: If True, use LLM only (no fallback)
+        sentiment_service: Analyzer implementing ``analyze_sentiment``
 
     Returns:
         Tuple of (article_id, sentiment_score)
     """
     try:
-        if use_llm_only:
-            sentiment_service = get_llm_sentiment_service()
-        else:
-            # Use hybrid service (LLM by default with VADER fallback)
-            sentiment_service = get_sentiment_service_hybrid()
-
         # Prepare text for sentiment analysis
         # For Reddit comments, use only the text. For posts, use title + text
         if article.source == "reddit_comment":
@@ -136,14 +130,15 @@ def analyze_single_article_sentiment(
 
 def analyze_articles_parallel(
     articles: list[Article],
+    sentiment_service: Any,
     max_workers: int = 4,
     batch_size: int = 100,
-    use_llm_only: bool = False,
 ) -> int:
     """Analyze sentiment for multiple articles in parallel.
 
     Args:
         articles: List of articles to analyze
+        sentiment_service: Analyzer implementing ``analyze_sentiment``
         max_workers: Maximum number of parallel workers
         batch_size: Batch size for database updates
 
@@ -165,7 +160,7 @@ def analyze_articles_parallel(
         # Submit all tasks
         future_to_article = {
             executor.submit(
-                analyze_single_article_sentiment, article, use_llm_only
+                analyze_single_article_sentiment, article, sentiment_service
             ): article
             for article in articles
         }
@@ -226,7 +221,7 @@ def run_sentiment_analysis(
     hours_back: int | None = None,
     max_workers: int = 4,
     batch_size: int = 100,
-    use_llm_only: bool = False,
+    sentiment_service: Any | None = None,
     verbose: bool = False,
 ) -> dict[str, Any]:
     """Run sentiment analysis on articles without sentiment data.
@@ -237,6 +232,7 @@ def run_sentiment_analysis(
         hours_back: Only process articles from the last N hours
         max_workers: Maximum number of parallel workers
         batch_size: Batch size for database updates
+        sentiment_service: Pre-built analyzer to reuse across workers
         verbose: Enable verbose logging
 
     Returns:
@@ -273,11 +269,15 @@ def run_sentiment_analysis(
         logger.info(f"Found {len(articles)} articles to process")
 
         # Analyze sentiment in parallel
+        analyzer = sentiment_service or build_sentiment_service(
+            SentimentConfig.from_env()
+        )
+
         successful_count = analyze_articles_parallel(
             articles,
+            analyzer,
             max_workers=max_workers,
             batch_size=batch_size,
-            use_llm_only=use_llm_only,
         )
 
         failed_count = len(articles) - successful_count
@@ -340,9 +340,33 @@ def main() -> None:
         action="store_true",
         help="Use LLM sentiment only (no VADER fallback)",
     )
+    parser.add_argument(
+        "--strategy",
+        choices=["hybrid", "llm", "vader"],
+        help="Explicitly pick the sentiment analyzer (overrides env)",
+    )
+    parser.add_argument(
+        "--no-sarcasm",
+        action="store_true",
+        help="Disable sarcasm dampening when scoring comments",
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
     args = parser.parse_args()
+
+    config = SentimentConfig.from_env()
+
+    # CLI flags override environment defaults
+    if args.strategy:
+        config.strategy = args.strategy  # type: ignore[assignment]
+    elif args.llm_only:
+        config.strategy = "llm"  # type: ignore[assignment]
+        config.fallback_to_vader = False
+
+    if args.no_sarcasm:
+        config.enable_sarcasm_detection = False
+
+    sentiment_service = build_sentiment_service(config)
 
     def run_job():
         return run_sentiment_analysis(
@@ -351,7 +375,7 @@ def main() -> None:
             hours_back=args.hours_back,
             max_workers=args.max_workers,
             batch_size=args.batch_size,
-            use_llm_only=args.llm_only,
+            sentiment_service=sentiment_service,
             verbose=args.verbose,
         )
 
@@ -362,6 +386,8 @@ def main() -> None:
             "source": args.source or "all",
             "max_workers": args.max_workers,
             "max_articles": args.max_articles or "unlimited",
+            "strategy": config.strategy,
+            "sarcasm": "off" if args.no_sarcasm else "on",
         },
     )
 
