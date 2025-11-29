@@ -6,7 +6,7 @@
 <div class="max-w-4xl mx-auto">
     <div class="mb-8">
         <h1 class="text-3xl font-bold text-gray-900 mb-4">About AlexStocks</h1>
-        <p class="text-lg text-gray-600">Real-time market sentiment analytics platform</p>
+        <p class="text-lg text-gray-600">Real-time market news analytics and sentiment tracking</p>
     </div>
 
     <div class="bg-white rounded-lg shadow-sm border p-8 mb-6">
@@ -20,18 +20,18 @@
             
             <h3 class="text-xl font-semibold text-gray-900 mt-6 mb-3">What You'll Find Here</h3>
             <ul class="list-disc list-inside space-y-2 text-gray-700">
-                <li><strong>Trending Stocks:</strong> See which tickers are being discussed the most in the last 24 hours</li>
-                <li><strong>Sentiment Analysis:</strong> Understand if the overall mood is positive, negative, or neutral for any stock</li>
-                <li><strong>Live Stock Prices:</strong> Current market prices updated throughout the day</li>
-                <li><strong>Discussion Volume:</strong> Track how much buzz and attention different stocks are getting</li>
-                <li><strong>Historical Trends:</strong> See how sentiment and discussion volume change over time</li>
-                <li><strong>Interactive Charts:</strong> Visualize hourly mentions and daily sentiment patterns</li>
+                <li><strong>Market sentiment pulse:</strong> A 24-hour leaning bar that compares positive vs. negative mentions after removing neutral posts.</li>
+                <li><strong>Hourly mentions chart:</strong> Interactive chart on the home page to track ticker-linked articles by hour; you can add or clear tickers to focus on your own watchlist.</li>
+                <li><strong>Surge highlights:</strong> Daily cards that surface the biggest overall, positive, and negative discussion surges with recent price context.</li>
+                <li><strong>Ticker deep-dives:</strong> Dedicated pages that combine price quotes with sentiment timelines, recent mention velocity, and filters for sentiment, source, and date.</li>
+                <li><strong>Live stock prices:</strong> Current market prices updated throughout the day and shown alongside sentiment metrics.</li>
+                <li><strong>Discussion volume & users:</strong> Quick stats for how many articles and unique users are talking about a ticker today, plus change vs. yesterday.</li>
             </ul>
 
             <h3 class="text-xl font-semibold text-gray-900 mt-6 mb-3">How It Works</h3>
             <p>
-                We continuously monitor financial discussion forums and social communities where investors share their thoughts 
-                and opinions. The platform automatically identifies which stocks are being mentioned, analyzes whether the 
+                We continuously monitor financial discussion forums and social communities where investors share their thoughts
+                and opinions. The platform automatically identifies which stocks are being mentioned, analyzes whether the
                 sentiment is positive or negative, and presents this information in an easy-to-understand format.
             </p>
             <p>
@@ -41,10 +41,16 @@
 
             <h3 class="text-xl font-semibold text-gray-900 mt-6 mb-3">Our Data Sources</h3>
             <p>
-                We gather discussions from multiple major financial communities, including popular forums focused on retail 
-                trading, general market discussions, and long-term investing strategies. Stock price information comes from 
+                We gather discussions from multiple major financial communities, including popular forums focused on retail
+                trading, general market discussions, and long-term investing strategies. Stock price information comes from
                 reliable market data providers to give you accurate, real-time pricing alongside the sentiment data.
             </p>
+
+            <h3 class="text-xl font-semibold text-gray-900 mt-6 mb-3">How to read the pages</h3>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li><strong>Home:</strong> Shows the current market leaning, the last Reddit scrape time, hourly mention trends, and today's surge cards to spot movers quickly.</li>
+                <li><strong>Ticker pages:</strong> Start with a quick stat row (price, today's articles, users, and totals), then use the combined price & sentiment chart to toggle datasets or switch periods (24h, 7d, 30d). Filters below let you narrow by sentiment, source, and date range.</li>
+            </ul>
         </div>
     </div>
 
