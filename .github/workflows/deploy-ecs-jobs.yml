@@ -418,15 +418,42 @@ jobs:
           TF_VAR_postgres_security_group_id: ${{ secrets.TF_VAR_POSTGRES_SECURITY_GROUP_ID }}
         run: |
           echo "Running Terraform plan..."
+          
+          # Run terraform plan and capture exit code
+          set +e  # Don't exit on error, we'll handle it
           terraform plan -out=tfplan -no-color | tee plan-output.txt
+          PLAN_EXIT_CODE=${PIPESTATUS[0]}  # Get exit code of terraform, not tee
+          set -e  # Re-enable exit on error
+          
+          # Verify plan file was created
+          if [ ! -f "tfplan" ]; then
+            echo "❌ Error: Terraform plan file 'tfplan' was not created!"
+            echo "Plan command exit code: $PLAN_EXIT_CODE"
+            exit 1
+          fi
+          
+          echo "✅ Plan file created successfully"
           
           # Save plan summary for later
           grep -A 100 "Terraform will perform" plan-output.txt > plan-summary.txt || echo "No changes detected" > plan-summary.txt
           
           echo "plan_file=tfplan" >> $GITHUB_OUTPUT
+          
+          # Exit with the plan's exit code (0 = success, non-zero = errors)
+          # Note: Terraform plan exits with 1 if there are changes to apply, 2 if there are errors
+          # We only want to fail on exit code 2 (errors), not 1 (changes detected)
+          if [ $PLAN_EXIT_CODE -eq 2 ]; then
+            echo "❌ Terraform plan failed with errors (exit code 2)"
+            exit 1
+          elif [ $PLAN_EXIT_CODE -ne 0 ] && [ $PLAN_EXIT_CODE -ne 1 ]; then
+            echo "❌ Terraform plan failed with unexpected exit code: $PLAN_EXIT_CODE"
+            exit 1
+          fi
+          
+          echo "✅ Terraform plan completed successfully"
 
       - name: Terraform Apply
-        if: steps.changes.outputs.terraform_changed == 'true' && github.event.inputs.dry_run != 'true'
+        if: steps.changes.outputs.terraform_changed == 'true' && steps.terraform-plan.outcome == 'success' && github.event.inputs.dry_run != 'true'
         id: terraform-apply
         working-directory: infrastructure/terraform
         env:
@@ -435,6 +462,15 @@ jobs:
           TF_VAR_postgres_security_group_id: ${{ secrets.TF_VAR_POSTGRES_SECURITY_GROUP_ID }}
         run: |
           echo "Applying Terraform changes..."
+          
+          # Verify plan file exists before applying
+          if [ ! -f "tfplan" ]; then
+            echo "❌ Error: Terraform plan file 'tfplan' not found!"
+            echo "This indicates the plan step may have failed or the file was not created."
+            exit 1
+          fi
+          
+          echo "✅ Plan file found, proceeding with apply..."
           terraform apply -auto-approve tfplan
           echo "applied=true" >> $GITHUB_OUTPUT
 
