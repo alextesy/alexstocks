@@ -224,7 +224,13 @@ class TestIdempotency:
         )
         db_session.commit()
 
-        # Should still be only one record
-        records, total = repo.get_user_history(user_id=1)
-        assert total == 1
-        assert records[0].message_id == "ses-2"
+        # Should still be only one record for this user and week
+        record = repo.get_record_for_user_week(user_id=1, week_start=week_start)
+        assert record is not None
+        assert record.message_id == "ses-2"
+
+        # Verify only one record exists for this week_start
+        week_records = repo.get_records_for_week(week_start)
+        user_week_records = [r for r in week_records if r.user_id == 1]
+        assert len(user_week_records) == 1
+        assert user_week_records[0].message_id == "ses-2"
