@@ -14,6 +14,19 @@ on:
       - 'ingest/**'
       - 'infrastructure/terraform/**'
       - '.github/workflows/deploy-ecs-jobs.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'jobs/**'
+      - 'app/db/**'
+      - 'app/services/**'
+      - 'app/config.py'
+      - 'app/models/**'
+      - 'app/collectors/**'
+      - 'ingest/**'
+      - 'infrastructure/terraform/**'
+      - '.github/workflows/deploy-ecs-jobs.yml'
   workflow_dispatch:
     inputs:
       environment:
@@ -43,7 +56,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Need 2 commits to detect changes
+          fetch-depth: 0  # Fetch all history for PR comparison
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set dry run mode
+        id: dry-run
+        run: |
+          # For pull requests, always use dry run mode
+          # For workflow_dispatch, use the input value
+          # For push to master, use false (actual deployment)
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "dry_run=true" >> $GITHUB_OUTPUT
+            echo "🔍 PR detected - running in dry-run mode"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            DRY_RUN_VALUE="${{ github.event.inputs.dry_run || 'false' }}"
+            echo "dry_run=$DRY_RUN_VALUE" >> $GITHUB_OUTPUT
+            echo "🔧 Manual trigger - dry_run=$DRY_RUN_VALUE"
+          else
+            echo "dry_run=false" >> $GITHUB_OUTPUT
+            echo "🚀 Push to master - running actual deployment"
+          fi
 
       - name: Detect changes
         id: changes
@@ -58,8 +90,18 @@ jobs:
             exit 0
           fi
           
-          # Get list of changed files
-          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          # For pull requests, compare against base branch
+          # For push events, compare against previous commit
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_REF="${{ github.event.pull_request.base.ref }}"
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            echo "PR detected - comparing against base branch: $BASE_REF (SHA: $BASE_SHA)"
+            # Fetch the base branch to compare against
+            git fetch origin $BASE_REF:$BASE_REF || git fetch origin $BASE_SHA
+            CHANGED_FILES=$(git diff --name-only $BASE_SHA...HEAD || git diff --name-only origin/$BASE_REF...HEAD)
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          fi
           echo "Changed files:"
           echo "$CHANGED_FILES"
           
@@ -122,7 +164,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          DRY_RUN: ${{ steps.dry-run.outputs.dry_run }}
         run: |
           echo "Building Docker image..."
           docker build -f jobs/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
@@ -418,15 +460,42 @@ jobs:
           TF_VAR_postgres_security_group_id: ${{ secrets.TF_VAR_POSTGRES_SECURITY_GROUP_ID }}
         run: |
           echo "Running Terraform plan..."
+          
+          # Run terraform plan and capture exit code
+          set +e  # Don't exit on error, we'll handle it
           terraform plan -out=tfplan -no-color | tee plan-output.txt
+          PLAN_EXIT_CODE=${PIPESTATUS[0]}  # Get exit code of terraform, not tee
+          set -e  # Re-enable exit on error
+          
+          # Verify plan file was created
+          if [ ! -f "tfplan" ]; then
+            echo "❌ Error: Terraform plan file 'tfplan' was not created!"
+            echo "Plan command exit code: $PLAN_EXIT_CODE"
+            exit 1
+          fi
+          
+          echo "✅ Plan file created successfully"
           
           # Save plan summary for later
           grep -A 100 "Terraform will perform" plan-output.txt > plan-summary.txt || echo "No changes detected" > plan-summary.txt
           
           echo "plan_file=tfplan" >> $GITHUB_OUTPUT
+          
+          # Exit with the plan's exit code (0 = success, non-zero = errors)
+          # Note: Terraform plan exits with 1 if there are changes to apply, 2 if there are errors
+          # We only want to fail on exit code 2 (errors), not 1 (changes detected)
+          if [ $PLAN_EXIT_CODE -eq 2 ]; then
+            echo "❌ Terraform plan failed with errors (exit code 2)"
+            exit 1
+          elif [ $PLAN_EXIT_CODE -ne 0 ] && [ $PLAN_EXIT_CODE -ne 1 ]; then
+            echo "❌ Terraform plan failed with unexpected exit code: $PLAN_EXIT_CODE"
+            exit 1
+          fi
+          
+          echo "✅ Terraform plan completed successfully"
 
       - name: Terraform Apply
-        if: steps.changes.outputs.terraform_changed == 'true' && github.event.inputs.dry_run != 'true'
+        if: steps.changes.outputs.terraform_changed == 'true' && steps.terraform-plan.outcome == 'success' && steps.dry-run.outputs.dry_run != 'true'
         id: terraform-apply
         working-directory: infrastructure/terraform
         env:
@@ -435,6 +504,15 @@ jobs:
           TF_VAR_postgres_security_group_id: ${{ secrets.TF_VAR_POSTGRES_SECURITY_GROUP_ID }}
         run: |
           echo "Applying Terraform changes..."
+          
+          # Verify plan file exists before applying
+          if [ ! -f "tfplan" ]; then
+            echo "❌ Error: Terraform plan file 'tfplan' not found!"
+            echo "This indicates the plan step may have failed or the file was not created."
+            exit 1
+          fi
+          
+          echo "✅ Plan file found, proceeding with apply..."
           terraform apply -auto-approve tfplan
           echo "applied=true" >> $GITHUB_OUTPUT
 
@@ -460,7 +538,7 @@ jobs:
           IMAGE_PUSHED: ${{ steps.build-image.outputs.pushed }}
           UPDATED_TASKS: ${{ steps.update-tasks.outputs.updated_tasks }}
           TERRAFORM_APPLIED: ${{ steps.terraform-apply.outputs.applied }}
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          DRY_RUN: ${{ steps.dry-run.outputs.dry_run }}
         run: |
           echo "# 🚀 ECS Jobs Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
