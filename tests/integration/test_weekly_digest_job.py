@@ -266,4 +266,3 @@ class TestWeeklyDigestIdempotency:
         # Check should now return True
         result = repo.check_already_sent(user_id=1, week_start=date(2025, 12, 1))
         assert result is True
-

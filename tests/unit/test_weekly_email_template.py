@@ -256,4 +256,3 @@ class TestEmailSubjectLine:
 
         subject = "Your Weekly Market Digest - Dec 01-07"
         assert len(subject) <= max_subject_length
-

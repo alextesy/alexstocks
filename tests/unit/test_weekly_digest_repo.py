@@ -1,6 +1,6 @@
 """Unit tests for WeeklyDigestRepository."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from app.repos.weekly_digest_repo import WeeklyDigestRepository, get_iso_week_start
 
@@ -144,9 +144,7 @@ class TestWeeklyDigestRepository:
 
         # Create multiple records
         for week_offset in range(3):
-            week_start = date(2025, 12, 1) - (week_offset * 7).__class__(
-                days=week_offset * 7
-            )
+            week_start = date(2025, 12, 1) - timedelta(days=week_offset * 7)
             repo.mark_sent(
                 user_id=1,
                 week_start=week_start,

@@ -258,4 +258,3 @@ class TestWeeklySummaryBrief:
         assert brief.ticker == "TSLA"
         assert brief.sentiment_emoji == "📈"
         assert brief.mention_count == 250
-

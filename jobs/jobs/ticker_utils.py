@@ -68,4 +68,3 @@ def get_followed_tickers(db: Session) -> list[str]:
     symbols = [ticker for (ticker,) in followed]
     logger.info(f"Found {len(symbols)} user-followed tickers")
     return symbols
-

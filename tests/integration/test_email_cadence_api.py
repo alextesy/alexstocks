@@ -253,4 +253,3 @@ class TestCadenceFiltering:
             repo.get_email_cadence(21) == EmailCadence.WEEKLY_ONLY
         )  # Should get weekly
         assert repo.get_email_cadence(22) == EmailCadence.BOTH  # Should get weekly
-

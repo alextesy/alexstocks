@@ -60,4 +60,3 @@ class TestEmailCadence:
         """Test weekly email logic for daily_only cadence."""
         cadence = EmailCadence.DAILY_ONLY
         assert cadence not in (EmailCadence.WEEKLY_ONLY, EmailCadence.BOTH)
-

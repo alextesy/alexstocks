@@ -223,4 +223,3 @@ class WeeklyDigestRepository:
             created_at=entity.created_at,
             sent_at=entity.sent_at,
         )
-
