@@ -640,6 +640,65 @@ ecs-run-send-emails-test: ## Manually trigger send daily emails task sending onl
 ecs-logs-send-emails: ## Tail logs for send daily emails
 	aws logs tail /ecs/market-pulse-jobs/send-daily-emails --follow
 
+ecs-run-weekly-digest: ## Manually trigger send weekly digest task
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-send-weekly-digest)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -raw private_subnet_ids 2>/dev/null | python3 -c "import sys, json; data=json.load(sys.stdin); print(','.join(data))" 2>/dev/null || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	@echo "🚀 Running weekly digest for all eligible users..."
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1
+
+ecs-run-weekly-digest-test: ## Manually trigger send weekly digest task sending only to TEST_EMAIL_RECIPIENT (actually sends, not dry-run)
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-send-weekly-digest)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -raw private_subnet_ids 2>/dev/null | python3 -c "import sys, json; data=json.load(sys.stdin); print(','.join(data))" 2>/dev/null || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	@echo "🚀 Running weekly digest for test user only..."
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1 \
+		--overrides '{"containerOverrides":[{"name":"send-weekly-digest","command":["python","jobs/send_weekly_digest.py","--test-email-only"]}]}'
+
+ecs-run-weekly-digest-user: ## Manually trigger send weekly digest task for specific user (EMAIL=user@example.com)
+	@if [ -z "$(EMAIL)" ]; then \
+		echo "❌ Error: EMAIL required"; \
+		echo "Usage: make ecs-run-weekly-digest-user EMAIL=user@example.com"; \
+		exit 1; \
+	fi
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-send-weekly-digest)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -raw private_subnet_ids 2>/dev/null | python3 -c "import sys, json; data=json.load(sys.stdin); print(','.join(data))" 2>/dev/null || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	@echo "🚀 Running weekly digest for user: $(EMAIL)..."
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1 \
+		--overrides "{\"containerOverrides\":[{\"name\":\"send-weekly-digest\",\"command\":[\"python\",\"jobs/send_weekly_digest.py\",\"--user-email\",\"$(EMAIL)\"]}]}"
+
+ecs-run-weekly-digest-dry-run: ## Manually trigger send weekly digest task in dry-run mode
+	$(eval CLUSTER := market-pulse-jobs)
+	$(eval TASK_DEF := market-pulse-send-weekly-digest)
+	$(eval SUBNETS := $(shell cd infrastructure/terraform && terraform output -raw private_subnet_ids 2>/dev/null | python3 -c "import sys, json; data=json.load(sys.stdin); print(','.join(data))" 2>/dev/null || echo "subnet-0cd442445909a114c,subnet-0be6093ab7853be0c"))
+	$(eval SG := $(shell aws ec2 describe-security-groups --filters "Name=group-name,Values=market-pulse-ecs-tasks" --query 'SecurityGroups[0].GroupId' --output text))
+	@echo "🔍 Running weekly digest in DRY-RUN mode (no emails will be sent)..."
+	aws ecs run-task \
+		--cluster $(CLUSTER) \
+		--task-definition $(TASK_DEF) \
+		--network-configuration "awsvpcConfiguration={subnets=[$(SUBNETS)],securityGroups=[$(SG)],assignPublicIp=ENABLED}" \
+		--capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1 \
+		--overrides '{"containerOverrides":[{"name":"send-weekly-digest","command":["python","jobs/send_weekly_digest.py","--dry-run"]}]}'
+
+ecs-logs-weekly-digest: ## Tail logs for send weekly digest
+	aws logs tail /ecs/market-pulse-jobs/send-weekly-digest --follow
+
 ecs-update-send-emails-task: ## Update send daily emails task definition with new image (TAG=tag or latest)
 	@if [ -z "$(TAG)" ]; then \
 		echo "❌ Error: TAG required"; \

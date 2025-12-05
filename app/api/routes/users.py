@@ -14,6 +14,7 @@ from app.db.session import get_db
 from app.models.dto import (
     EmailCadence,
     EmailCadenceResponse,
+    UserDeletionResponseDTO,
     UserProfileResponseDTO,
     UserProfileUpdateDTO,
     UserTickerFollowCreateDTO,
@@ -23,6 +24,8 @@ from app.models.dto import (
 from app.repos.user_repo import UserRepository
 from app.repos.weekly_digest_repo import WeeklyDigestRepository
 from app.services.auth_service import get_auth_service
+from app.services.slack_service import SlackService
+from app.services.user_deletion_service import UserDeletionService
 from app.services.user_notification_channel_service import (
     ensure_email_notification_channel,
 )
@@ -634,3 +637,56 @@ async def search_tickers(
         }
         for t in tickers
     ]
+
+
+@router.delete("/me", response_model=UserDeletionResponseDTO)
+async def delete_current_user(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """Delete current user's account and all associated data.
+
+    This endpoint:
+    - Validates user authentication
+    - Permanently deletes user account and all related data (CASCADE)
+    - Invalidates all active sessions
+    - Logs deletion event
+    - Sends Slack notification
+
+    Returns:
+        UserDeletionResponseDTO with success status and message
+
+    Raises:
+        401: If not authenticated
+        500: If deletion fails
+    """
+    repo = UserRepository(db)
+    user = repo.get_user_by_id(user_id)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Get user email before deletion
+    user_email = user.email
+
+    # Create deletion service
+    slack_service = SlackService()
+    deletion_service = UserDeletionService(db=db, slack_service=slack_service)
+
+    # Delete user
+    success = deletion_service.delete_user(user_id, user_email)
+
+    if not success:
+        logger.error(
+            "user_deletion_api_failed",
+            extra={"user_id": user_id, "email": user_email},
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Account deletion failed. Please try again or contact support.",
+        )
+
+    return UserDeletionResponseDTO(
+        success=True,
+        message="Your account has been permanently deleted",
+    )
