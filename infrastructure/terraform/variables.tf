@@ -61,6 +61,12 @@ variable "sentiment_task_memory" {
   default     = 4096
 }
 
+variable "task_memory_high" {
+  description = "Task memory in MB for memory-intensive tasks (e.g., weekly digest with LLM)"
+  type        = number
+  default     = 2048
+}
+
 variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
