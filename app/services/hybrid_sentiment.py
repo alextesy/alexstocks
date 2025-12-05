@@ -17,7 +17,7 @@ class HybridSentimentService:
     def __init__(
         self,
         use_llm: bool = True,
-        llm_model_name: str = "ProsusAI/finbert",
+        llm_model_name: str = "mwkby/distilbert-base-uncased-sentiment-reddit-crypto",
         use_gpu: bool = False,
         fallback_to_vader: bool = True,
         dual_model_strategy: bool = True,
