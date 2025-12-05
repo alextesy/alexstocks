@@ -19,6 +19,7 @@ from app.models.dto import (
     UserDTO,
     UserProfileDTO,
     UserTickerFollowDTO,
+    WeeklyDigestContent,
 )
 from app.services.email_utils import (
     build_unsubscribe_url,
@@ -33,6 +34,8 @@ class EmailTemplateService:
 
     HTML_TEMPLATE = "daily_briefing.html"
     TEXT_TEMPLATE = "daily_briefing.txt"
+    WEEKLY_HTML_TEMPLATE = "weekly_digest.html"
+    WEEKLY_TEXT_TEMPLATE = "weekly_digest.txt"
 
     def __init__(
         self,
@@ -142,6 +145,74 @@ class EmailTemplateService:
         text_parts.extend(["", "Stay informed with Market Pulse!"])
 
         return "\n".join(html_parts), "\n".join(text_parts)
+
+    def render_weekly_digest(
+        self,
+        user: UserDTO,
+        user_profile: UserProfileDTO | None,
+        digest_content: WeeklyDigestContent,
+        unsubscribe_token: str,
+    ) -> tuple[str, str]:
+        """Render HTML and plain-text weekly digest emails.
+
+        Args:
+            user: User to send email to
+            user_profile: User's profile for personalization
+            digest_content: Weekly digest content from LLM synthesis
+            unsubscribe_token: Token for unsubscribe link
+
+        Returns:
+            Tuple of (html_body, text_body)
+        """
+        context = self._build_weekly_context(
+            user=user,
+            user_profile=user_profile,
+            digest_content=digest_content,
+            unsubscribe_token=unsubscribe_token,
+        )
+        html = self._html_env.get_template(self.WEEKLY_HTML_TEMPLATE).render(**context)
+        text = self._text_env.get_template(self.WEEKLY_TEXT_TEMPLATE).render(**context)
+        return html, text
+
+    def _build_weekly_context(
+        self,
+        *,
+        user: UserDTO,
+        user_profile: UserProfileDTO | None,
+        digest_content: WeeklyDigestContent,
+        unsubscribe_token: str,
+    ) -> dict:
+        """Build template context for weekly digest."""
+        timezone = user_profile.timezone if user_profile else "UTC"
+
+        # Format week date range
+        week_start_display = digest_content.week_start.strftime("%b %d")
+        week_end_display = digest_content.week_end.strftime("%b %d, %Y")
+
+        context = {
+            "user": {
+                "display_name": user_profile.display_name if user_profile else None,
+                "email": user.email,
+            },
+            "greeting_name": (
+                user_profile.display_name
+                if user_profile and user_profile.display_name
+                else user.email
+            ),
+            "week_start": digest_content.week_start,
+            "week_end": digest_content.week_end,
+            "week_start_display": week_start_display,
+            "week_end_display": week_end_display,
+            "timezone": timezone,
+            "digest_content": digest_content,
+            "unsubscribe_url": build_unsubscribe_url(unsubscribe_token),
+            "company_name": settings.email_company_name,
+            "company_address": settings.email_company_address,
+            "support_email": settings.email_from_address,
+            "app_base_url": settings.app_base_url,
+            "generated_at": digest_content.generated_at,
+        }
+        return context
 
     def _build_context(
         self,

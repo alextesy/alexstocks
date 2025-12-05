@@ -184,6 +184,19 @@
                 </label>
                 <p class="text-sm text-gray-500 ml-6 mt-1">Receive a daily email briefing with summaries of your watchlist tickers</p>
             </div>
+
+            <div>
+                <label class="flex items-center">
+                    <input 
+                        type="checkbox" 
+                        id="notify-on-weekly-briefing" 
+                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        checked
+                    >
+                    <span class="ml-2 text-sm font-medium text-gray-700">Weekly briefing email</span>
+                </label>
+                <p class="text-sm text-gray-500 ml-6 mt-1">Receive a weekly email summary each Sunday with trends and insights from your watchlist</p>
+            </div>
         </div>
     </div>
 
@@ -204,6 +217,7 @@ let isSaving = false;
 let watchlistData = [];
 let searchTimeout = null;
 let isReordering = false;
+let emailCadenceData = null;
 
 // Load profile data on page load
 async function loadProfile() {
@@ -228,6 +242,99 @@ async function loadProfile() {
     }
 }
 
+// Load email cadence preference
+async function loadEmailCadence() {
+    try {
+        const response = await fetch('/api/users/me/email-cadence', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) return;
+            throw new Error('Failed to load email cadence');
+        }
+        
+        emailCadenceData = await response.json();
+        populateEmailCadenceCheckboxes(emailCadenceData.email_cadence);
+    } catch (error) {
+        console.error('Error loading email cadence:', error);
+        // Default to both for new users if loading fails
+        populateEmailCadenceCheckboxes('both');
+    }
+}
+
+// Populate email cadence checkboxes based on cadence value
+function populateEmailCadenceCheckboxes(cadence) {
+    const dailyCheckbox = document.getElementById('notify-on-daily-briefing');
+    const weeklyCheckbox = document.getElementById('notify-on-weekly-briefing');
+    
+    switch(cadence) {
+        case 'daily_only':
+            dailyCheckbox.checked = true;
+            weeklyCheckbox.checked = false;
+            break;
+        case 'weekly_only':
+            dailyCheckbox.checked = false;
+            weeklyCheckbox.checked = true;
+            break;
+        case 'both':
+            dailyCheckbox.checked = true;
+            weeklyCheckbox.checked = true;
+            break;
+        case 'none':
+            dailyCheckbox.checked = false;
+            weeklyCheckbox.checked = false;
+            break;
+        default:
+            // Default to both for new users
+            dailyCheckbox.checked = true;
+            weeklyCheckbox.checked = true;
+    }
+}
+
+// Get email cadence from checkboxes
+function getEmailCadenceFromCheckboxes() {
+    const daily = document.getElementById('notify-on-daily-briefing').checked;
+    const weekly = document.getElementById('notify-on-weekly-briefing').checked;
+    
+    if (daily && weekly) return 'both';
+    if (daily) return 'daily_only';
+    if (weekly) return 'weekly_only';
+    return 'none';
+}
+
+// Save email cadence
+async function saveEmailCadence() {
+    const cadence = getEmailCadenceFromCheckboxes();
+    
+    // Skip if no change
+    if (emailCadenceData && emailCadenceData.email_cadence === cadence) {
+        return true;
+    }
+    
+    try {
+        const response = await fetch('/api/users/me/email-cadence', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ email_cadence: cadence }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Failed to update email cadence' }));
+            throw new Error(errorData.detail || 'Failed to update email cadence');
+        }
+        
+        emailCadenceData = await response.json();
+        return true;
+    } catch (error) {
+        console.error('Error saving email cadence:', error);
+        throw error;
+    }
+}
+
 // Populate form with profile data
 function populateForm(data) {
     document.getElementById('email').value = data.email || '';
@@ -241,12 +348,11 @@ function populateForm(data) {
         updateAvatarPreview(null);
     }
     
-    // Notification defaults
+    // Notification defaults (excluding email briefing - handled by email cadence)
     const defaults = data.notification_defaults || {};
     document.getElementById('notify-on-surges').checked = defaults.notify_on_surges === true;
     document.getElementById('notify-on-most-discussed').checked = defaults.notify_on_most_discussed === true;
-    // Default to true if not set (for new users)
-    document.getElementById('notify-on-daily-briefing').checked = defaults.notify_on_daily_briefing !== false;
+    // Note: daily/weekly briefing checkboxes are set by loadEmailCadence()
 }
 
 // Update avatar preview
@@ -306,7 +412,6 @@ async function saveProfile() {
             notification_defaults: {
                 notify_on_surges: document.getElementById('notify-on-surges').checked,
                 notify_on_most_discussed: document.getElementById('notify-on-most-discussed').checked,
-                notify_on_daily_briefing: document.getElementById('notify-on-daily-briefing').checked,
             }
         };
         
@@ -327,6 +432,9 @@ async function saveProfile() {
         const updated = await response.json();
         profileData = updated;
         
+        // Save email cadence preference
+        await saveEmailCadence();
+        
         // Reload the form to show updated values
         populateForm(updated);
         showSuccess();
@@ -343,6 +451,7 @@ async function saveProfile() {
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
     loadProfile();
+    loadEmailCadence();
     
     document.getElementById('save-button').addEventListener('click', saveProfile);
     

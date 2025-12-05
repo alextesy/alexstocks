@@ -146,6 +146,100 @@ class DailyTickerSummaryRepository:
         self.session.flush()
         return int(result.rowcount or 0)
 
+    def get_summaries_for_week(
+        self,
+        tickers: Sequence[str],
+        week_start: date,
+        week_end: date,
+    ) -> dict[str, list[DailyTickerSummaryDTO]]:
+        """Get summaries for multiple tickers within a week window.
+
+        Args:
+            tickers: List of ticker symbols to include.
+            week_start: Start date of the week (inclusive).
+            week_end: End date of the week (inclusive).
+
+        Returns:
+            Dictionary mapping ticker symbols to their list of daily summaries,
+            ordered by date ascending within each ticker.
+        """
+        if not tickers:
+            return {}
+
+        stmt = (
+            select(DailyTickerSummary)
+            .where(
+                DailyTickerSummary.ticker.in_(list(tickers)),
+                DailyTickerSummary.summary_date >= week_start,
+                DailyTickerSummary.summary_date <= week_end,
+            )
+            .order_by(
+                DailyTickerSummary.ticker.asc(),
+                DailyTickerSummary.summary_date.asc(),
+            )
+        )
+
+        rows = self.session.execute(stmt).scalars().all()
+
+        # Group by ticker
+        result: dict[str, list[DailyTickerSummaryDTO]] = {}
+        for row in rows:
+            ticker = row.ticker
+            if ticker not in result:
+                result[ticker] = []
+            result[ticker].append(self._to_dto(row))
+
+        return result
+
+    def get_week_aggregate_stats(
+        self,
+        tickers: Sequence[str],
+        week_start: date,
+        week_end: date,
+    ) -> list[dict]:
+        """Get aggregated statistics for tickers over a week.
+
+        Returns a list of dicts with aggregated metrics per ticker,
+        ordered by total mentions descending.
+        """
+        if not tickers:
+            return []
+
+        stmt = (
+            select(
+                DailyTickerSummary.ticker,
+                func.sum(DailyTickerSummary.mention_count).label("total_mentions"),
+                func.sum(DailyTickerSummary.engagement_count).label("total_engagement"),
+                func.avg(DailyTickerSummary.avg_sentiment).label("avg_sentiment"),
+                func.count(DailyTickerSummary.id).label("days_with_data"),
+                func.min(DailyTickerSummary.summary_date).label("first_date"),
+                func.max(DailyTickerSummary.summary_date).label("last_date"),
+            )
+            .where(
+                DailyTickerSummary.ticker.in_(list(tickers)),
+                DailyTickerSummary.summary_date >= week_start,
+                DailyTickerSummary.summary_date <= week_end,
+            )
+            .group_by(DailyTickerSummary.ticker)
+            .order_by(func.sum(DailyTickerSummary.mention_count).desc())
+        )
+
+        rows = self.session.execute(stmt).all()
+        return [
+            {
+                "ticker": row.ticker,
+                "total_mentions": row.total_mentions or 0,
+                "total_engagement": row.total_engagement or 0,
+                "avg_sentiment": (
+                    float(row.avg_sentiment) if row.avg_sentiment else None
+                ),
+                "days_with_data": row.days_with_data or 0,
+                "first_date": row.first_date,
+                "last_date": row.last_date,
+            }
+            for row in rows
+        ]
+
     @staticmethod
     def _apply_date_filters(query, start_date: date | None, end_date: date | None):
         if start_date is not None:

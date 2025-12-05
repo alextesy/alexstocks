@@ -1,0 +1,90 @@
+Hi {{ greeting_name }},
+
+Here is your {{ company_name }} Weekly Digest for {{ week_start_display }} - {{ week_end_display }} ({{ timezone }}).
+
+{% if digest_content and digest_content.total_tickers > 0 %}
+============================================================
+{{ digest_content.headline }}
+============================================================
+
+📊 {{ digest_content.total_tickers }} tickers · {{ digest_content.days_with_data }} days of data
+{% if digest_content.sentiment_direction %}
+Sentiment: {{ digest_content.sentiment_direction.direction | capitalize }}
+{% endif %}
+
+{% if digest_content.highlights %}
+------------------------------------------------------------
+🎯 KEY HIGHLIGHTS
+------------------------------------------------------------
+{% for highlight in digest_content.highlights %}
+• {{ highlight }}
+{% endfor %}
+{% endif %}
+
+{% if digest_content.top_signals %}
+------------------------------------------------------------
+🔥 TOP SIGNALS THIS WEEK
+------------------------------------------------------------
+{% for signal in digest_content.top_signals %}
+{{ signal.theme }}
+  Tickers: {{ signal.tickers_involved | join(", ") }}
+{% for example in signal.examples %}
+  - {{ example }}
+{% endfor %}
+{% endfor %}
+{% endif %}
+
+------------------------------------------------------------
+📈 YOUR WATCHLIST THIS WEEK
+------------------------------------------------------------
+{% for ticker in digest_content.ticker_summaries %}
+{{ ticker.sentiment_emoji }} {{ ticker.ticker }} - {{ ticker.ticker_name }}
+  {{ ticker.mention_count }} mentions
+  {{ ticker.one_liner }}
+  View: {{ app_base_url }}/ticker/{{ ticker.ticker }}
+
+{% endfor %}
+
+{% if digest_content.risks_opportunities %}
+------------------------------------------------------------
+⚠️ WATCH NEXT WEEK
+------------------------------------------------------------
+{% for item in digest_content.risks_opportunities %}
+• {{ item }}
+{% endfor %}
+{% endif %}
+
+{% if digest_content.next_actions %}
+------------------------------------------------------------
+✅ RECOMMENDED ACTIONS
+------------------------------------------------------------
+{% for action in digest_content.next_actions %}
+• {{ action }}
+{% endfor %}
+{% endif %}
+
+{% else %}
+------------------------------------------------------------
+No significant activity for your watchlist this week.
+Add more symbols to your watchlist to receive richer weekly digests.
+------------------------------------------------------------
+{% endif %}
+
+============================================================
+
+Want to update your watchlist or email preferences?
+Visit {{ app_base_url }}
+
+Stay informed with {{ company_name }}.
+
+------------------------------------------------------------
+You are receiving this email because you subscribed to {{ company_name }} weekly digest.
+Unsubscribe: {{ unsubscribe_url }}
+Need help? {{ support_email }}
+{% if company_address %}
+{{ company_name }} · {{ company_address }}
+{% else %}
+{{ company_name }}
+{% endif %}
+
+

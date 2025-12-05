@@ -23,6 +23,7 @@ if TYPE_CHECKING:
         UserDTO,
         UserProfileDTO,
         UserTickerFollowDTO,
+        WeeklyDigestContent,
     )
 
 logger = logging.getLogger(__name__)
@@ -167,6 +168,75 @@ class SESEmailService(EmailService):
             html_body, text_body = self.template_service.render_basic_summary(
                 ticker_summaries
             )
+
+        return self.send_email(
+            to_email=user.email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+        )
+
+    def send_weekly_digest(
+        self,
+        user: "UserDTO",
+        digest_content: "WeeklyDigestContent",
+        *,
+        user_profile: "UserProfileDTO | None" = None,
+        unsubscribe_token: str | None = None,
+    ) -> EmailSendResult:
+        """Send a weekly digest email to a user.
+
+        Args:
+            user: User to send email to
+            digest_content: Weekly digest content with synthesized summaries
+            user_profile: Optional user profile for personalization
+            unsubscribe_token: Signed token for unsubscribe link
+
+        Returns:
+            EmailSendResult with success status and metadata
+        """
+        # Don't send if no tickers to report
+        if digest_content.total_tickers == 0:
+            logger.info(
+                "Skipping weekly digest - no tickers with data",
+                extra={"user_id": user.id, "user_email": user.email},
+            )
+            return EmailSendResult(
+                success=True,
+                message_id=None,
+                error=None,
+                provider=self.provider_name,
+            )
+
+        # Build subject line with date range
+        week_range = (
+            f"{digest_content.week_start.strftime('%b %d')}-"
+            f"{digest_content.week_end.strftime('%d')}"
+        )
+        subject = f"Your Weekly Market Digest - {week_range}"
+
+        if user_profile and unsubscribe_token:
+            html_body, text_body = self.template_service.render_weekly_digest(
+                user=user,
+                user_profile=user_profile,
+                digest_content=digest_content,
+                unsubscribe_token=unsubscribe_token,
+            )
+        else:
+            # Fallback: basic rendering
+            html_body = f"<h1>Weekly Digest</h1><p>{digest_content.headline}</p>"
+            text_body = f"Weekly Digest\n\n{digest_content.headline}"
+
+        logger.info(
+            "Sending weekly digest email",
+            extra={
+                "user_id": user.id,
+                "user_email": user.email,
+                "ticker_count": digest_content.total_tickers,
+                "week_start": digest_content.week_start.isoformat(),
+                "week_end": digest_content.week_end.isoformat(),
+            },
+        )
 
         return self.send_email(
             to_email=user.email,

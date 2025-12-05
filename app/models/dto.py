@@ -1,9 +1,19 @@
 """Data Transfer Objects for API boundaries."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
+from enum import Enum
 
 from app.db.models import LLMSentimentCategory
+
+
+class EmailCadence(str, Enum):
+    """Email delivery cadence options."""
+
+    DAILY_ONLY = "daily_only"
+    WEEKLY_ONLY = "weekly_only"
+    BOTH = "both"
+    NONE = "none"
 
 
 @dataclass
@@ -188,8 +198,9 @@ class UserProfileUpdateDTO:
     notification_defaults: dict | None = (
         None  # Notification preferences: notify_on_surges, notify_on_most_discussed, notify_on_daily_briefing
     )
+    email_cadence: EmailCadence | None = None  # Email delivery cadence preference
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate DTO after initialization."""
         if self.nickname is not None:
             if not isinstance(self.nickname, str):
@@ -208,6 +219,7 @@ class UserProfileUpdateDTO:
                 raise ValueError("avatar_url must be a string")
             if len(self.avatar_url) > 500:
                 raise ValueError("avatar_url must be 500 characters or less")
+        # email_cadence is validated by the type annotation (EmailCadence | None)
 
 
 @dataclass
@@ -275,3 +287,110 @@ class EmailSendResult:
     message_id: str | None
     error: str | None
     provider: str
+
+
+# ============================================================================
+# Weekly Digest DTOs
+# ============================================================================
+
+
+@dataclass
+class WeeklyTickerAggregate:
+    """Aggregated ticker data for weekly digest."""
+
+    ticker: str
+    ticker_name: str
+    total_mentions: int
+    total_engagement: int
+    days_with_data: int
+    avg_sentiment: float | None
+    sentiment_trend: str  # "improving", "stable", "declining"
+    sentiment_start: float | None  # First day's sentiment
+    sentiment_end: float | None  # Last day's sentiment
+    dominant_sentiment: str = "neutral"  # Most common sentiment category
+    daily_summaries: list[str] = field(default_factory=list)
+    daily_sentiments: list[str] = field(default_factory=list)
+    daily_bullets: list[list[str]] = field(default_factory=list)
+
+
+@dataclass
+class TopSignal:
+    """Top signal/theme from the week."""
+
+    theme: str
+    examples: list[str]
+    tickers_involved: list[str]
+
+
+@dataclass
+class SentimentDirection:
+    """Sentiment trend analysis."""
+
+    direction: str  # "improving", "stable", "declining"
+    evidence: str  # Supporting text
+    confidence: float  # 0.0-1.0
+
+
+@dataclass
+class WeeklyTickerSummaryBrief:
+    """Brief ticker summary for email."""
+
+    ticker: str
+    ticker_name: str
+    sentiment_emoji: str  # 🚀, 📈, ➡️, 📉, 💀
+    one_liner: str
+    mention_count: int
+
+
+@dataclass
+class WeeklyDigestContent:
+    """Structured content for weekly digest email."""
+
+    week_start: date
+    week_end: date
+    user_timezone: str
+    generated_at: datetime
+    headline: str
+    highlights: list[str]
+    top_signals: list[TopSignal]
+    sentiment_direction: SentimentDirection
+    risks_opportunities: list[str]
+    next_actions: list[str]
+    ticker_summaries: list[WeeklyTickerSummaryBrief]
+    days_with_data: int = 0
+    total_tickers: int = 0
+
+
+@dataclass
+class WeeklyDigestSendRecordDTO:
+    """DTO for weekly digest send record."""
+
+    id: int
+    user_id: int
+    week_start_date: date
+    status: str  # pending, sent, failed, skipped
+    ticker_count: int
+    days_with_data: int
+    message_id: str | None
+    error: str | None
+    skip_reason: str | None
+    created_at: datetime
+    sent_at: datetime | None
+
+
+@dataclass
+class EmailCadenceResponse:
+    """Response DTO for email cadence preference."""
+
+    email_cadence: EmailCadence
+    updated_at: datetime
+
+
+@dataclass
+class WeeklyDigestHistoryResponse:
+    """Response DTO for weekly digest history."""
+
+    records: list[WeeklyDigestSendRecordDTO]
+    total: int
+    limit: int
+    offset: int

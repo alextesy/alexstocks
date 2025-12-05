@@ -253,6 +253,9 @@ jobs:
           update_task_definition "market-pulse-hourly-historical-append" "task-def-hourly-historical-append" || {
             if [ $? -eq 1 ]; then HAS_FAILURES=1; fi
           }
+          update_task_definition "market-pulse-send-weekly-digest" "task-def-send-weekly-digest" || {
+            if [ $? -eq 1 ]; then HAS_FAILURES=1; fi
+          }
           
           # Fail the workflow if any registration failed
           if [ $HAS_FAILURES -eq 1 ]; then
@@ -377,6 +380,7 @@ jobs:
           import_resource "aws_cloudwatch_log_group" "historical_backfill" "/ecs/$PROJECT_NAME-jobs/historical-backfill" || true
           import_resource "aws_cloudwatch_log_group" "daily_historical_append" "/ecs/$PROJECT_NAME-jobs/daily-historical-append" || true
           import_resource "aws_cloudwatch_log_group" "hourly_historical_append" "/ecs/$PROJECT_NAME-jobs/hourly-historical-append" || true
+          import_resource "aws_cloudwatch_log_group" "send_weekly_digest" "/ecs/$PROJECT_NAME-jobs/send-weekly-digest" || true
           
           # Import IAM roles
           import_resource "aws_iam_role" "ecs_task_execution" "$PROJECT_NAME-ecs-task-execution" || true
@@ -400,6 +404,7 @@ jobs:
           import_resource "aws_scheduler_schedule" "send_daily_emails" "default/$PROJECT_NAME-send-daily-emails" || true
           import_resource "aws_scheduler_schedule" "daily_historical_append" "default/$PROJECT_NAME-daily-historical-append" || true
           import_resource "aws_scheduler_schedule" "hourly_historical_append" "default/$PROJECT_NAME-hourly-historical-append" || true
+          import_resource "aws_scheduler_schedule" "send_weekly_digest" "default/$PROJECT_NAME-send-weekly-digest" || true
           
           echo "Import step completed. Continuing with plan..."
 
@@ -509,6 +514,7 @@ jobs:
             echo "- [Historical Backfill Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Fhistorical-backfill)" >> $GITHUB_STEP_SUMMARY
             echo "- [Daily Historical Append Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Fdaily-historical-append)" >> $GITHUB_STEP_SUMMARY
             echo "- [Hourly Historical Append Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Fhourly-historical-append)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Send Weekly Digest Logs](https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252Fmarket-pulse-jobs\$252Fsend-weekly-digest)" >> $GITHUB_STEP_SUMMARY
           else
             echo "⏭️ Skipped" >> $GITHUB_STEP_SUMMARY
           fi

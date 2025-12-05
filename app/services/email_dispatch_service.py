@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.dto import (
     DailyTickerSummaryDTO,
+    EmailCadence,
     EmailSendResult,
     UserDTO,
 )
@@ -64,9 +65,24 @@ class EmailDispatchService:
         """Get all users eligible for daily briefing emails.
 
         Returns:
-            List of users with daily briefing enabled
+            List of users with daily briefing enabled AND email cadence
+            set to 'daily_only' or 'both'
         """
-        return self.user_repo.get_users_with_daily_briefing_enabled()
+        users = self.user_repo.get_users_with_daily_briefing_enabled()
+
+        # Filter by email cadence - only include users who want daily emails
+        eligible_users = []
+        for user in users:
+            cadence = self.user_repo.get_email_cadence(user.id)
+            if cadence in (EmailCadence.DAILY_ONLY, EmailCadence.BOTH):
+                eligible_users.append(user)
+            else:
+                logger.debug(
+                    "Skipping user - weekly_only cadence",
+                    extra={"user_id": user.id, "cadence": cadence.value},
+                )
+
+        return eligible_users
 
     def filter_users_with_summaries(
         self, users: list[UserDTO], summary_date: date

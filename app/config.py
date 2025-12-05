@@ -266,6 +266,70 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("TEST_EMAIL_RECIPIENT", "test_email_recipient"),
     )
 
+    # Weekly digest configuration
+    weekly_digest_schedule_day: str = Field(
+        default="SUN",
+        validation_alias=AliasChoices(
+            "WEEKLY_DIGEST_SCHEDULE_DAY", "weekly_digest_schedule_day"
+        ),
+        description="Day of week to run weekly digest (MON-SUN)",
+    )
+    weekly_digest_schedule_hour: int = Field(
+        default=9,
+        ge=0,
+        le=23,
+        validation_alias=AliasChoices(
+            "WEEKLY_DIGEST_SCHEDULE_HOUR", "weekly_digest_schedule_hour"
+        ),
+        description="Hour to run weekly digest job (UTC, 0-23)",
+    )
+    weekly_digest_batch_size: int = Field(
+        default=100,
+        ge=1,
+        validation_alias=AliasChoices(
+            "WEEKLY_DIGEST_BATCH_SIZE", "weekly_digest_batch_size"
+        ),
+        description="Number of users to process per batch",
+    )
+    weekly_digest_llm_model: str = Field(
+        default="gpt-4.1-mini",
+        validation_alias=AliasChoices(
+            "WEEKLY_DIGEST_LLM_MODEL", "weekly_digest_llm_model"
+        ),
+    )
+    weekly_digest_llm_max_tokens: int = Field(
+        default=2000,
+        ge=1,
+        validation_alias=AliasChoices(
+            "WEEKLY_DIGEST_LLM_MAX_TOKENS", "weekly_digest_llm_max_tokens"
+        ),
+    )
+    weekly_digest_llm_temperature: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        validation_alias=AliasChoices(
+            "WEEKLY_DIGEST_LLM_TEMPERATURE", "weekly_digest_llm_temperature"
+        ),
+    )
+    weekly_digest_default_cadence_new_users: str = Field(
+        default="both",
+        validation_alias=AliasChoices(
+            "WEEKLY_DIGEST_DEFAULT_CADENCE_NEW_USERS",
+            "weekly_digest_default_cadence_new_users",
+        ),
+        description="Default email cadence for new users: daily_only, weekly_only, both",
+    )
+    weekly_digest_max_tickers_per_user: int = Field(
+        default=20,
+        ge=1,
+        validation_alias=AliasChoices(
+            "WEEKLY_DIGEST_MAX_TICKERS_PER_USER",
+            "weekly_digest_max_tickers_per_user",
+        ),
+        description="Maximum tickers to include in weekly digest",
+    )
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
