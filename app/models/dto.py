@@ -394,3 +394,11 @@ class WeeklyDigestHistoryResponse:
     total: int
     limit: int
     offset: int
+
+
+@dataclass
+class UserDeletionResponseDTO:
+    """Response DTO for user account deletion."""
+
+    success: bool
+    message: str

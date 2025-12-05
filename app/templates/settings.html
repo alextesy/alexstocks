@@ -200,6 +200,79 @@
         </div>
     </div>
 
+    <!-- Delete Account Section -->
+    <div class="bg-white rounded-lg shadow-sm border p-8 mb-6 border-red-200">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-2">Delete Account</h2>
+        <p class="text-sm text-gray-600 mb-6">Permanently delete your account and all associated data. This action cannot be undone.</p>
+        
+        <button 
+            id="delete-account-button" 
+            class="px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+        >
+            <i class="fas fa-trash mr-2"></i>Delete Account
+        </button>
+    </div>
+
+    <!-- Delete Account Confirmation Dialog -->
+    <div id="delete-account-dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div class="p-6">
+                <h3 class="text-2xl font-bold text-gray-900 mb-4">Delete Account</h3>
+                
+                <div class="mb-6">
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                        <p class="text-red-800 font-bold text-lg mb-2">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                            WARNING: This action is PERMANENT and CANNOT BE UNDONE
+                        </p>
+                        <p class="text-red-700 text-sm">
+                            Once you delete your account, there is no way to recover your data or restore your account. This deletion is immediate and irreversible.
+                        </p>
+                    </div>
+                    
+                    <p class="text-gray-800 font-semibold mb-3">
+                        Deleting your account will permanently remove ALL of your data, including:
+                    </p>
+                    
+                    <ul class="list-disc list-inside text-gray-700 space-y-2 mb-4 ml-2">
+                        <li><strong>User Profile:</strong> Your display name, avatar, timezone, and all profile information</li>
+                        <li><strong>Preferences:</strong> All notification preferences and email cadence settings</li>
+                        <li><strong>Watchlist Tickers:</strong> All tickers you follow and their notification settings</li>
+                        <li><strong>Notification Settings:</strong> All notification channels and preferences</li>
+                        <li><strong>Email Send History:</strong> Complete history of all emails sent to you</li>
+                        <li><strong>Weekly Digest History:</strong> All weekly digest send records and history</li>
+                    </ul>
+                    
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                        <p class="text-yellow-800 text-sm">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            <strong>Session Invalidation:</strong> All active sessions across all devices will be immediately invalidated. You will be logged out everywhere.
+                        </p>
+                    </div>
+                    
+                    <p class="text-gray-700 text-sm">
+                        You can sign in again after deletion using the same email address, but a completely new account will be created with default settings.
+                    </p>
+                </div>
+                
+                <div class="flex justify-end space-x-4">
+                    <button 
+                        id="cancel-delete-button"
+                        class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        id="confirm-delete-button"
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <i class="fas fa-trash mr-2"></i>Delete Account
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Save Button -->
     <div class="flex justify-end space-x-4">
         <button 
@@ -492,7 +565,87 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Watchlist functionality
     setupWatchlist();
+    
+    // Delete account functionality
+    setupDeleteAccount();
 });
+
+// ===== Delete Account Functions =====
+
+function setupDeleteAccount() {
+    const deleteButton = document.getElementById('delete-account-button');
+    const dialog = document.getElementById('delete-account-dialog');
+    const cancelButton = document.getElementById('cancel-delete-button');
+    const confirmButton = document.getElementById('confirm-delete-button');
+    
+    // Show dialog on button click
+    deleteButton.addEventListener('click', () => {
+        dialog.classList.remove('hidden');
+    });
+    
+    // Hide dialog on cancel
+    cancelButton.addEventListener('click', () => {
+        dialog.classList.add('hidden');
+    });
+    
+    // Close dialog on background click
+    dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) {
+            dialog.classList.add('hidden');
+        }
+    });
+    
+    // Confirm deletion
+    confirmButton.addEventListener('click', async () => {
+        await deleteAccount();
+    });
+}
+
+async function deleteAccount() {
+    const confirmButton = document.getElementById('confirm-delete-button');
+    const dialog = document.getElementById('delete-account-dialog');
+    
+    // Disable button during deletion
+    confirmButton.disabled = true;
+    confirmButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
+    
+    try {
+        const response = await fetch('/api/users/me', {
+            method: 'DELETE',
+            credentials: 'include',
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Failed to delete account' }));
+            throw new Error(errorData.detail || 'Failed to delete account');
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Hide dialog
+            dialog.classList.add('hidden');
+            
+            // Show success message
+            showSuccess();
+            
+            // Redirect to login page after a short delay
+            setTimeout(() => {
+                window.location.href = '/auth/login';
+            }, 2000);
+        } else {
+            throw new Error(result.message || 'Account deletion failed');
+        }
+    } catch (error) {
+        // Re-enable button
+        confirmButton.disabled = false;
+        confirmButton.innerHTML = '<i class="fas fa-trash mr-2"></i>Delete Account';
+        
+        // Show error
+        showError(error.message || 'Failed to delete account. Please try again.');
+        console.error('Error deleting account:', error);
+    }
+}
 
 // ===== Watchlist Functions =====
 

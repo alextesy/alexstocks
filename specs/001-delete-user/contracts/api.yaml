@@ -1,0 +1,117 @@
+openapi: 3.0.3
+info:
+  title: Delete User Account API
+  description: API contract for user account deletion endpoint
+  version: 1.0.0
+  contact:
+    name: Market Pulse API
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://alexstocks.com
+    description: Production server
+
+paths:
+  /api/users/me:
+    delete:
+      summary: Delete current user account
+      description: |
+        Permanently delete the authenticated user's account and all associated data.
+        
+        **Important Notes:**
+        - This operation is irreversible
+        - All user data will be permanently deleted from all tables
+        - All active sessions will be immediately invalidated
+        - User can sign in again after deletion (new account will be created)
+        
+        **Deletion Scope:**
+        - User account (users table)
+        - User profile (user_profiles table)
+        - Notification channels (user_notification_channels table)
+        - Ticker follows/watchlist (user_ticker_follows table)
+        - Email send history (email_send_log table)
+        - Weekly digest history (weekly_digest_send_record table)
+        
+        **Process:**
+        1. Validates user authentication
+        2. Starts database transaction
+        3. Deletes user record (CASCADE handles related records)
+        4. Invalidates all active sessions
+        5. Logs deletion event
+        6. Sends Slack notification
+        7. Commits transaction (or rolls back on error)
+      operationId: deleteCurrentUser
+      tags:
+        - users
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Account successfully deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDeletionResponse'
+              example:
+                success: true
+                message: "Your account has been permanently deleted"
+        '401':
+          description: Not authenticated or invalid session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Not authenticated"
+        '403':
+          description: Forbidden - user cannot delete this account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "You can only delete your own account"
+        '500':
+          description: Internal server error - deletion failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Account deletion failed. Please try again or contact support."
+
+components:
+  schemas:
+    UserDeletionResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          description: Whether deletion was successful
+          example: true
+        message:
+          type: string
+          description: Human-readable message
+          example: "Your account has been permanently deleted"
+    
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Error message
+          example: "Account deletion failed. Please try again or contact support."
+  
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session_token
+      description: JWT session token stored in HTTP-only cookie
+

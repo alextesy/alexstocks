@@ -311,6 +311,58 @@ class SlackService:
             channel=self._users_channel,
         )
 
+    def notify_user_deleted(
+        self,
+        user_id: int,
+        email: str,
+        environment: str | None = None,
+    ) -> None:
+        """Notify that a user account has been deleted.
+
+        Args:
+            user_id: User ID that was deleted
+            email: User email address
+            environment: Environment name
+        """
+        env = environment or getattr(settings, "environment", "development")
+
+        blocks: list[dict[str, Any]] = [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "🗑️ User Account Deleted",
+                },
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Email:*\n{email}",
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*User ID:*\n{user_id}",
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Deleted At:*\n{datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}",
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Environment:*\n{env}",
+                    },
+                ],
+            },
+        ]
+
+        self.send_message(
+            text=f"User account deleted: {email}",
+            blocks=blocks,
+            channel=self._users_channel,
+        )
+
 
 def get_slack_service() -> SlackService:
     """Get Slack service instance."""
