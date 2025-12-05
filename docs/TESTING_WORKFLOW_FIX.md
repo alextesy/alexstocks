@@ -189,3 +189,4 @@ Checking market-pulse-stock-price-collector...
 - Test Script: `scripts/test_workflow_task_update.sh`
 - Terraform: `infrastructure/terraform/ecs.tf` (creates task definitions)
 
+

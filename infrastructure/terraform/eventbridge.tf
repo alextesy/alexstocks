@@ -326,6 +326,53 @@ resource "aws_scheduler_schedule" "hourly_historical_append" {
   description = "Append historical prices every hour (24/7) for all active tickers (10+ articles) + followed tickers"
 }
 
+# EventBridge Scheduler: Send Weekly Digest (weekly on Sunday at 9:00 UTC)
+resource "aws_scheduler_schedule" "send_weekly_digest" {
+  name       = "${var.project_name}-send-weekly-digest"
+  group_name = "default"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  # Run every Sunday at 9:00 UTC
+  schedule_expression = "cron(0 9 ? * SUN *)"
+
+  target {
+    arn      = aws_ecs_cluster.jobs.arn
+    role_arn = aws_iam_role.eventbridge_scheduler.arn
+
+    ecs_parameters {
+      task_definition_arn = aws_ecs_task_definition.send_weekly_digest.arn
+      platform_version    = "LATEST"
+
+      network_configuration {
+        subnets          = var.private_subnet_ids
+        security_groups  = [aws_security_group.ecs_tasks.id]
+        assign_public_ip = true  # Set to true for public subnets (no NAT Gateway)
+      }
+
+      # Enable Fargate Spot for cost savings
+      capacity_provider_strategy {
+        capacity_provider = "FARGATE_SPOT"
+        weight            = 1
+        base              = 0
+      }
+    }
+
+    retry_policy {
+      maximum_retry_attempts       = 2
+      maximum_event_age_in_seconds = 3600
+    }
+
+    dead_letter_config {
+      arn = aws_sqs_queue.send_weekly_digest_dlq.arn
+    }
+  }
+
+  description = "Send weekly digest emails every Sunday at 9:00 UTC"
+}
+
 # Dead Letter Queues for failed task invocations
 resource "aws_sqs_queue" "reddit_scraper_dlq" {
   name                      = "${var.project_name}-reddit-scraper-dlq"
@@ -371,6 +418,13 @@ resource "aws_sqs_queue" "daily_historical_append_dlq" {
 
 resource "aws_sqs_queue" "hourly_historical_append_dlq" {
   name                      = "${var.project_name}-hourly-historical-append-dlq"
+  message_retention_seconds = 259200 # 3 days
+
+  tags = local.common_tags
+}
+
+resource "aws_sqs_queue" "send_weekly_digest_dlq" {
+  name                      = "${var.project_name}-send-weekly-digest-dlq"
   message_retention_seconds = 259200 # 3 days
 
   tags = local.common_tags
@@ -489,6 +543,22 @@ resource "aws_sqs_queue_policy" "hourly_historical_append_dlq" {
   })
 }
 
+resource "aws_sqs_queue_policy" "send_weekly_digest_dlq" {
+  queue_url = aws_sqs_queue.send_weekly_digest_dlq.url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "scheduler.amazonaws.com"
+      }
+      Action   = "sqs:SendMessage"
+      Resource = aws_sqs_queue.send_weekly_digest_dlq.arn
+    }]
+  })
+}
+
 # Outputs
 output "reddit_scraper_schedule_name" {
   description = "Reddit scraper schedule name"
@@ -523,4 +593,9 @@ output "daily_historical_append_schedule_name" {
 output "hourly_historical_append_schedule_name" {
   description = "Hourly historical stock price append schedule name"
   value       = aws_scheduler_schedule.hourly_historical_append.name
+}
+
+output "send_weekly_digest_schedule_name" {
+  description = "Send weekly digest schedule name"
+  value       = aws_scheduler_schedule.send_weekly_digest.name
 }

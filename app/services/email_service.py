@@ -12,6 +12,7 @@ if TYPE_CHECKING:
         UserDTO,
         UserProfileDTO,
         UserTickerFollowDTO,
+        WeeklyDigestContent,
     )
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,28 @@ class EmailService(ABC):
             ticker_summaries: List of ticker summaries for the day
             user_profile: Optional user profile for personalization
             user_ticker_follows: Optional watchlist ordering to personalize content
+            unsubscribe_token: Signed token for unsubscribe link
+
+        Returns:
+            EmailSendResult with success status and metadata
+        """
+        pass
+
+    @abstractmethod
+    def send_weekly_digest(
+        self,
+        user: "UserDTO",
+        digest_content: "WeeklyDigestContent",
+        *,
+        user_profile: "UserProfileDTO | None" = None,
+        unsubscribe_token: str | None = None,
+    ) -> EmailSendResult:
+        """Send a weekly digest email to a user.
+
+        Args:
+            user: User to send email to
+            digest_content: Weekly digest content with synthesized summaries
+            user_profile: Optional user profile for personalization
             unsubscribe_token: Signed token for unsubscribe link
 
         Returns:

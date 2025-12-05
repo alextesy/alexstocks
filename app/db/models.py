@@ -598,6 +598,43 @@ class EmailSendLog(Base):
     user: Mapped["User"] = relationship("User")
 
 
+class WeeklyDigestSendRecord(Base):
+    """Track weekly digest send status per user per week for idempotent delivery."""
+
+    __tablename__ = "weekly_digest_send_record"
+
+    id: Mapped[int] = mapped_column(
+        BigIntegerCompat, primary_key=True, autoincrement=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    week_start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending"
+    )  # pending, sent, failed, skipped
+    ticker_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    days_with_data: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    skip_reason: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship("User")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "week_start_date", name="uq_weekly_digest_user_week"
+        ),
+    )
+
+
 # Indexes for performance
 Index("article_published_at_idx", Article.published_at.desc())
 Index("article_ticker_ticker_idx", ArticleTicker.ticker)
@@ -646,3 +683,11 @@ Index("email_send_log_user_idx", EmailSendLog.user_id)
 Index("email_send_log_summary_date_idx", EmailSendLog.summary_date)
 Index("email_send_log_sent_at_idx", EmailSendLog.sent_at.desc())
 Index("email_send_log_success_idx", EmailSendLog.success)
+# WeeklyDigestSendRecord indexes
+Index(
+    "weekly_digest_week_status_idx",
+    WeeklyDigestSendRecord.week_start_date,
+    WeeklyDigestSendRecord.status,
+)
+Index("weekly_digest_user_idx", WeeklyDigestSendRecord.user_id)
+Index("weekly_digest_created_idx", WeeklyDigestSendRecord.created_at.desc())

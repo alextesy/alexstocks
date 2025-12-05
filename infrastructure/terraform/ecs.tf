@@ -112,6 +112,13 @@ resource "aws_cloudwatch_log_group" "hourly_historical_append" {
   tags = local.common_tags
 }
 
+resource "aws_cloudwatch_log_group" "send_weekly_digest" {
+  name              = "/ecs/${var.project_name}-jobs/send-weekly-digest"
+  retention_in_days = var.log_retention_days
+
+  tags = local.common_tags
+}
+
 # ECS Task Definition: Reddit Scraper
 resource "aws_ecs_task_definition" "reddit_scraper" {
   family                   = "${var.project_name}-reddit-scraper"
@@ -473,6 +480,82 @@ resource "aws_ecs_task_definition" "historical_backfill" {
       logDriver = "awslogs"
       options = {
         "awslogs-group"         = aws_cloudwatch_log_group.historical_backfill.name
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "ecs"
+      }
+    }
+
+    stopTimeout = 120  # 2 minutes - Fargate max
+  }])
+
+  tags = local.common_tags
+}
+
+# ECS Task Definition: Send Weekly Digest
+resource "aws_ecs_task_definition" "send_weekly_digest" {
+  family                   = "${var.project_name}-send-weekly-digest"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.task_cpu
+  memory                   = var.task_memory_high
+  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([{
+    name      = "send-weekly-digest"
+    image     = "${local.ecr_repository_url}:${var.ecr_image_tag}"
+    essential = true
+
+    command = [
+      "python", "jobs/send_weekly_digest.py"
+    ]
+
+    environment = [
+      {
+        name  = "ENVIRONMENT"
+        value = var.environment
+      }
+    ]
+
+    secrets = [
+      {
+        name      = "POSTGRES_URL"
+        valueFrom = data.aws_secretsmanager_secret.postgres_url.arn
+      },
+      {
+        name      = "SLACK_BOT_TOKEN"
+        valueFrom = data.aws_secretsmanager_secret.slack_bot_token.arn
+      },
+      {
+        name      = "SLACK_DEFAULT_CHANNEL"
+        valueFrom = data.aws_secretsmanager_secret.slack_default_channel.arn
+      },
+      {
+        name      = "SLACK_USERS_CHANNEL"
+        valueFrom = data.aws_secretsmanager_secret.slack_users_channel.arn
+      },
+      {
+        name      = "EMAIL_FROM_ADDRESS"
+        valueFrom = data.aws_secretsmanager_secret.email_from_address.arn
+      },
+      {
+        name      = "AWS_SES_REGION"
+        valueFrom = data.aws_secretsmanager_secret.aws_ses_region.arn
+      },
+      {
+        name      = "TEST_EMAIL_RECIPIENT"
+        valueFrom = data.aws_secretsmanager_secret.test_email_recipient.arn
+      },
+      {
+        name      = "OPENAI_API_KEY"
+        valueFrom = data.aws_secretsmanager_secret.openai_api_key.arn
+      }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.send_weekly_digest.name
         "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "ecs"
       }

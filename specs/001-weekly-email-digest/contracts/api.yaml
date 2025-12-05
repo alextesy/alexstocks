@@ -1,0 +1,345 @@
+openapi: 3.0.3
+info:
+  title: Weekly Email Digest API
+  description: API endpoints for managing email cadence preferences and weekly digest operations
+  version: 1.0.0
+
+paths:
+  /api/users/me/email-cadence:
+    get:
+      summary: Get current email cadence preference
+      description: Returns the user's current email delivery cadence setting
+      operationId: getEmailCadence
+      tags:
+        - User Preferences
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current email cadence preference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailCadenceResponse'
+        '401':
+          description: Unauthorized - valid session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update email cadence preference
+      description: |
+        Set the user's email delivery cadence. Options:
+        - `daily_only`: Receive only daily summary emails
+        - `weekly_only`: Receive only weekly digest emails
+        - `both`: Receive both daily and weekly emails
+      operationId: updateEmailCadence
+      tags:
+        - User Preferences
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailCadenceUpdateRequest'
+      responses:
+        '200':
+          description: Email cadence updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailCadenceResponse'
+        '400':
+          description: Invalid cadence value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/users/me/weekly-digest/history:
+    get:
+      summary: Get weekly digest send history
+      description: Returns history of weekly digest emails sent to the user
+      operationId: getWeeklyDigestHistory
+      tags:
+        - Weekly Digest
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of records to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 52
+            default: 10
+        - name: offset
+          in: query
+          description: Number of records to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Weekly digest history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyDigestHistoryResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/admin/weekly-digest/trigger:
+    post:
+      summary: Manually trigger weekly digest job (admin only)
+      description: |
+        Triggers the weekly digest job for testing or recovery purposes.
+        Only available to admin users.
+      operationId: triggerWeeklyDigest
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerWeeklyDigestRequest'
+      responses:
+        '202':
+          description: Job triggered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobTriggerResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - admin access required
+
+  /api/admin/weekly-digest/stats:
+    get:
+      summary: Get weekly digest job statistics (admin only)
+      description: Returns statistics about weekly digest job runs
+      operationId: getWeeklyDigestStats
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: weeks
+          in: query
+          description: Number of weeks of history to include
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 52
+            default: 4
+      responses:
+        '200':
+          description: Weekly digest statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyDigestStatsResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - admin access required
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    EmailCadence:
+      type: string
+      enum:
+        - daily_only
+        - weekly_only
+        - both
+      description: Email delivery cadence options
+
+    EmailCadenceResponse:
+      type: object
+      required:
+        - email_cadence
+        - updated_at
+      properties:
+        email_cadence:
+          $ref: '#/components/schemas/EmailCadence'
+        updated_at:
+          type: string
+          format: date-time
+          description: When the preference was last updated
+
+    EmailCadenceUpdateRequest:
+      type: object
+      required:
+        - email_cadence
+      properties:
+        email_cadence:
+          $ref: '#/components/schemas/EmailCadence'
+
+    WeeklyDigestRecord:
+      type: object
+      required:
+        - week_start_date
+        - status
+        - ticker_count
+        - days_with_data
+      properties:
+        week_start_date:
+          type: string
+          format: date
+          description: Monday of the ISO week (UTC)
+        status:
+          type: string
+          enum:
+            - pending
+            - sent
+            - failed
+            - skipped
+        ticker_count:
+          type: integer
+          description: Number of tickers included in digest
+        days_with_data:
+          type: integer
+          minimum: 0
+          maximum: 7
+          description: Number of days with summary data
+        sent_at:
+          type: string
+          format: date-time
+          nullable: true
+        skip_reason:
+          type: string
+          nullable: true
+          description: Reason if status is 'skipped'
+
+    WeeklyDigestHistoryResponse:
+      type: object
+      required:
+        - records
+        - total
+        - limit
+        - offset
+      properties:
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeeklyDigestRecord'
+        total:
+          type: integer
+          description: Total number of records
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    TriggerWeeklyDigestRequest:
+      type: object
+      properties:
+        week_start_date:
+          type: string
+          format: date
+          description: Specific week to process (defaults to current week)
+        dry_run:
+          type: boolean
+          default: false
+          description: If true, simulate without sending emails
+        user_ids:
+          type: array
+          items:
+            type: integer
+          description: Specific user IDs to process (defaults to all eligible)
+
+    JobTriggerResponse:
+      type: object
+      required:
+        - job_id
+        - status
+        - message
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+        message:
+          type: string
+
+    WeeklyDigestStatsResponse:
+      type: object
+      required:
+        - weeks
+      properties:
+        weeks:
+          type: array
+          items:
+            type: object
+            required:
+              - week_start_date
+              - total_eligible
+              - sent_count
+              - skipped_count
+              - failed_count
+              - success_rate
+            properties:
+              week_start_date:
+                type: string
+                format: date
+              total_eligible:
+                type: integer
+              sent_count:
+                type: integer
+              skipped_count:
+                type: integer
+              failed_count:
+                type: integer
+              success_rate:
+                type: number
+                format: float
+                minimum: 0
+                maximum: 1
+              job_duration_seconds:
+                type: number
+                nullable: true
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+

@@ -12,12 +12,16 @@ from app.config import settings
 from app.db.models import Ticker
 from app.db.session import get_db
 from app.models.dto import (
+    EmailCadence,
+    EmailCadenceResponse,
     UserProfileResponseDTO,
     UserProfileUpdateDTO,
     UserTickerFollowCreateDTO,
     UserTickerFollowDTO,
+    WeeklyDigestHistoryResponse,
 )
 from app.repos.user_repo import UserRepository
+from app.repos.weekly_digest_repo import WeeklyDigestRepository
 from app.services.auth_service import get_auth_service
 from app.services.user_notification_channel_service import (
     ensure_email_notification_channel,
@@ -223,6 +227,150 @@ async def update_current_user_profile(
         # Nickname uniqueness violation or validation error
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+# Email Cadence Endpoints
+
+
+class EmailCadenceUpdateRequest(BaseModel):
+    """Request model for updating email cadence."""
+
+    email_cadence: EmailCadence
+
+
+@router.get("/me/email-cadence", response_model=EmailCadenceResponse)
+async def get_email_cadence(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+) -> EmailCadenceResponse:
+    """Get current user's email cadence preference.
+
+    Returns:
+        EmailCadenceResponse with current cadence and last update time
+    """
+    repo = UserRepository(db)
+    profile = repo.get_profile(user_id)
+
+    if not profile:
+        # Create default profile if missing
+        from app.models.dto import UserProfileCreateDTO
+
+        profile_dto = UserProfileCreateDTO(
+            user_id=user_id,
+            timezone="UTC",
+            preferences={},
+        )
+        profile = repo.create_profile(profile_dto)
+        db.commit()
+        profile = repo.get_profile(user_id)
+        if not profile:
+            raise HTTPException(status_code=500, detail="Failed to create profile")
+
+    cadence = repo.get_email_cadence(user_id)
+
+    return EmailCadenceResponse(
+        email_cadence=cadence,
+        updated_at=profile.updated_at,
+    )
+
+
+@router.put("/me/email-cadence", response_model=EmailCadenceResponse)
+async def update_email_cadence(
+    request: EmailCadenceUpdateRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+) -> EmailCadenceResponse:
+    """Update current user's email cadence preference.
+
+    Args:
+        request: New email cadence preference (daily_only, weekly_only, or both)
+        user_id: Current user ID (from dependency)
+        db: Database session
+
+    Returns:
+        Updated EmailCadenceResponse
+
+    Raises:
+        400: If invalid cadence value
+        404: If user not found
+    """
+    repo = UserRepository(db)
+    profile = repo.get_profile(user_id)
+
+    if not profile:
+        # Create default profile if missing
+        from app.models.dto import UserProfileCreateDTO
+
+        profile_dto = UserProfileCreateDTO(
+            user_id=user_id,
+            timezone="UTC",
+            preferences={},
+        )
+        profile = repo.create_profile(profile_dto)
+        db.commit()
+        profile = repo.get_profile(user_id)
+        if not profile:
+            raise HTTPException(status_code=500, detail="Failed to create profile")
+
+    try:
+        success = repo.update_email_cadence(user_id, request.email_cadence)
+        if not success:
+            raise HTTPException(status_code=404, detail="User profile not found")
+
+        db.commit()
+
+        # Refresh profile to get updated timestamp
+        profile = repo.get_profile(user_id)
+        if not profile:
+            raise HTTPException(
+                status_code=500, detail="Profile not found after update"
+            )
+
+        logger.info(
+            "email_cadence_updated",
+            extra={"user_id": user_id, "cadence": request.email_cadence.value},
+        )
+
+        return EmailCadenceResponse(
+            email_cadence=request.email_cadence,
+            updated_at=profile.updated_at,
+        )
+
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/me/weekly-digest/history", response_model=WeeklyDigestHistoryResponse)
+async def get_weekly_digest_history(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+    limit: int = 10,
+    offset: int = 0,
+) -> WeeklyDigestHistoryResponse:
+    """Get current user's weekly digest send history.
+
+    Args:
+        user_id: Current user ID (from dependency)
+        db: Database session
+        limit: Maximum records to return (default 10)
+        offset: Pagination offset (default 0)
+
+    Returns:
+        WeeklyDigestHistoryResponse with records and pagination info
+    """
+    # Cap limit at 50
+    limit = min(limit, 50)
+
+    repo = WeeklyDigestRepository(db)
+    records, total = repo.get_user_history(user_id=user_id, limit=limit, offset=offset)
+
+    return WeeklyDigestHistoryResponse(
+        records=records,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 # Watchlist Management Endpoints

@@ -14,6 +14,7 @@ from app.db.models import (
     UserTickerFollow,
 )
 from app.models.dto import (
+    EmailCadence,
     UserCreateDTO,
     UserDTO,
     UserNotificationChannelCreateDTO,
@@ -396,6 +397,98 @@ class UserRepository:
         channel.updated_at = datetime.now(UTC)
         self.session.flush()
         return self._notification_channel_to_dto(channel)
+
+    # Email cadence operations
+    def get_email_cadence(self, user_id: int) -> EmailCadence:
+        """Get user's email cadence preference.
+
+        Args:
+            user_id: User ID to get cadence for
+
+        Returns:
+            EmailCadence enum value (defaults to DAILY_ONLY for existing users)
+        """
+        profile = self.session.get(UserProfile, user_id)
+        if not profile:
+            return EmailCadence.DAILY_ONLY
+
+        if profile.preferences and isinstance(profile.preferences, dict):
+            cadence_str = profile.preferences.get("email_cadence")
+            if cadence_str:
+                try:
+                    return EmailCadence(cadence_str)
+                except ValueError:
+                    logger.warning(
+                        "invalid_email_cadence",
+                        extra={"user_id": user_id, "cadence": cadence_str},
+                    )
+
+        # Default to daily_only for backward compatibility
+        return EmailCadence.DAILY_ONLY
+
+    def update_email_cadence(self, user_id: int, cadence: EmailCadence) -> bool:
+        """Update user's email cadence preference.
+
+        Args:
+            user_id: User ID to update
+            cadence: New email cadence preference
+
+        Returns:
+            True if updated successfully, False if user/profile not found
+        """
+        profile = self.session.get(UserProfile, user_id)
+        if not profile:
+            return False
+
+        if profile.preferences is None:
+            profile.preferences = {}
+
+        profile.preferences["email_cadence"] = cadence.value
+        profile.updated_at = datetime.now(UTC)
+        self.session.flush()
+
+        logger.info(
+            "email_cadence_updated",
+            extra={"user_id": user_id, "cadence": cadence.value},
+        )
+        return True
+
+    def get_users_with_weekly_digest_enabled(self) -> list[UserDTO]:
+        """Get all users who should receive weekly digest emails.
+
+        Returns users with email cadence set to 'weekly_only' or 'both',
+        who have a verified, enabled, non-bounced email channel.
+
+        Returns:
+            List of UserDTOs eligible for weekly digest
+        """
+        stmt = (
+            select(User)
+            .join(UserProfile, User.id == UserProfile.user_id)
+            .join(
+                UserNotificationChannel,
+                User.id == UserNotificationChannel.user_id,
+            )
+            .where(
+                User.is_deleted == False,  # noqa: E712
+                User.is_active == True,  # noqa: E712
+                UserNotificationChannel.channel_type == "email",
+                UserNotificationChannel.is_enabled == True,  # noqa: E712
+                UserNotificationChannel.is_verified == True,  # noqa: E712
+                UserNotificationChannel.email_bounced == False,  # noqa: E712
+            )
+        )
+
+        users = self.session.execute(stmt).unique().scalars().all()
+
+        # Filter by cadence preference in Python (JSONB query complexity)
+        eligible_users = []
+        for user in users:
+            cadence = self.get_email_cadence(user.id)
+            if cadence in (EmailCadence.WEEKLY_ONLY, EmailCadence.BOTH):
+                eligible_users.append(self._user_to_dto(user))
+
+        return eligible_users
 
     # UserTickerFollow operations
     def create_ticker_follow(
