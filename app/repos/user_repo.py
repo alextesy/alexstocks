@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import Text, cast, func, select
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.config import settings
 from app.db.models import (
@@ -238,6 +239,7 @@ class UserRepository:
         avatar_url: str | None = None,
         timezone: str | None = None,
         notification_defaults: dict | None = None,
+        email_cadence: EmailCadence | None = None,
     ) -> UserProfileDTO | None:
         """Update user profile with partial fields.
 
@@ -248,6 +250,7 @@ class UserRepository:
             timezone: New timezone
             notification_defaults: Notification preferences (merged into profile.preferences)
                 Expected keys: notify_on_surges, notify_on_most_discussed, notify_on_daily_briefing
+            email_cadence: Email delivery cadence preference
 
         Returns:
             Updated profile DTO or None if user not found
@@ -277,11 +280,24 @@ class UserRepository:
             profile.timezone = timezone
             updated = True
 
+        prefs_modified = False
         if notification_defaults is not None:
             # Merge notification defaults into preferences
             if profile.preferences is None:
                 profile.preferences = {}
             profile.preferences["notification_defaults"] = notification_defaults
+            prefs_modified = True
+
+        if email_cadence is not None:
+            if profile.preferences is None:
+                profile.preferences = {}
+            current_cadence = profile.preferences.get("email_cadence")
+            if current_cadence != email_cadence.value:
+                profile.preferences["email_cadence"] = email_cadence.value
+                prefs_modified = True
+
+        if prefs_modified:
+            flag_modified(profile, "preferences")
             updated = True
 
         if updated:
@@ -444,6 +460,7 @@ class UserRepository:
             profile.preferences = {}
 
         profile.preferences["email_cadence"] = cadence.value
+        flag_modified(profile, "preferences")  # Tell SQLAlchemy the dict changed
         profile.updated_at = datetime.now(UTC)
         self.session.flush()
 

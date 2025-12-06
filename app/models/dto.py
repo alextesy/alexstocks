@@ -1,8 +1,12 @@
 """Data Transfer Objects for API boundaries."""
 
+import os
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
+from pathlib import Path
+
+from pydantic import BaseModel, Field, field_validator
 
 from app.db.models import LLMSentimentCategory
 
@@ -275,6 +279,7 @@ class UserProfileResponseDTO:
     avatar_url: str | None  # Read-only, from OAuth provider
     timezone: str
     notification_defaults: dict  # notify_on_surges, notify_on_most_discussed
+    email_cadence: EmailCadence
     created_at: datetime
     updated_at: datetime
 
@@ -402,3 +407,85 @@ class UserDeletionResponseDTO:
 
     success: bool
     message: str
+
+
+# ============================================================================
+# Update Email DTOs
+# ============================================================================
+
+
+class UpdateEmailConfig(BaseModel):
+    """Pydantic model for update email configuration file."""
+
+    subject: str = Field(
+        ..., min_length=1, max_length=200, description="Email subject line"
+    )
+    body_html: str = Field(..., min_length=1, description="HTML email body content")
+    screenshots: list[str] = Field(
+        default_factory=list, description="List of screenshot file paths"
+    )
+    test_mode: bool = Field(
+        ..., description="If true, send only to test user; if false, send to all users"
+    )
+    batch_size: int = Field(
+        default=14, ge=1, le=100, description="Number of emails per batch"
+    )
+    batch_delay_seconds: float = Field(
+        default=1.0, ge=0.0, description="Delay between batches in seconds"
+    )
+
+    @field_validator("subject")
+    @classmethod
+    def validate_subject(cls, v: str) -> str:
+        """Validate and trim subject."""
+        trimmed = v.strip()
+        if not trimmed:
+            raise ValueError("subject cannot be empty")
+        if len(trimmed) > 200:
+            raise ValueError("subject exceeds 200 characters")
+        return trimmed
+
+    @field_validator("body_html")
+    @classmethod
+    def validate_body_html(cls, v: str) -> str:
+        """Validate and trim body_html."""
+        trimmed = v.strip()
+        if not trimmed:
+            raise ValueError("body_html cannot be empty")
+        return trimmed
+
+    @field_validator("screenshots")
+    @classmethod
+    def validate_screenshots(cls, v: list[str]) -> list[str]:
+        """Validate screenshot file paths."""
+        if len(v) > 10:
+            raise ValueError("Maximum 10 screenshots allowed")
+
+        valid_extensions = {".png", ".jpg", ".jpeg", ".gif"}
+        errors: list[str] = []
+
+        for path_str in v:
+            path = Path(path_str)
+
+            # Check if file exists
+            if not path.exists():
+                errors.append(f"Screenshot file not found: {path_str}")
+                continue
+
+            # Check if file is readable
+            if not os.access(path, os.R_OK):
+                errors.append(f"Screenshot file not readable: {path_str}")
+                continue
+
+            # Check file extension
+            ext = path.suffix.lower()
+            if ext not in valid_extensions:
+                errors.append(f"Screenshot must be PNG, JPG, or GIF: {path_str}")
+                continue
+
+        if errors:
+            raise ValueError("; ".join(errors))
+
+        return v
+
+    model_config = {"extra": "forbid"}

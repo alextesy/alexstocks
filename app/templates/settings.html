@@ -309,30 +309,12 @@ async function loadProfile() {
         
         profileData = await response.json();
         populateForm(profileData);
+        const cadence = profileData.email_cadence || 'both';
+        emailCadenceData = { email_cadence: cadence };
+        populateEmailCadenceCheckboxes(cadence);
     } catch (error) {
         showError('Failed to load profile data. Please refresh the page.');
         console.error('Error loading profile:', error);
-    }
-}
-
-// Load email cadence preference
-async function loadEmailCadence() {
-    try {
-        const response = await fetch('/api/users/me/email-cadence', {
-            credentials: 'include'
-        });
-        
-        if (!response.ok) {
-            if (response.status === 401) return;
-            throw new Error('Failed to load email cadence');
-        }
-        
-        emailCadenceData = await response.json();
-        populateEmailCadenceCheckboxes(emailCadenceData.email_cadence);
-    } catch (error) {
-        console.error('Error loading email cadence:', error);
-        // Default to both for new users if loading fails
-        populateEmailCadenceCheckboxes('both');
     }
 }
 
@@ -376,38 +358,6 @@ function getEmailCadenceFromCheckboxes() {
     return 'none';
 }
 
-// Save email cadence
-async function saveEmailCadence() {
-    const cadence = getEmailCadenceFromCheckboxes();
-    
-    // Skip if no change
-    if (emailCadenceData && emailCadenceData.email_cadence === cadence) {
-        return true;
-    }
-    
-    try {
-        const response = await fetch('/api/users/me/email-cadence', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({ email_cadence: cadence }),
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: 'Failed to update email cadence' }));
-            throw new Error(errorData.detail || 'Failed to update email cadence');
-        }
-        
-        emailCadenceData = await response.json();
-        return true;
-    } catch (error) {
-        console.error('Error saving email cadence:', error);
-        throw error;
-    }
-}
-
 // Populate form with profile data
 function populateForm(data) {
     document.getElementById('email').value = data.email || '';
@@ -425,7 +375,7 @@ function populateForm(data) {
     const defaults = data.notification_defaults || {};
     document.getElementById('notify-on-surges').checked = defaults.notify_on_surges === true;
     document.getElementById('notify-on-most-discussed').checked = defaults.notify_on_most_discussed === true;
-    // Note: daily/weekly briefing checkboxes are set by loadEmailCadence()
+    // Note: daily/weekly briefing checkboxes are set when loading the profile
 }
 
 // Update avatar preview
@@ -479,13 +429,15 @@ async function saveProfile() {
     saveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
     
     try {
+        const cadence = getEmailCadenceFromCheckboxes();
         const updateData = {
             nickname: nickname,
             timezone: document.getElementById('timezone').value,
             notification_defaults: {
                 notify_on_surges: document.getElementById('notify-on-surges').checked,
                 notify_on_most_discussed: document.getElementById('notify-on-most-discussed').checked,
-            }
+            },
+            email_cadence: cadence,
         };
         
         const response = await fetch('/api/users/me', {
@@ -504,10 +456,9 @@ async function saveProfile() {
         
         const updated = await response.json();
         profileData = updated;
-        
-        // Save email cadence preference
-        await saveEmailCadence();
-        
+        emailCadenceData = { email_cadence: updated.email_cadence || cadence };
+        populateEmailCadenceCheckboxes(emailCadenceData.email_cadence);
+
         // Reload the form to show updated values
         populateForm(updated);
         showSuccess();
@@ -524,7 +475,6 @@ async function saveProfile() {
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
     loadProfile();
-    loadEmailCadence();
     
     document.getElementById('save-button').addEventListener('click', saveProfile);
     
@@ -1006,4 +956,3 @@ async function reorderWatchlist(tickerOrders) {
 }
 </script>
 {% endblock %}
-

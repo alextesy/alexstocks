@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.models import Base, UserNotificationChannel, UserProfile
 from app.db.session import get_db
 from app.main import app
-from app.models.dto import UserCreateDTO, UserProfileCreateDTO
+from app.models.dto import EmailCadence, UserCreateDTO, UserProfileCreateDTO
 from app.repos.user_repo import UserRepository
 from app.services.auth_service import AuthService
 
@@ -111,6 +111,7 @@ def test_get_profile_no_profile(authenticated_client, test_user):
     assert data["avatar_url"] is None
     assert data["timezone"] == "UTC"
     assert data["notification_defaults"] == {}
+    assert data["email_cadence"] == EmailCadence.DAILY_ONLY.value
 
 
 def test_get_profile_with_existing_profile(
@@ -127,6 +128,7 @@ def test_get_profile_with_existing_profile(
     assert data["avatar_url"] == "https://example.com/avatar.jpg"
     assert data["timezone"] == "America/New_York"
     assert data["notification_defaults"] == {"notify_on_surges": True}
+    assert data["email_cadence"] == EmailCadence.DAILY_ONLY.value
 
 
 def test_update_profile_unauthenticated(override_db):
@@ -179,6 +181,22 @@ def test_update_profile_notification_defaults(
         **defaults,
     }
     assert data["notification_defaults"] == expected
+
+
+def test_update_profile_email_cadence(
+    authenticated_client, test_user_with_profile, test_session
+):
+    """Test updating email cadence via profile endpoint."""
+    test_user, _ = test_user_with_profile
+    response = authenticated_client.put(
+        "/api/users/me", json={"email_cadence": "weekly_only"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["email_cadence"] == EmailCadence.WEEKLY_ONLY.value
+
+    repo = UserRepository(test_session)
+    assert repo.get_email_cadence(test_user.id) == EmailCadence.WEEKLY_ONLY
 
 
 def test_update_profile_creates_notification_channel(

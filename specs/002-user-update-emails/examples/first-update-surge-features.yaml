@@ -1,0 +1,92 @@
+# First Update Email - New Surge Features & Weekly Email
+# This is the first update email announcing new features
+
+subject: "🎉 Welcome! New Features: Surge Analytics & Weekly Email Updates"
+body_html: |
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h1 style="color: #333; margin-top: 0;">Welcome to AlexStocks Updates! 🎉</h1>
+    
+    <p style="color: #666; line-height: 1.6;">
+      This is our <strong>first update email</strong> to keep you informed about new features and improvements. 
+      We're excited to share what we've been building!
+    </p>
+
+    <div style="background-color: #f8f9fa; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0;">
+      <h2 style="color: #333; margin-top: 0; font-size: 20px;">✨ New Surge Analytics Features</h2>
+      <p style="color: #666; margin-bottom: 15px;">
+        We've added powerful new ways to spot trending stocks and sentiment shifts:
+      </p>
+      
+      <div style="margin-bottom: 20px;">
+        <h3 style="color: #007bff; font-size: 16px; margin-bottom: 8px;">📈 Top Mention Surge</h3>
+        <p style="color: #666; margin: 0; line-height: 1.6;">
+          Discover which stocks are experiencing the biggest discussion surges right now. 
+          See real-time velocity scores that highlight the most talked-about tickers with price context.
+        </p>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <h3 style="color: #28a745; font-size: 16px; margin-bottom: 8px;">📊 Top Positive Sentiment Surge</h3>
+        <p style="color: #666; margin: 0; line-height: 1.6;">
+          Track stocks with the strongest positive sentiment momentum. Perfect for spotting 
+          bullish trends and optimistic market discussions.
+        </p>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <h3 style="color: #dc3545; font-size: 16px; margin-bottom: 8px;">📉 Top Negative Sentiment Surge</h3>
+        <p style="color: #666; margin: 0; line-height: 1.6;">
+          Monitor stocks experiencing negative sentiment spikes. Stay ahead of bearish trends 
+          and potential market concerns.
+        </p>
+      </div>
+    </div>
+
+    <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+      <h2 style="color: #333; margin-top: 0; font-size: 20px;">📧 Weekly Email Updates</h2>
+      <p style="color: #666; line-height: 1.6;">
+        You can now configure <strong>weekly email digests</strong> directly from your account settings! 
+        Get a curated summary of the week's most important market discussions, sentiment trends, and ticker highlights.
+      </p>
+      <p style="color: #666; margin-bottom: 0;">
+        <strong>👉 Set it up:</strong> Visit your <a href="https://alexstocks.com/config" style="color: #007bff; text-decoration: none;">config page</a> 
+        to enable weekly email updates and customize your preferences.
+      </p>
+    </div>
+
+    <div style="background-color: #e7f3ff; border-radius: 8px; padding: 20px; margin: 30px 0; text-align: center;">
+      <h2 style="color: #333; margin-top: 0;">🚀 Try These Features Today</h2>
+      <p style="color: #666; margin-bottom: 20px;">
+        All surge analytics are live on the homepage. Check them out and see what the market is talking about!
+      </p>
+      <a href="https://alexstocks.com" style="display: inline-block; background-color: #007bff; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+        Visit AlexStocks
+      </a>
+    </div>
+
+    <div style="border-top: 1px solid #e0e0e0; padding-top: 20px; margin-top: 30px;">
+      <h3 style="color: #333; font-size: 16px; margin-bottom: 10px;">💬 We'd Love Your Feedback</h3>
+      <p style="color: #666; line-height: 1.6; margin-bottom: 15px;">
+        As this is our first update email, we'd really appreciate your thoughts! 
+        What features would you like to see? What can we improve?
+      </p>
+      <p style="color: #666; margin-bottom: 0;">
+        <strong>Share with friends:</strong> If you find AlexStocks useful, please share it with others 
+        who might benefit from real-time market sentiment insights. Your support helps us grow!
+      </p>
+    </div>
+
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; font-size: 12px; color: #999;">
+      <p style="margin: 0;">
+        This email was sent by <a href="https://alexstocks.com" style="color: #007bff; text-decoration: none;">AlexStocks</a>
+      </p>
+      <p style="margin: 5px 0 0 0;">
+        You're receiving this because you have an active account. 
+        <a href="https://alexstocks.com/config" style="color: #007bff; text-decoration: none;">Manage email preferences</a>
+      </p>
+    </div>
+  </div>
+test_mode: true  # ⚠️ Set to false for production send
+batch_size: 14
+batch_delay_seconds: 1.0
+

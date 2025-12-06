@@ -5,7 +5,7 @@ Auto-generated from all feature plans. Last updated: 2025-12-05
 ## Active Technologies
 - Python 3.11+ (compatible with 3.12) + FastAPI, SQLAlchemy 2.x, Pydantic, slack-sdk, PyJWT (001-delete-user)
 - PostgreSQL 16 (with CASCADE foreign key constraints) (001-delete-user)
-
+- Python 3.11+ (matches constitution) (002-user-update-emails)
 - Python 3.11 + FastAPI, SQLAlchemy 2.x, LangChain, boto3 (SES), Pydantic (001-weekly-email-digest)
 
 ## Project Structure
@@ -24,8 +24,8 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 002-user-update-emails: Added Python 3.11+ (matches constitution)
 - 001-delete-user: Added Python 3.11+ (compatible with 3.12) + FastAPI, SQLAlchemy 2.x, Pydantic, slack-sdk, PyJWT
-
 - 001-weekly-email-digest: Added Python 3.11 + FastAPI, SQLAlchemy 2.x, LangChain, boto3 (SES), Pydantic
 
 <!-- MANUAL ADDITIONS START -->
