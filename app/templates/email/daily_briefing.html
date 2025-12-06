@@ -2,21 +2,21 @@
 {% set greeting_name = user.display_name or user.email %}
 
 {% block content %}
-<p style="font-size:16px; margin-bottom:8px;">Hi {{ greeting_name }},</p>
-<p class="text-secondary" style="font-size:16px; margin-bottom:24px;">
-    Here is your personalized {{ company_name }} briefing for <strong>{{ date_display }}</strong>
+<p style="font-size:16px; margin-bottom:8px; color:#f1f5f9;">Hi {{ greeting_name }},</p>
+<p style="font-size:16px; margin-bottom:24px; color:#cbd5e1;">
+    Here is your personalized {{ company_name }} briefing for <strong style="color:#f1f5f9;">{{ date_display }}</strong>
     ({{ timezone }}).
 </p>
 
 {% if has_tickers %}
     {% for ticker in tickers %}
-        <div class="ticker-card">
+        <div class="ticker-card" style="background-color: #0f172a; border: 1px solid #334155;">
             <div class="ticker-header">
                 <div class="ticker-header-text">
-                    <div class="ticker-symbol">{{ ticker.symbol }}</div>
-                    <div class="ticker-name">{{ ticker.name }}</div>
+                    <div class="ticker-symbol" style="color: #f1f5f9;">{{ ticker.symbol }}</div>
+                    <div class="ticker-name" style="color: #94a3b8;">{{ ticker.name }}</div>
                 </div>
-                <div class="sentiment-pill" style="border-color: {{ ticker.sentiment_color }}; color: {{ ticker.sentiment_color }};">
+                <div class="sentiment-pill" style="border: 1px solid {{ ticker.sentiment_color }}; color: {{ ticker.sentiment_color }}; background-color: rgba(0,0,0,0.2);">
                     <span>{{ ticker.sentiment_emoji }}</span>
                     <span>{{ ticker.sentiment_text_label }}</span>
                 </div>
@@ -25,20 +25,20 @@
                 <tr>
                     <td>
                         <div class="metric">
-                            <div class="metric-label">Mentions</div>
-                            <div class="metric-value">{{ ticker.mention_count }}</div>
+                            <div class="metric-label" style="color: #94a3b8;">Mentions</div>
+                            <div class="metric-value" style="color: #f1f5f9;">{{ ticker.mention_count }}</div>
                         </div>
                     </td>
                     <td>
                         <div class="metric">
-                            <div class="metric-label">Engagement</div>
-                            <div class="metric-value">{{ ticker.engagement_count }}</div>
+                            <div class="metric-label" style="color: #94a3b8;">Engagement</div>
+                            <div class="metric-value" style="color: #f1f5f9;">{{ ticker.engagement_count }}</div>
                         </div>
                     </td>
                     <td>
                         <div class="metric">
-                            <div class="metric-label">Participants</div>
-                            <div class="metric-value">
+                            <div class="metric-label" style="color: #94a3b8;">Participants</div>
+                            <div class="metric-value" style="color: #f1f5f9;">
                                 {% if ticker.participant_count %}
                                     {{ ticker.participant_count }}
                                 {% else %}
@@ -49,8 +49,8 @@
                     </td>
                     <td>
                         <div class="metric">
-                            <div class="metric-label">Last Price</div>
-                            <div class="metric-value">
+                            <div class="metric-label" style="color: #94a3b8;">Last Price</div>
+                            <div class="metric-value" style="color: #f1f5f9;">
                                 {% if ticker.last_price %}
                                     ${{ "%.2f"|format(ticker.last_price) }}
                                 {% else %}
@@ -63,21 +63,21 @@
             </table>
             {% if ticker.summary %}
                 <div style="margin-bottom:12px;">
-                    <p class="text-body" style="font-size:15px; line-height:1.6;">{{ ticker.summary }}</p>
+                    <p style="font-size:15px; line-height:1.6; color: #e2e8f0;">{{ ticker.summary }}</p>
                 </div>
             {% endif %}
 
             {% if ticker.bullets %}
-                <ul class="text-body" style="padding-left:18px; margin-bottom:12px;">
+                <ul style="padding-left:18px; margin-bottom:12px;">
                     {% for bullet in ticker.bullets %}
-                        <li style="margin-bottom:6px;">{{ bullet }}</li>
+                        <li style="margin-bottom:6px; color: #e2e8f0;">{{ bullet }}</li>
                     {% endfor %}
                 </ul>
             {% endif %}
 
             {% if ticker.top_articles %}
                 <div class="articles">
-                    <div class="text-muted-light" style="font-size:13px; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px;">
+                    <div style="font-size:13px; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; color: #64748b;">
                         Top Articles
                     </div>
                     {% for article in ticker.top_articles %}
@@ -85,9 +85,9 @@
                         {% if article.source == "reddit_comment" and article.preview %}
                             {% set article_title = article.preview %}
                         {% endif %}
-                        <div class="article">
-                            <a href="{{ article.url }}" class="article-title">{{ article_title }}</a>
-                            <div class="article-meta">
+                        <div class="article" style="border-bottom: 1px solid #334155;">
+                            <a href="{{ article.url }}" class="article-title" style="color: #60a5fa;">{{ article_title }}</a>
+                            <div class="article-meta" style="color: #94a3b8;">
                                 {{ article.source or "Source" }}
                                 {% if article.engagement_score %}
                                     · Engagement {{ "%.2f"|format(article.engagement_score) }}
@@ -96,30 +96,30 @@
                                     · Thread: {{ article.title }}
                                 {% endif %}
                             </div>
-                            <a href="{{ article.url }}" class="button">Read Article</a>
+                            <a href="{{ article.url }}" class="button" style="background-color: #3b82f6; color: #ffffff;">Read Article</a>
                         </div>
                     {% endfor %}
                 </div>
             {% else %}
-                <p class="text-muted" style="font-size:13px; margin:0;">
+                <p style="font-size:13px; margin:0; color: #94a3b8;">
                     No highlighted articles available for this ticker today.
                 </p>
             {% endif %}
         </div>
     {% endfor %}
 {% else %}
-    <div class="empty-state">
-        <p style="margin:0; font-size:16px;">No tickers from your watchlist had enough activity to summarize today.</p>
-        <p style="margin-top:8px; font-size:14px;">
+    <div class="empty-state" style="background-color: #1e293b; border: 1px dashed #475569; color: #94a3b8;">
+        <p style="margin:0; font-size:16px; color: #94a3b8;">No tickers from your watchlist had enough activity to summarize today.</p>
+        <p style="margin-top:8px; font-size:14px; color: #64748b;">
             Add more symbols to your watchlist to receive richer briefings.
         </p>
     </div>
 {% endif %}
 
-<p class="text-muted" style="font-size:14px; margin-top:32px;">
-    Want to update your watchlist? Visit <a href="{{ app_base_url }}">{{ app_base_url }}</a>.
+<p style="font-size:14px; margin-top:32px; color: #94a3b8;">
+    Want to update your watchlist or email preferences? Visit <a href="{{ app_base_url }}/settings" style="color: #60a5fa;">your settings</a>.
 </p>
-<p class="text-muted" style="font-size:14px;">
+<p style="font-size:14px; color: #94a3b8;">
     Stay informed with {{ company_name }}.
 </p>
 {% endblock %}

@@ -44,7 +44,21 @@ class EmailTemplateService:
         article_loader: Callable[[Sequence[int]], dict[int, dict]] | None = None,
         session_factory: Callable[[], Session] | None = None,
     ):
-        base_path = Path(template_dir or Path("app") / "templates" / "email")
+        if template_dir:
+            base_path = Path(template_dir)
+        else:
+            # Resolve path relative to project root (works from any directory)
+            # Look for project root by finding a directory with 'app' and 'jobs' subdirectories
+            current = Path(__file__).resolve().parent
+            project_root = None
+            for parent in [current] + list(current.parents):
+                if (parent / "app").exists() and (parent / "jobs").exists():
+                    project_root = parent
+                    break
+            if project_root is None:
+                # Fallback: assume we're in app/ directory
+                project_root = current.parent
+            base_path = project_root / "app" / "templates" / "email"
         self.template_dir = base_path
         loader = FileSystemLoader(str(base_path))
         self._html_env = Environment(

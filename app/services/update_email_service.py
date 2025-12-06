@@ -275,36 +275,75 @@ class UpdateEmailService:
             return html_body
 
         # Email-compatible template with inline CSS and table-based layout
-        # This ensures maximum compatibility across email clients (Gmail, Outlook, etc.)
+        # Matches the visual style of daily/weekly email templates
+        # Note: Dark mode CSS removed - email clients have inconsistent support
+        # and can cause text to become unreadable (light text on light backgrounds)
         template = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Update</title>
+    <title>AlexStocks Update</title>
+    <style>
+        body {{
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f7;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            color: #111827;
+        }}
+        a {{ color: #2563eb; text-decoration: none; }}
+        .email-wrapper {{
+            width: 100%;
+            padding: 32px 0;
+        }}
+        .email-container {{
+            max-width: 640px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
+            overflow: hidden;
+        }}
+        .email-content {{
+            padding: 32px;
+        }}
+        .email-footer {{
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 24px;
+            line-height: 1.5;
+        }}
+        .button {{
+            display: inline-block;
+            padding: 10px 18px;
+            border-radius: 9999px;
+            background-color: #111827;
+            color: #ffffff !important;
+            font-weight: 600;
+            margin-top: 8px;
+        }}
+        @media (max-width: 600px) {{
+            .email-content {{ padding: 20px; }}
+        }}
+    </style>
 </head>
-<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f4f4f4;">
-        <tr>
-            <td align="center" style="padding: 20px 0;">
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    <tr>
-                        <td style="padding: 40px 30px;">
-                            {content}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 20px 30px; border-top: 1px solid #e0e0e0; text-align: center; font-size: 12px; color: #999999;">
-                            <p style="margin: 0;">This email was sent by AlexStocks</p>
-                            <p style="margin: 5px 0 0 0;">
-                                <a href="https://alexstocks.com" style="color: #007bff; text-decoration: none;">Visit AlexStocks</a>
-                            </p>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
+<body>
+    <div class="email-wrapper">
+        <div class="email-container">
+            <div class="email-content">
+                {content}
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 13px; color: #6b7280; margin-top: 24px; line-height: 1.5;">
+            <p style="margin: 0;">You are receiving this email because you have an active AlexStocks account.</p>
+            <p style="margin: 8px 0 0 0;"><a href="https://alexstocks.com/settings" style="color: #2563eb; text-decoration: none;">Manage email preferences</a> · <a href="https://alexstocks.com" style="color: #2563eb; text-decoration: none;">Visit AlexStocks</a></p>
+            <p style="font-size: 11px; font-style: italic; margin-top: 16px; color: #9ca3af;">
+                <strong>Disclaimer:</strong> This is not financial advice. Always do your own research before making investment decisions.
+            </p>
+        </div>
+    </div>
 </body>
 </html>"""
 
