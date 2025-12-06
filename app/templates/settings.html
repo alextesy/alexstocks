@@ -197,6 +197,18 @@
                 </label>
                 <p class="text-sm text-gray-500 ml-6 mt-1">Receive a weekly email summary each Sunday with trends and insights from your watchlist</p>
             </div>
+
+            <div class="pt-4 border-t border-gray-100">
+                <label class="flex items-center">
+                    <input 
+                        type="checkbox" 
+                        id="email-opt-out" 
+                        class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                    >
+                    <span class="ml-2 text-sm font-medium text-gray-700">Do not email me any updates</span>
+                </label>
+                <p class="text-sm text-gray-500 ml-6 mt-1">Opt out of all email notifications, including daily and weekly briefings plus product updates</p>
+            </div>
         </div>
     </div>
 
@@ -322,35 +334,45 @@ async function loadProfile() {
 function populateEmailCadenceCheckboxes(cadence) {
     const dailyCheckbox = document.getElementById('notify-on-daily-briefing');
     const weeklyCheckbox = document.getElementById('notify-on-weekly-briefing');
+    const optOutCheckbox = document.getElementById('email-opt-out');
     
     switch(cadence) {
         case 'daily_only':
             dailyCheckbox.checked = true;
             weeklyCheckbox.checked = false;
+            optOutCheckbox.checked = false;
             break;
         case 'weekly_only':
             dailyCheckbox.checked = false;
             weeklyCheckbox.checked = true;
+            optOutCheckbox.checked = false;
             break;
         case 'both':
             dailyCheckbox.checked = true;
             weeklyCheckbox.checked = true;
+            optOutCheckbox.checked = false;
             break;
         case 'none':
             dailyCheckbox.checked = false;
             weeklyCheckbox.checked = false;
+            optOutCheckbox.checked = true;
             break;
         default:
             // Default to both for new users
             dailyCheckbox.checked = true;
             weeklyCheckbox.checked = true;
+            optOutCheckbox.checked = false;
     }
+    syncEmailOptOutState();
 }
 
 // Get email cadence from checkboxes
 function getEmailCadenceFromCheckboxes() {
     const daily = document.getElementById('notify-on-daily-briefing').checked;
     const weekly = document.getElementById('notify-on-weekly-briefing').checked;
+    const optOut = document.getElementById('email-opt-out').checked;
+
+    if (optOut) return 'none';
     
     if (daily && weekly) return 'both';
     if (daily) return 'daily_only';
@@ -477,6 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadProfile();
     
     document.getElementById('save-button').addEventListener('click', saveProfile);
+    setupEmailCadenceControls();
     
     // Nickname uniqueness check (debounced)
     let nicknameTimeout;
@@ -519,6 +542,48 @@ document.addEventListener('DOMContentLoaded', () => {
     // Delete account functionality
     setupDeleteAccount();
 });
+
+function syncEmailOptOutState() {
+    const dailyCheckbox = document.getElementById('notify-on-daily-briefing');
+    const weeklyCheckbox = document.getElementById('notify-on-weekly-briefing');
+    const optOutCheckbox = document.getElementById('email-opt-out');
+    
+    if (!dailyCheckbox || !weeklyCheckbox || !optOutCheckbox) return;
+    
+    const optOutChecked = optOutCheckbox.checked;
+    
+    dailyCheckbox.disabled = optOutChecked;
+    weeklyCheckbox.disabled = optOutChecked;
+    
+    if (optOutChecked) {
+        dailyCheckbox.checked = false;
+        weeklyCheckbox.checked = false;
+    }
+}
+
+function setupEmailCadenceControls() {
+    const dailyCheckbox = document.getElementById('notify-on-daily-briefing');
+    const weeklyCheckbox = document.getElementById('notify-on-weekly-briefing');
+    const optOutCheckbox = document.getElementById('email-opt-out');
+    
+    if (!dailyCheckbox || !weeklyCheckbox || !optOutCheckbox) return;
+    
+    const handleEmailCheckboxChange = () => {
+        if (dailyCheckbox.checked || weeklyCheckbox.checked) {
+            optOutCheckbox.checked = false;
+        }
+        syncEmailOptOutState();
+    };
+    
+    optOutCheckbox.addEventListener('change', () => {
+        syncEmailOptOutState();
+    });
+    
+    dailyCheckbox.addEventListener('change', handleEmailCheckboxChange);
+    weeklyCheckbox.addEventListener('change', handleEmailCheckboxChange);
+    
+    syncEmailOptOutState();
+}
 
 // ===== Delete Account Functions =====
 

@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db.models import User, UserNotificationChannel
-from app.models.dto import UpdateEmailConfig, UserDTO
+from app.models.dto import EmailCadence, UpdateEmailConfig, UserDTO
 from app.repos.user_repo import UserRepository
 from app.services.email_service import EmailService
 
@@ -58,7 +58,7 @@ class UpdateEmailService:
 
         Returns:
             List of active, non-deleted users with verified email addresses
-            (excludes users with bounced emails)
+            (excludes users with bounced emails or global email opt-outs)
         """
         stmt = (
             select(User)
@@ -76,7 +76,19 @@ class UpdateEmailService:
             )
         )
         users = self.session.execute(stmt).unique().scalars().all()
-        return [UserRepository._user_to_dto(user) for user in users]
+
+        eligible_users: list[UserDTO] = []
+        for user in users:
+            cadence = self.user_repo.get_email_cadence(user.id)
+            if cadence == EmailCadence.NONE:
+                logger.info(
+                    "update_email_skipped_opt_out",
+                    extra={"user_id": user.id, "email": user.email},
+                )
+                continue
+            eligible_users.append(UserRepository._user_to_dto(user))
+
+        return eligible_users
 
     def send_update_email(self, config: UpdateEmailConfig) -> UpdateEmailSummary:
         """Send update email to eligible users or test user.
