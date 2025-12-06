@@ -4,26 +4,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+    <meta name="supported-color-schemes" content="dark">
     <title>{{ company_name }} Daily Briefing</title>
     <style>
+        /* Dark theme - looks consistent in both light and dark email clients */
         body {
             margin: 0;
             padding: 0;
-            background-color: #f4f4f7;
+            background-color: #0f172a !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-            color: #111827;
+            color: #f1f5f9 !important;
         }
-        a { color: #2563eb; text-decoration: none; }
+        a { color: #60a5fa !important; text-decoration: none; }
         .email-wrapper {
             width: 100%;
             padding: 32px 0;
+            background-color: #0f172a !important;
         }
         .email-container {
             max-width: 640px;
             margin: 0 auto;
-            background-color: #ffffff;
+            background-color: #1e293b !important;
             border-radius: 16px;
-            box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
             overflow: hidden;
         }
         .email-content {
@@ -32,16 +35,16 @@
         .email-footer {
             text-align: center;
             font-size: 13px;
-            color: #6b7280;
+            color: #94a3b8 !important;
             margin-top: 24px;
             line-height: 1.5;
         }
         .ticker-card {
-            border: 1px solid #e5e7eb;
+            border: 1px solid #334155;
             border-radius: 14px;
             padding: 20px;
             margin-bottom: 16px;
-            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            background-color: #0f172a !important;
         }
         .ticker-header {
             display: flex;
@@ -62,10 +65,11 @@
             letter-spacing: 0.02em;
             display: block;
             margin-bottom: 4px;
+            color: #f1f5f9 !important;
         }
         .ticker-name {
             font-size: 14px;
-            color: #6b7280;
+            color: #94a3b8 !important;
             line-height: 1.4;
             display: block;
         }
@@ -106,7 +110,7 @@
         .metric-label {
             font-size: 12px;
             text-transform: uppercase;
-            color: #6b7280;
+            color: #94a3b8 !important;
             letter-spacing: 0.05em;
             margin-bottom: 4px;
             display: block;
@@ -115,6 +119,7 @@
             font-size: 18px;
             font-weight: 700;
             display: block;
+            color: #f1f5f9 !important;
         }
         .articles {
             margin-top: 12px;
@@ -122,7 +127,7 @@
         .article {
             margin-bottom: 10px;
             padding-bottom: 10px;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid #334155;
         }
         .article:last-child {
             border-bottom: none;
@@ -132,16 +137,17 @@
             font-weight: 600;
             margin-bottom: 4px;
             display: block;
+            color: #f1f5f9 !important;
         }
         .article-meta {
             font-size: 13px;
-            color: #6b7280;
+            color: #94a3b8 !important;
         }
         .button {
             display: inline-block;
             padding: 10px 18px;
             border-radius: 9999px;
-            background-color: #111827;
+            background-color: #3b82f6 !important;
             color: #ffffff !important;
             font-weight: 600;
             margin-top: 8px;
@@ -149,22 +155,28 @@
         .empty-state {
             padding: 32px;
             text-align: center;
-            background-color: #f8fafc;
+            background-color: #1e293b !important;
             border-radius: 16px;
-            border: 1px dashed #d1d5db;
-            color: #4b5563;
+            border: 1px dashed #475569;
+            color: #94a3b8 !important;
         }
         .text-body {
-            color: #1f2937;
+            color: #e2e8f0 !important;
         }
         .text-secondary {
-            color: #374151;
+            color: #cbd5e1 !important;
         }
         .text-muted {
-            color: #6b7280;
+            color: #94a3b8 !important;
         }
         .text-muted-light {
-            color: #9ca3af;
+            color: #64748b !important;
+        }
+        p, li, div {
+            color: #e2e8f0;
+        }
+        h1, h2, h3, h4 {
+            color: #f1f5f9 !important;
         }
         @media (max-width: 600px) {
             .email-content { padding: 20px; }
@@ -173,29 +185,26 @@
             .ticker-metrics td:nth-child(odd) { padding-left: 0; }
             .ticker-metrics td:nth-child(even) { padding-right: 0; }
         }
-        /* 
-         * Note: Dark mode CSS removed intentionally.
-         * Email clients have inconsistent support for @media (prefers-color-scheme: dark).
-         * Some clients apply text color changes but not background changes, making text unreadable.
-         * By using light mode only, email clients can apply their own dark mode inversion consistently.
-         */
     </style>
 </head>
-<body>
-    <div class="email-wrapper">
-        <div class="email-container">
+<body style="background-color: #0f172a; color: #f1f5f9;">
+    <div class="email-wrapper" style="background-color: #0f172a;">
+        <div class="email-container" style="background-color: #1e293b;">
             <div class="email-content">
                 {% block content %}{% endblock %}
             </div>
         </div>
-        <div class="email-footer">
-            <p>You are receiving this email because you subscribed to {{ company_name }} watchlist alerts.</p>
-            <p><a href="{{ unsubscribe_url }}">Unsubscribe</a> · Need help? <a href="mailto:{{ support_email }}">{{ support_email }}</a></p>
+        <div class="email-footer" style="color: #94a3b8;">
+            <p style="color: #94a3b8;">You are receiving this email because you subscribed to {{ company_name }} watchlist alerts.</p>
+            <p style="color: #94a3b8;"><a href="{{ unsubscribe_url }}" style="color: #60a5fa;">Unsubscribe</a> · Need help? <a href="mailto:{{ support_email }}" style="color: #60a5fa;">{{ support_email }}</a></p>
             {% if company_address %}
-            <p>{{ company_name }} · {{ company_address }}</p>
+            <p style="color: #94a3b8;">{{ company_name }} · {{ company_address }}</p>
             {% else %}
-            <p>{{ company_name }}</p>
+            <p style="color: #94a3b8;">{{ company_name }}</p>
             {% endif %}
+            <p style="font-size: 11px; font-style: italic; margin-top: 16px; color: #64748b;">
+                <strong>Disclaimer:</strong> This is not financial advice. Always do your own research before making investment decisions.
+            </p>
         </div>
     </div>
 </body>

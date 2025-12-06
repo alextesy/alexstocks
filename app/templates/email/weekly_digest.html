@@ -2,25 +2,25 @@
 {% set greeting_name = user.display_name or user.email %}
 
 {% block content %}
-<p style="font-size:16px; margin-bottom:8px;">Hi {{ greeting_name }},</p>
-<p class="text-secondary" style="font-size:16px; margin-bottom:24px;">
-    Here is your {{ company_name }} <strong>Weekly Digest</strong> for 
-    <strong>{{ week_start_display }} - {{ week_end_display }}</strong>
+<p style="font-size:16px; margin-bottom:8px; color:#f1f5f9;">Hi {{ greeting_name }},</p>
+<p style="font-size:16px; margin-bottom:24px; color:#cbd5e1;">
+    Here is your {{ company_name }} <strong style="color:#f1f5f9;">Weekly Digest</strong> for 
+    <strong style="color:#f1f5f9;">{{ week_start_display }} - {{ week_end_display }}</strong>
     ({{ timezone }}).
 </p>
 
 {% if digest_content and digest_content.total_tickers > 0 %}
     <!-- Weekly Headline -->
-    <div style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 16px; padding: 24px; margin-bottom: 24px; color: #ffffff;">
-        <h2 style="margin: 0 0 12px 0; font-size: 22px; font-weight: 700; line-height: 1.3;">
+    <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border-radius: 16px; padding: 24px; margin-bottom: 24px; color: #ffffff;">
+        <h2 style="margin: 0 0 12px 0; font-size: 22px; font-weight: 700; line-height: 1.3; color: #ffffff;">
             {{ digest_content.headline }}
         </h2>
         <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-            <span style="font-size: 14px; opacity: 0.9;">
+            <span style="font-size: 14px; color: rgba(255,255,255,0.9);">
                 📊 {{ digest_content.total_tickers }} tickers · {{ digest_content.days_with_data }} days of data
             </span>
             {% if digest_content.sentiment_direction %}
-                <span style="font-size: 14px; padding: 4px 12px; background: rgba(255,255,255,0.1); border-radius: 9999px;">
+                <span style="font-size: 14px; padding: 4px 12px; background: rgba(255,255,255,0.2); border-radius: 9999px; color: #ffffff;">
                     {% if digest_content.sentiment_direction.direction == "improving" %}
                         📈 Sentiment Improving
                     {% elif digest_content.sentiment_direction.direction == "declining" %}
@@ -35,13 +35,13 @@
 
     <!-- Key Highlights -->
     {% if digest_content.highlights %}
-    <div class="ticker-card" style="margin-bottom: 20px;">
-        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 12px;">
+    <div class="ticker-card" style="margin-bottom: 20px; background-color: #0f172a; border: 1px solid #334155;">
+        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 12px;">
             🎯 Key Highlights
         </div>
         <ul style="padding-left: 18px; margin: 0;">
             {% for highlight in digest_content.highlights %}
-                <li class="text-body" style="margin-bottom: 8px; line-height: 1.5;">{{ highlight }}</li>
+                <li style="margin-bottom: 8px; line-height: 1.5; color: #e2e8f0;">{{ highlight }}</li>
             {% endfor %}
         </ul>
     </div>
@@ -49,23 +49,23 @@
 
     <!-- Top Signals -->
     {% if digest_content.top_signals %}
-    <div class="ticker-card" style="margin-bottom: 20px;">
-        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 12px;">
+    <div class="ticker-card" style="margin-bottom: 20px; background-color: #0f172a; border: 1px solid #334155;">
+        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 12px;">
             🔥 Top Signals This Week
         </div>
         {% for signal in digest_content.top_signals %}
-        <div style="margin-bottom: 16px; {% if not loop.last %}border-bottom: 1px solid #e5e7eb; padding-bottom: 16px;{% endif %}">
-            <div style="font-weight: 600; font-size: 15px; margin-bottom: 6px;">{{ signal.theme }}</div>
-            <div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">
+        <div style="margin-bottom: 16px; {% if not loop.last %}border-bottom: 1px solid #334155; padding-bottom: 16px;{% endif %}">
+            <div style="font-weight: 600; font-size: 15px; margin-bottom: 6px; color: #f1f5f9;">{{ signal.theme }}</div>
+            <div style="font-size: 14px; color: #94a3b8; margin-bottom: 4px;">
                 Tickers: 
                 {% for ticker in signal.tickers_involved %}
-                    <a href="{{ app_base_url }}/t/{{ ticker }}" style="color: #2563eb;">{{ ticker }}</a>{% if not loop.last %}, {% endif %}
+                    <a href="{{ app_base_url }}/t/{{ ticker }}" style="color: #60a5fa;">{{ ticker }}</a>{% if not loop.last %}, {% endif %}
                 {% endfor %}
             </div>
             {% if signal.examples %}
             <ul style="padding-left: 18px; margin: 8px 0 0 0;">
                 {% for example in signal.examples %}
-                    <li class="text-muted" style="font-size: 13px;">{{ example }}</li>
+                    <li style="font-size: 13px; color: #94a3b8;">{{ example }}</li>
                 {% endfor %}
             </ul>
             {% endif %}
@@ -75,27 +75,27 @@
     {% endif %}
 
     <!-- Ticker Summaries -->
-    <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 12px;">
+    <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 12px;">
         📈 Your Watchlist This Week
     </div>
     
     {% for ticker in digest_content.ticker_summaries %}
-    <div class="ticker-card">
+    <div class="ticker-card" style="background-color: #0f172a; border: 1px solid #334155;">
         <div class="ticker-header">
             <div class="ticker-header-text">
-                <a href="{{ app_base_url }}/t/{{ ticker.ticker }}" class="ticker-symbol" style="text-decoration: none; color: inherit;">
+                <a href="{{ app_base_url }}/t/{{ ticker.ticker }}" class="ticker-symbol" style="text-decoration: none; color: #f1f5f9;">
                     {{ ticker.sentiment_emoji }} {{ ticker.ticker }}
                 </a>
-                <div class="ticker-name">{{ ticker.ticker_name }}</div>
+                <div class="ticker-name" style="color: #94a3b8;">{{ ticker.ticker_name }}</div>
             </div>
-            <div style="font-size: 13px; color: #6b7280; text-align: right;">
+            <div style="font-size: 13px; color: #94a3b8; text-align: right;">
                 {{ ticker.mention_count }} mentions
             </div>
         </div>
-        <p class="text-body" style="font-size: 15px; line-height: 1.6; margin: 0;">
+        <p style="font-size: 15px; line-height: 1.6; margin: 0; color: #e2e8f0;">
             {{ ticker.one_liner }}
         </p>
-        <a href="{{ app_base_url }}/t/{{ ticker.ticker }}" class="button" style="margin-top: 12px;">
+        <a href="{{ app_base_url }}/t/{{ ticker.ticker }}" class="button" style="margin-top: 12px; background-color: #3b82f6; color: #ffffff;">
             View Details →
         </a>
     </div>
@@ -103,13 +103,13 @@
 
     <!-- Risks & Opportunities -->
     {% if digest_content.risks_opportunities %}
-    <div class="ticker-card" style="margin-top: 24px; margin-bottom: 20px;">
-        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 12px;">
+    <div class="ticker-card" style="margin-top: 24px; margin-bottom: 20px; background-color: #0f172a; border: 1px solid #334155;">
+        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 12px;">
             ⚠️ Watch Next Week
         </div>
         <ul style="padding-left: 18px; margin: 0;">
             {% for item in digest_content.risks_opportunities %}
-                <li class="text-body" style="margin-bottom: 8px; line-height: 1.5;">{{ item }}</li>
+                <li style="margin-bottom: 8px; line-height: 1.5; color: #e2e8f0;">{{ item }}</li>
             {% endfor %}
         </ul>
     </div>
@@ -117,36 +117,31 @@
 
     <!-- Next Actions -->
     {% if digest_content.next_actions %}
-    <div class="ticker-card" style="margin-bottom: 20px;">
-        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 12px;">
+    <div class="ticker-card" style="margin-bottom: 20px; background-color: #0f172a; border: 1px solid #334155;">
+        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 12px;">
             ✅ Recommended Actions
         </div>
         <ul style="padding-left: 18px; margin: 0;">
             {% for action in digest_content.next_actions %}
-                <li class="text-body" style="margin-bottom: 8px; line-height: 1.5;">{{ action }}</li>
+                <li style="margin-bottom: 8px; line-height: 1.5; color: #e2e8f0;">{{ action }}</li>
             {% endfor %}
         </ul>
     </div>
     {% endif %}
 
 {% else %}
-    <div class="empty-state">
-        <p style="margin:0; font-size:16px;">No significant activity for your watchlist this week.</p>
-        <p style="margin-top:8px; font-size:14px;">
+    <div class="empty-state" style="background-color: #1e293b; border: 1px dashed #475569; color: #94a3b8;">
+        <p style="margin:0; font-size:16px; color: #94a3b8;">No significant activity for your watchlist this week.</p>
+        <p style="margin-top:8px; font-size:14px; color: #64748b;">
             Add more symbols to your watchlist to receive richer weekly digests.
         </p>
     </div>
 {% endif %}
 
-<p class="text-muted" style="font-size:14px; margin-top:32px;">
-    Want to update your watchlist or email preferences? Visit <a href="{{ app_base_url }}/settings">your settings</a>.
+<p style="font-size:14px; margin-top:32px; color: #94a3b8;">
+    Want to update your watchlist or email preferences? Visit <a href="{{ app_base_url }}/settings" style="color: #60a5fa;">your settings</a>.
 </p>
-<p class="text-muted" style="font-size:14px;">
+<p style="font-size:14px; color: #94a3b8;">
     Stay informed with {{ company_name }}.
 </p>
-<p class="text-muted" style="font-size:12px; margin-top:24px; padding-top:16px; border-top:1px solid #e5e7eb; font-style:italic;">
-    <strong>Disclaimer:</strong> The information provided in this email is for informational purposes only and does not constitute financial advice, investment recommendations, or an offer to buy or sell any securities. Always do your own research and consult with a qualified financial advisor before making investment decisions.
-</p>
 {% endblock %}
-
-
