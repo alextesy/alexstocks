@@ -280,6 +280,23 @@ send-daily-emails-dry-run: ## Run the daily email dispatch job in dry-run mode
 send-daily-emails-test: ## Run the daily email dispatch job sending only to TEST_EMAIL_RECIPIENT (actually sends, not dry-run)
 	cd jobs && PYTHONPATH=.. uv run python jobs/send_daily_emails.py --test-email-only
 
+send-weekly-digest: ## Run the weekly digest dispatch job locally
+	cd jobs && PYTHONPATH=.. uv run python jobs/send_weekly_digest.py
+
+send-weekly-digest-dry-run: ## Run the weekly digest dispatch job in dry-run mode
+	cd jobs && PYTHONPATH=.. uv run python jobs/send_weekly_digest.py --dry-run
+
+send-weekly-digest-test: ## Run the weekly digest dispatch job sending only to TEST_EMAIL_RECIPIENT (actually sends, not dry-run)
+	cd jobs && PYTHONPATH=.. uv run python jobs/send_weekly_digest.py --test-email-only
+
+send-weekly-digest-user: ## Run the weekly digest dispatch job for specific user (EMAIL=user@example.com)
+	@if [ -z "$(EMAIL)" ]; then \
+		echo "❌ Error: EMAIL required"; \
+		echo "Usage: make send-weekly-digest-user EMAIL=user@example.com"; \
+		exit 1; \
+	fi
+	cd jobs && PYTHONPATH=.. uv run python jobs/send_weekly_digest.py --user-email $(EMAIL)
+
 # Combined Jobs (Scraping + Sentiment)
 scrape-and-analyze-posts: ## Scrape Reddit posts and analyze sentiment
 	cd jobs && PYTHONPATH=.. uv run python -m jobs.scrape_and_analyze posts
