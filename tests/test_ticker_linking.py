@@ -28,6 +28,7 @@ class TestTickerLinker:
             Mock(symbol="SPY"),
             Mock(symbol="QQQ"),
             Mock(symbol="MSFT"),
+            Mock(symbol="GOOG"),
             Mock(symbol="GOOGL"),
             Mock(symbol="AMZN"),
         ]
@@ -52,7 +53,7 @@ class TestTickerLinker:
 
     def test_initialization(self):
         """Test TickerLinker initialization."""
-        assert len(self.linker.tickers) == 10
+        assert len(self.linker.tickers) == 11
         assert self.linker.content_scraper == self.mock_content_scraper
         assert self.linker.context_analyzer == self.mock_context_analyzer
         assert self.mock_content_scraper.max_workers == 5
@@ -137,6 +138,17 @@ class TestTickerLinker:
         assert "TSLA" in matches
         assert "aapl" in matches["AAPL"]
         assert "tsla" in matches["TSLA"]
+
+    def test_aliases_map_to_canonical_symbol(self):
+        """GOOGL mentions should be stored under the GOOG canonical symbol."""
+
+        text = "Alphabet $GOOGL is spiking after earnings."
+
+        matches = self.linker._find_ticker_matches(text)
+
+        assert "GOOG" in matches
+        assert "GOOGL" not in matches
+        assert "$GOOGL" in matches["GOOG"]
 
     def test_find_ticker_matches_multiple_mentions(self):
         """Test handling multiple mentions of the same ticker."""
