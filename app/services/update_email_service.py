@@ -275,14 +275,14 @@ class UpdateEmailService:
             return html_body
 
         # Email-compatible template with inline CSS and table-based layout
-        # Matches the visual style of daily/weekly email templates with dark mode support
+        # Matches the visual style of daily/weekly email templates
+        # Note: Dark mode CSS removed - email clients have inconsistent support
+        # and can cause text to become unreadable (light text on light backgrounds)
         template = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="color-scheme" content="light dark">
-    <meta name="supported-color-schemes" content="light dark">
     <title>AlexStocks Update</title>
     <style>
         body {{
@@ -326,31 +326,6 @@ class UpdateEmailService:
         }}
         @media (max-width: 600px) {{
             .email-content {{ padding: 20px; }}
-        }}
-        @media (prefers-color-scheme: dark) {{
-            body {{
-                background-color: #0f172a;
-                color: #f1f5f9;
-            }}
-            a {{
-                color: #93c5fd;
-            }}
-            .email-container {{
-                background-color: #1e293b;
-            }}
-            .button {{
-                background-color: #f8fafc;
-                color: #0f172a !important;
-            }}
-            h1, h2, h3 {{
-                color: #f1f5f9 !important;
-            }}
-            p {{
-                color: #e2e8f0 !important;
-            }}
-            .email-footer, .email-footer p {{
-                color: #cbd5f5 !important;
-            }}
         }}
     </style>
 </head>

@@ -4,8 +4,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="color-scheme" content="light dark">
-    <meta name="supported-color-schemes" content="light dark">
     <title>{{ company_name }} Daily Briefing</title>
     <style>
         body {
@@ -175,44 +173,12 @@
             .ticker-metrics td:nth-child(odd) { padding-left: 0; }
             .ticker-metrics td:nth-child(even) { padding-right: 0; }
         }
-        @media (prefers-color-scheme: dark) {
-            body {
-                background-color: #0f172a;
-                color: #f1f5f9;
-            }
-            a {
-                color: #93c5fd;
-            }
-            .email-container {
-                background-color: #1e293b;
-            }
-            .ticker-card {
-                background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-                border-color: #334155;
-            }
-            .metric-label,
-            .article-meta,
-            .ticker-name,
-            .empty-state,
-            .empty-state p {
-                color: #cbd5f5;
-            }
-            .button {
-                background-color: #f8fafc;
-                color: #0f172a !important;
-            }
-            .articles .article {
-                border-color: #334155;
-            }
-            .text-body,
-            .text-secondary {
-                color: #e2e8f0 !important;
-            }
-            .text-muted,
-            .text-muted-light {
-                color: #cbd5f5 !important;
-            }
-        }
+        /* 
+         * Note: Dark mode CSS removed intentionally.
+         * Email clients have inconsistent support for @media (prefers-color-scheme: dark).
+         * Some clients apply text color changes but not background changes, making text unreadable.
+         * By using light mode only, email clients can apply their own dark mode inversion consistently.
+         */
     </style>
 </head>
 <body>
