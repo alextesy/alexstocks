@@ -279,6 +279,7 @@ class UserProfileResponseDTO:
     avatar_url: str | None  # Read-only, from OAuth provider
     timezone: str
     notification_defaults: dict  # notify_on_surges, notify_on_most_discussed
+    email_cadence: EmailCadence
     created_at: datetime
     updated_at: datetime
 

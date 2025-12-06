@@ -65,6 +65,7 @@ def db_session(test_engine, test_db_session):
                 "user_notification_channels",
                 "user_profiles",
                 "users",
+                "weekly_digest_send_record",
                 "article_ticker",
                 "article",
                 "ticker",

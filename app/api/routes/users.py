@@ -97,6 +97,7 @@ async def get_current_user_profile(
         avatar_url=profile.avatar_url,
         timezone=profile.timezone,
         notification_defaults=notification_defaults,
+        email_cadence=repo.get_email_cadence(user_id),
         created_at=user.created_at,
         updated_at=profile.updated_at,
     )
@@ -161,6 +162,7 @@ async def update_current_user_profile(
             avatar_url=update_data.avatar_url,
             timezone=update_data.timezone,
             notification_defaults=update_data.notification_defaults,
+            email_cadence=update_data.email_cadence,
         )
 
         if not updated_profile:
@@ -211,10 +213,12 @@ async def update_current_user_profile(
                     "timezone": update_data.timezone is not None,
                     "notification_defaults": update_data.notification_defaults
                     is not None,
+                    "email_cadence": update_data.email_cadence is not None,
                 },
             },
         )
 
+        email_cadence = repo.get_email_cadence(user_id)
         return UserProfileResponseDTO(
             id=user.id,
             email=user.email,
@@ -222,6 +226,7 @@ async def update_current_user_profile(
             avatar_url=updated_profile.avatar_url,
             timezone=updated_profile.timezone,
             notification_defaults=notification_defaults,
+            email_cadence=email_cadence,
             created_at=user.created_at,
             updated_at=updated_profile.updated_at,
         )
