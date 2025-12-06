@@ -1,0 +1,8 @@
+# Minimal Update Email Config (Test Mode)
+# This is the simplest config - just subject, body, and test mode
+
+subject: "Test Update Email"
+body_html: |
+  <p>This is a test email to verify the update email system is working.</p>
+test_mode: true
+

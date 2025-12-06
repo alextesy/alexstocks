@@ -1,0 +1,24 @@
+# Auto-Generated Update Email Config Template
+# This is an example of what auto-generation produces
+# Run: python app/scripts/send_update_email.py --auto-generate --output config.yaml
+
+subject: "Recent Updates"
+body_html: |
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <h1 style="color: #333;">Recent Updates</h1>
+    <p style="color: #666;">Here are the features we've added in the last 30 days:</p>
+    <ul style="list-style: none; padding: 0;">
+      <li style="margin-bottom: 20px; padding: 15px; border-left: 3px solid #007bff; background-color: #f8f9fa;">
+        <h2 style="color: #333; margin-top: 0;">Feature Name</h2>
+        <p style="color: #666;">Feature description...</p>
+        <small style="color: #999;">Added: 2025-01-27</small>
+      </li>
+    </ul>
+    <p style="color: #666;">Try them out and let us know what you think!</p>
+    <p><a href="https://alexstocks.com" style="color: #007bff;">Visit AlexStocks</a></p>
+  </div>
+screenshots: []
+test_mode: true  # Always start with test mode!
+batch_size: 14
+batch_delay_seconds: 1.0
+

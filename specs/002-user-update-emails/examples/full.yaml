@@ -1,0 +1,23 @@
+# Full Update Email Config (Production with Screenshots)
+# This example shows all available options
+
+subject: "Exciting New Features Available!"
+body_html: |
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <h1 style="color: #333;">What's New</h1>
+    <p style="color: #666;">We've been busy adding new features:</p>
+    <ul>
+      <li>Feature A - Improved dashboard</li>
+      <li>Feature B - Enhanced analytics</li>
+      <li>Feature C - Better notifications</li>
+    </ul>
+    <p style="color: #666;">Check them out and let us know what you think!</p>
+    <p><a href="https://alexstocks.com" style="color: #007bff;">Visit AlexStocks</a></p>
+  </div>
+screenshots:
+  - "screenshots/dashboard.png"
+  - "screenshots/analytics.jpg"
+test_mode: false  # ⚠️ Set to true for testing!
+batch_size: 14
+batch_delay_seconds: 1.0
+

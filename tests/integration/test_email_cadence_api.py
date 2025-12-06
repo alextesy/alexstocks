@@ -9,6 +9,12 @@ from app.db.models import User, UserProfile
 from app.models.dto import EmailCadence
 
 
+@pytest.fixture(autouse=True)
+def setup_postgres_url(monkeypatch):
+    """Set postgres URL before each test to satisfy config validation."""
+    monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost:5432/test")
+
+
 @pytest.fixture
 def mock_auth():
     """Mock authentication to return a test user."""
@@ -167,10 +173,10 @@ class TestCadenceValidation:
             EmailCadence("invalid")
 
         with pytest.raises(ValueError):
-            EmailCadence("none")
-
-        with pytest.raises(ValueError):
             EmailCadence("")
+
+        # "none" is actually a valid cadence value
+        assert EmailCadence("none") == EmailCadence.NONE
 
 
 class TestCadenceFiltering:

@@ -1,0 +1,147 @@
+# Update Email Config File Schema
+
+**Purpose**: Defines the structure and validation rules for the YAML/JSON config file used by `send_update_email.py`
+
+**Version**: 1.0.0  
+**Date**: 2025-01-27
+
+## Schema Definition
+
+```yaml
+# Update Email Configuration Schema
+type: object
+required:
+  - subject
+  - body_html
+  - test_mode
+properties:
+  subject:
+    type: string
+    minLength: 1
+    maxLength: 200
+    description: Email subject line
+    example: "New Features Available!"
+  
+  body_html:
+    type: string
+    minLength: 1
+    description: HTML email body content (can be multi-line in YAML)
+    example: |
+      <h1>Check out our latest updates!</h1>
+      <p>We've added some exciting new features...</p>
+  
+  screenshots:
+    type: array
+    items:
+      type: string
+      description: File path to screenshot image (relative or absolute)
+    maxItems: 10
+    description: List of screenshot file paths (optional)
+    example:
+      - "screenshots/feature1.png"
+      - "/absolute/path/to/feature2.jpg"
+  
+  test_mode:
+    type: boolean
+    description: If true, send only to test user; if false, send to all eligible users
+    example: true
+  
+  batch_size:
+    type: integer
+    minimum: 1
+    maximum: 100
+    default: 14
+    description: Number of emails to send per batch (for rate limiting)
+    example: 14
+  
+  batch_delay_seconds:
+    type: number
+    minimum: 0.0
+    default: 1.0
+    description: Delay in seconds between batches
+    example: 1.0
+```
+
+## Example Config Files
+
+### Minimal Config (Test Mode)
+
+```yaml
+subject: "Test Update Email"
+body_html: "<p>This is a test email.</p>"
+test_mode: true
+```
+
+### Full Config (Production)
+
+```yaml
+subject: "Exciting New Features Available!"
+body_html: |
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <h1 style="color: #333;">Check out our latest updates!</h1>
+    <p>We've added some exciting new features that you'll love:</p>
+    <ul>
+      <li>Feature 1</li>
+      <li>Feature 2</li>
+      <li>Feature 3</li>
+    </ul>
+    <p>Try them out and let us know what you think!</p>
+  </div>
+screenshots:
+  - "screenshots/dashboard.png"
+  - "screenshots/analytics.jpg"
+test_mode: false
+batch_size: 14
+batch_delay_seconds: 1.0
+```
+
+## Validation Rules
+
+1. **subject**: 
+   - Required, non-empty after trimming
+   - Maximum 200 characters
+   - Should not contain only whitespace
+
+2. **body_html**:
+   - Required, non-empty after trimming
+   - Should contain valid HTML (basic validation)
+   - Should not be empty or whitespace-only
+
+3. **screenshots**:
+   - Optional (default: empty list)
+   - Each path must exist and be readable
+   - Files must be valid image formats (PNG, JPG, GIF)
+   - Maximum 10 screenshots
+   - File size limit: 5MB per image (recommended)
+
+4. **test_mode**:
+   - Required boolean
+   - If true, only test user receives email
+   - If false, all eligible users receive email
+
+5. **batch_size**:
+   - Optional (default: 14)
+   - Must be between 1 and 100
+   - Recommended: 14 (matches AWS SES rate limit)
+
+6. **batch_delay_seconds**:
+   - Optional (default: 1.0)
+   - Must be >= 0.0
+   - Recommended: 1.0 second between batches
+
+## Error Messages
+
+| Validation Error | Message |
+|------------------|---------|
+| Missing `subject` | "subject is required" |
+| Empty `subject` | "subject cannot be empty" |
+| `subject` too long | "subject exceeds 200 characters" |
+| Missing `body_html` | "body_html is required" |
+| Empty `body_html` | "body_html cannot be empty" |
+| Invalid screenshot path | "Screenshot file not found: {path}" |
+| Invalid image format | "Screenshot must be PNG, JPG, or GIF: {path}" |
+| Too many screenshots | "Maximum 10 screenshots allowed" |
+| Missing `test_mode` | "test_mode is required" |
+| Invalid `batch_size` | "batch_size must be between 1 and 100" |
+| Invalid `batch_delay_seconds` | "batch_delay_seconds must be >= 0.0" |
+

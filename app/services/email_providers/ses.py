@@ -384,3 +384,104 @@ class SESEmailService(EmailService):
             True if the error is due to rate limiting
         """
         return error_code in {"Throttling", "ThrottlingException"}
+
+    def send_raw_email(
+        self,
+        to_email: str,
+        raw_message: bytes,
+        from_email: str | None = None,
+    ) -> EmailSendResult:
+        """Send a raw MIME email message using AWS SES.
+
+        Args:
+            to_email: Recipient email address
+            raw_message: Raw MIME message bytes
+            from_email: Override from email address (not used, extracted from message)
+
+        Returns:
+            EmailSendResult with success status and metadata
+        """
+        from_address = from_email or settings.email_from_address
+
+        try:
+            response = self.client.send_raw_email(
+                Source=from_address,
+                Destinations=[to_email],
+                RawMessage={"Data": raw_message},
+            )
+
+            message_id = response.get("MessageId")
+            logger.info(
+                "Raw email sent successfully",
+                extra={
+                    "provider": self.provider_name,
+                    "message_id": message_id,
+                    "to_email": to_email,
+                },
+            )
+
+            return EmailSendResult(
+                success=True,
+                message_id=message_id,
+                error=None,
+                provider=self.provider_name,
+            )
+
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            error_message = e.response.get("Error", {}).get("Message", str(e))
+
+            if self._is_permanent_failure(error_code):
+                logger.warning(
+                    "Permanent email failure",
+                    extra={
+                        "provider": self.provider_name,
+                        "error_code": error_code,
+                        "error_message": error_message,
+                        "to_email": to_email,
+                    },
+                )
+                raise EmailPermanentFailureError(
+                    f"Permanent failure: {error_message}",
+                    provider=self.provider_name,
+                    original_error=e,
+                ) from e
+
+            if self._is_rate_limit_error(error_code):
+                raise EmailRateLimitError(
+                    f"Rate limit exceeded: {error_message}",
+                    provider=self.provider_name,
+                    original_error=e,
+                ) from e
+
+            logger.error(
+                "Failed to send raw email",
+                extra={
+                    "provider": self.provider_name,
+                    "to_email": to_email,
+                    "error": str(e),
+                },
+                exc_info=True,
+            )
+            return EmailSendResult(
+                success=False,
+                message_id=None,
+                error=str(e),
+                provider=self.provider_name,
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send raw email",
+                extra={
+                    "provider": self.provider_name,
+                    "to_email": to_email,
+                    "error": str(e),
+                },
+                exc_info=True,
+            )
+            return EmailSendResult(
+                success=False,
+                message_id=None,
+                error=str(e),
+                provider=self.provider_name,
+            )

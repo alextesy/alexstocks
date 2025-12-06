@@ -124,6 +124,31 @@ class EmailService(ABC):
         """
         pass
 
+    def send_raw_email(
+        self,
+        to_email: str,
+        raw_message: bytes,
+        from_email: str | None = None,
+    ) -> EmailSendResult:
+        """Send a raw MIME email message.
+
+        This method allows sending emails with inline images or other MIME parts.
+        Default implementation converts to regular send_email if provider doesn't support raw.
+
+        Args:
+            to_email: Recipient email address
+            raw_message: Raw MIME message bytes
+            from_email: Override from email address
+
+        Returns:
+            EmailSendResult with success status and metadata
+        """
+        # Default implementation: raise NotImplementedError
+        # Providers should override if they support raw email sending
+        raise NotImplementedError(
+            f"Raw email sending not supported by {self.provider_name} provider"
+        )
+
 
 def get_email_service() -> EmailService:
     """Factory function to get the configured email service.

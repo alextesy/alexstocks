@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import Text, cast, func, select
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.config import settings
 from app.db.models import (
@@ -444,6 +445,7 @@ class UserRepository:
             profile.preferences = {}
 
         profile.preferences["email_cadence"] = cadence.value
+        flag_modified(profile, "preferences")  # Tell SQLAlchemy the dict changed
         profile.updated_at = datetime.now(UTC)
         self.session.flush()
 
