@@ -144,6 +144,10 @@ resource "aws_ecs_task_definition" "reddit_scraper" {
       {
         name  = "ENVIRONMENT"
         value = var.environment
+      },
+      {
+        name  = "SENTIMENT_STRATEGY"
+        value = "hybrid"
       }
     ]
 
@@ -218,6 +222,10 @@ resource "aws_ecs_task_definition" "sentiment_analysis" {
       {
         name  = "ENVIRONMENT"
         value = var.environment
+      },
+      {
+        name  = "SENTIMENT_STRATEGY"
+        value = "hybrid"
       }
     ]
 
